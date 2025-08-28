@@ -91,6 +91,7 @@ impl ProxyService {
     /// # Arguments
     /// 
     /// * `config` - Proxy configuration including backend addresses and timeouts
+    /// * `metrics` - Shared metrics collector for observability
     /// 
     /// # Returns
     /// 
@@ -106,14 +107,14 @@ impl ProxyService {
     /// 
     /// ```rust
     /// use pingora_proxy_demo::{ProxyService, ProxyConfig};
+    /// use pingora_proxy_demo::metrics::MetricsCollector;
     /// use std::sync::Arc;
     /// 
-    /// let config = ProxyConfig::default();
-    /// let service = ProxyService::new(Arc::new(config));
+    /// let config = Arc::new(ProxyConfig::default());
+    /// let metrics = Arc::new(MetricsCollector::new());
+    /// let service = ProxyService::new(config, metrics);
     /// ```
-    pub fn new(config: Arc<ProxyConfig>) -> Self {
-        let metrics = Arc::new(metrics::MetricsCollector::new());
-        
+    pub fn new(config: Arc<ProxyConfig>, metrics: Arc<metrics::MetricsCollector>) -> Self {
         info!(
             backend_addr = %config.backend_addr,
             timeout_ms = config.timeout.as_millis(),
