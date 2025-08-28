@@ -9,12 +9,12 @@ REGRESSION_THRESHOLD=10.0
 BENCHMARK_JSON="benchmark.json"
 
 echo "🚀 Running benchmarks with JSON output..."
-CRITERION_HOME=./.prior_bench cargo criterion --message-format=json --output-format=quiet > "$BENCHMARK_JSON" 2>/dev/null
+CRITERION_HOME=./.prior_bench cargo criterion --message-format=json --output-format=quiet > "$BENCHMARK_JSON"
 
 echo "🔍 Checking for performance regressions (threshold: ${REGRESSION_THRESHOLD}%)..."
 
 # Use jq to find regressions >5% slower
-regressions=$(jq -r 'select(.reason == "benchmark-complete" and has("change") and .change.mean.estimate > 0.05) | "\(.id): +\((.change.mean.estimate * 100) | round)%"' "$BENCHMARK_JSON" 2>/dev/null || echo "")
+regressions=$(jq -r 'select(.reason == "benchmark-complete" and has("change") and .change.mean.estimate > 0.05) | "\(.id): +\((.change.mean.estimate * 100) | round)%"' "$BENCHMARK_JSON" || echo "")
 
 if [[ -n "$regressions" ]]; then
     echo ""
