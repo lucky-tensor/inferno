@@ -1,0 +1,22 @@
+name: Benchmark
+on:
+  push:
+  pull_request:
+    branches: [main]
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust Stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+      - name: Run benchmarks
+        run: cargo bench -- --output-format bencher | tee benchmark.txt
+      - name: Upload benchmark report
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-report
+          path: benchmark.txt

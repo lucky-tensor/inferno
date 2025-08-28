@@ -1,0 +1,41 @@
+# Rust build and dependency files
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Test output
+/tests/output/
+
+# By-products of cargo commands
+**/*.d
+**/*.rlib
+**/*.rmeta
+**/*.exe
+**/*.dll
+**/*.so
+**/*.dylib
+**/*.a
+**/*.lib
+
+# Coverage and profiling
+/coverage/
+*.profraw
+*.profdata
+
+# Misc
+*.log
+
+# Ignore CACHEDIR.TAG
+CACHEDIR.TAG
