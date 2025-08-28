@@ -3,78 +3,139 @@
 
 ## Overview
 
-This project demonstrates a comprehensive, production-ready approach to building a high-performance, self-healing cloud for AI inference. The implementation follows Test-Driven Development (TDD) principles and showcases best practices for distributed systems engineering in Rust.
+This project demonstrates a comprehensive, production-ready approach to building a high-performance, self-healing cloud for AI inference. The implementation consists of multiple specialized components working together to provide intelligent load balancing, service discovery, cost optimization, and AI inference capabilities. The implementation follows Test-Driven Development (TDD) principles and showcases best practices for distributed systems engineering in Rust.
+
+## System Components
+
+The Inferno system consists of four main components, each designed as separate Rust crates for maximum performance and modularity:
+
+1. **Proxy (Load Balancer)** - High-performance reverse proxy with intelligent routing
+2. **Backend** - AI inference nodes with health monitoring and metrics
+3. **Governator** - Cost optimization and resource allocation decisions  
+4. **CLI** - Unified command-line interface that can start any component
+
+For detailed documentation on each component, see:
+- [Service Configuration Guide](config-services.md) - Complete configuration for all components
+- [Service Discovery](service-discovery.md) - Simple registration and health checking
+- [Test Harness](test-harness.md) - Comprehensive testing strategy
+- [Governator](governator.md) - Cost optimization and resource governance
 
 ## Architecture Achievements
 
 ### 🏗️ Core Components Implemented
 
+#### Proxy Component (`inferno-proxy` crate)
 1. **Configuration Management (`src/config.rs`)**
-   - Environment variable-based configuration with `INFERNO_*` prefix
+   - Multi-source configuration: CLI args, environment variables, YAML files
    - Comprehensive validation with detailed error messages
    - Support for single backend and load-balanced multiple backends
    - TLS/SSL configuration with security validation
    - Default values optimized for development and production
 
-2. **Error Handling System (`src/error.rs`)**
+2. **Service Discovery Integration**
+   - Minimalist registration protocol for backend discovery
+   - Health checking via metrics port monitoring
+   - Automatic backend pool management
+   - Circuit breaker patterns for failed backends
+
+3. **Load Balancing & Routing**
+   - Intelligent upstream peer selection
+   - Request/response filtering and transformation
+   - Comprehensive error mapping and handling
+   - Security header injection
+
+#### Backend Component (`inferno-backend` crate)
+1. **AI Inference Engine**
+   - High-performance inference serving
+   - Model loading and management
+   - Request batching and optimization
+   - Resource utilization monitoring
+
+2. **Health & Metrics Reporting**
+   - Built-in metrics HTTP server
+   - Prometheus-compatible export format
+   - Ready/not-ready state management
+   - Performance and capacity reporting
+
+3. **Service Registration**
+   - Automatic registration with load balancers
+   - Periodic health announcements
+   - Graceful shutdown notifications
+
+#### Governator Component (`inferno-governator` crate)
+1. **Cost Analysis Engine**
+   - Real-time pricing data integration
+   - Performance vs cost optimization algorithms
+   - Hypothetical deployment modeling
+   - Multi-cloud cost comparison
+
+2. **Resource Decision Making**
+   - Binary start/stop decisions for compute nodes
+   - Quality of service threshold monitoring  
+   - Automated scaling recommendations
+   - Cloud provider API integrations
+
+3. **Data Collection & Storage**
+   - Embedded PostgreSQL with time-series optimization
+   - Multi-source telemetry aggregation
+   - Historical trend analysis
+   - Audit logging and compliance
+
+#### Shared Infrastructure
+1. **Error Handling System**
    - Custom error types with clear categorization
    - Automatic HTTP status code mapping
    - Temporary vs permanent error classification for retry logic
    - Source error chaining for debugging
    - Zero-allocation error paths where possible
 
-3. **Metrics Collection (`src/metrics.rs`)**
+2. **Metrics Collection Framework**
    - Lock-free atomic operations for high performance
    - Comprehensive request/response tracking
    - Latency histogram with configurable buckets
    - Backend health and connection monitoring
-   - Prometheus-compatible export format
 
-4. **Server Lifecycle (`src/server.rs`)**
+3. **Server Lifecycle Management**
    - Graceful startup and shutdown handling
    - Configuration hot-reloading support
-   - Background health checking with circuit breaker patterns
-   - Metrics HTTP server for observability
    - Resource cleanup and connection draining
-
-5. **Proxy Service (`src/lib.rs`)**
-   - Inferno Proxy trait implementation
-   - Upstream peer selection logic
-   - Request/response filtering and transformation
-   - Comprehensive error mapping and handling
-   - Security header injection
-
-6. **Main Application (`src/main.rs`)**
-   - Production-ready entry point with proper logging
-   - Environment-based configuration loading
-   - Startup validation and diagnostics
-   - User-friendly error messages and guidance
+   - Signal handling and process management
 
 ### 🧪 Testing Strategy
 
-1. **Unit Tests (`tests/unit_tests.rs`)**
+Our comprehensive testing strategy is documented in detail in the [Test Harness Guide](test-harness.md) and includes four levels of testing:
+
+#### 1. Unit Tests (Doc Tests)
+   - **Fast feedback**: Individual function testing within module definitions
+   - **Documentation**: Executable examples in code documentation
+   - **Isolation**: Testing individual functions without dependencies
+
+#### 2. Module Tests (`tests/<component>_tests.rs`)
    - **Configuration Tests**: Validation, environment variables, edge cases
    - **Metrics Tests**: Collection accuracy, concurrent access, calculations
    - **Error Tests**: Creation, classification, HTTP mapping, conversions
    - **Server Tests**: Lifecycle, configuration, resource management
-   - **Integration Tests**: Component interactions and end-to-end scenarios
-   - **Performance Tests**: Regression detection and performance bounds
+   - **Component Integration**: Testing interactions between modules
 
-2. **Integration Tests (`tests/integration_tests.rs`)**
-   - Full proxy request/response cycle testing
-   - Backend error handling and timeout scenarios
-   - Concurrent load testing with performance validation
-   - HTTP method support verification
-   - Header forwarding and manipulation testing
-   - Property-based testing for reliability
+#### 3. Integration Tests
+   - **Service Discovery**: Backend registration and load balancer integration
+   - **End-to-End Proxy**: Full request/response cycle testing
+   - **Backend Health**: Health monitoring and circuit breaker behavior
+   - **Governator Analysis**: Cost optimization decision making
+   - **Multi-Component**: Testing interactions between all components
 
-3. **Benchmarks (`benches/proxy_benchmarks.rs`)**
+#### 4. End-to-End Tests
+   - **Real Network**: Full binary execution with actual network interfaces
+   - **Load Testing**: Concurrent performance validation under realistic load
+   - **Failure Scenarios**: Network partitions, backend failures, recovery
+   - **Performance Validation**: Latency and throughput regression detection
+
+#### Benchmarking (`benches/`)
    - **Hot Path Benchmarks**: Critical request processing latency
    - **Concurrency Benchmarks**: Multi-threaded performance scaling
    - **Memory Benchmarks**: Allocation patterns and efficiency
    - **Scalability Benchmarks**: Performance under increasing load
-   - **Startup Benchmarks**: Cold start and initialization performance
-   - **Realistic Workload**: Mixed operation patterns
+   - **Component-Specific**: Specialized benchmarks for each crate
 
 ### ⚡ Performance Characteristics
 
@@ -149,6 +210,86 @@ This project demonstrates a comprehensive, production-ready approach to building
 - **Comprehensive Documentation**: README, code comments, and examples
 - **Testing Support**: Easy-to-run test suite with performance validation
 
+## Crate Architecture Design
+
+### Multi-Crate Strategy
+
+We develop with separate crates to achieve both performance and convenience:
+
+#### Individual Crates (Performance-Optimized)
+- **`inferno-proxy`** - Standalone reverse proxy binary with minimal dependencies
+- **`inferno-backend`** - AI inference node binary optimized for compute workloads  
+- **`inferno-governator`** - Resource governance binary focused on cost analysis
+- **`inferno-cli`** - Unified CLI that can spawn any node type
+
+#### Benefits of Separate Crates
+```rust
+// Each crate exposes its clap configuration
+pub fn proxy_cli() -> Command {
+    Command::new("proxy")
+        .about("High-performance reverse proxy")
+        .arg(arg!(--port <PORT>).default_value("8080"))
+        // ... proxy-specific args
+}
+
+pub fn backend_cli() -> Command {
+    Command::new("backend") 
+        .about("AI inference backend node")
+        .arg(arg!(--model <MODEL>).required(true))
+        // ... backend-specific args
+}
+
+pub fn governator_cli() -> Command {
+    Command::new("governator")
+        .about("Cost optimization and resource governance")
+        .arg(arg!(--providers <PROVIDERS>).required(true))
+        // ... governator-specific args
+}
+```
+
+#### CLI Composition
+The `inferno-cli` crate composes all component CLIs:
+```rust
+// inferno-cli/src/main.rs
+use inferno_proxy::proxy_cli;
+use inferno_backend::backend_cli;
+use inferno_governator::governator_cli;
+
+fn main() {
+    let app = Command::new("inferno")
+        .subcommand(proxy_cli())
+        .subcommand(backend_cli()) 
+        .subcommand(governator_cli());
+    
+    match app.get_matches() {
+        ("proxy", args) => inferno_proxy::run(args),
+        ("backend", args) => inferno_backend::run(args),
+        ("governator", args) => inferno_governator::run(args),
+        _ => unreachable!(),
+    }
+}
+```
+
+#### Deployment Options
+```bash
+# Minimal, performance-optimized binaries (production)
+./inferno-proxy --port 8080 --backends backend1:3000,backend2:3000
+./inferno-backend --model llama2 --discovery-lb lb1:8080
+./inferno-governator --providers aws,gcp --metrics prometheus:9090
+
+# Convenient single binary (development/testing)
+./inferno proxy --port 8080 --backends backend1:3000,backend2:3000
+./inferno backend --model llama2 --discovery-lb lb1:8080
+./inferno governator --providers aws,gcp --metrics prometheus:9090
+```
+
+### Design Benefits
+- **Performance**: Each binary contains only necessary code (no unused dependencies)
+- **Security**: Minimal attack surface per component
+- **Deployment**: Flexible deployment patterns (microservices vs monolith)
+- **Development**: Components can be developed and tested independently
+- **Operations**: Can run different components on different hardware profiles
+
 ## Technical Decisions
 
 ### Architecture Patterns
@@ -183,28 +324,68 @@ Our validation script confirmed all core components are working correctly:
 ✅ **Concurrent Operations**: Thread-safe metrics, no race conditions
 ✅ **Validation Logic**: Comprehensive input checking
 
-## Next Steps for Full Implementation
+## Current Implementation Status & Next Steps
 
-### Immediate Integration Tasks
-1. **Complete Pingora Integration**: Replace demo server loop with actual Pingora HTTP handling
-2. **Load Balancer Logic**: Implement round-robin, least-connections, and weighted algorithms
-3. **Health Check Integration**: Connect health checking to actual backend probing
-4. **TLS Implementation**: Add full TLS/SSL certificate handling
-5. **Connection Pooling**: Implement efficient backend connection management
+### Completed Foundation
+✅ **Proxy Component**: Core reverse proxy with configuration and metrics  
+✅ **Testing Infrastructure**: Comprehensive TDD approach with benchmarks  
+✅ **Documentation**: Complete architectural documentation and guides  
+✅ **Performance Framework**: Benchmarking and optimization patterns  
+✅ **Error Handling**: Robust error systems across all components  
 
-### Production Enhancements
-1. **Configuration Hot Reload**: Dynamic configuration updates without restart
-2. **Advanced Metrics**: Additional performance and business metrics
-3. **Rate Limiting**: Request rate limiting and DDoS protection
-4. **Caching**: HTTP response caching with TTL management
-5. **Advanced Load Balancing**: Geographic and latency-based routing
+### In Progress
+🔄 **Crate Separation**: Splitting into `inferno-proxy`, `inferno-backend`, `inferno-governator`, `inferno-cli`  
+🔄 **Service Discovery**: Implementation of minimalist registration protocol  
+🔄 **Governator Core**: Cost analysis engine and resource decision making  
 
-### Operational Features
-1. **Admin Interface**: Management API for runtime configuration
-2. **Graceful Updates**: Zero-downtime deployment support
-3. **Circuit Breaker**: Advanced failure detection and recovery
-4. **Request Tracing**: Distributed tracing integration
-5. **Performance Profiling**: Runtime performance analysis tools
+### Immediate Next Steps
+
+#### 1. Crate Architecture Implementation
+- [ ] Create separate crate directories and `Cargo.toml` files
+- [ ] Implement `clap` CLI interfaces for each component
+- [ ] Build unified `inferno-cli` crate with subcommand composition
+- [ ] Establish shared dependencies and common utilities
+
+#### 2. Backend Component Development  
+- [ ] AI inference engine integration (model loading, batching)
+- [ ] Health metrics endpoint (`/metrics` and `/telemetry`)
+- [ ] Service registration with load balancers
+- [ ] Resource utilization monitoring
+
+#### 3. Governator Implementation
+- [ ] Cost analysis algorithms and cloud pricing integration
+- [ ] PostgreSQL with TimescaleDB for time-series data
+- [ ] Binary start/stop decision engine
+- [ ] Multi-cloud provider API integrations
+
+#### 4. Service Discovery Integration
+- [ ] Backend registration protocol (`POST /register`)
+- [ ] Load balancer health checking via metrics ports
+- [ ] Automatic backend pool management
+- [ ] Circuit breaker patterns for failed backends
+
+### Production Readiness Tasks
+
+#### Advanced Features
+- [ ] **Configuration Hot Reload**: Dynamic configuration updates without restart
+- [ ] **Advanced Load Balancing**: Geographic and latency-based routing  
+- [ ] **Rate Limiting**: Request rate limiting and DDoS protection
+- [ ] **HTTP Caching**: Response caching with TTL management
+- [ ] **Request Tracing**: Distributed tracing integration
+
+#### Operational Excellence
+- [ ] **Admin Interface**: Management API for runtime configuration
+- [ ] **Graceful Updates**: Zero-downtime deployment support  
+- [ ] **Performance Profiling**: Runtime performance analysis tools
+- [ ] **Security Hardening**: TLS, authentication, and access controls
+- [ ] **Monitoring Integration**: Grafana dashboards and alerting
+
+#### Governator Advanced Features  
+- [ ] **ML-Based Optimization**: Machine learning for cost predictions
+- [ ] **Multi-Region Analysis**: Global resource optimization
+- [ ] **Capacity Planning**: Predictive scaling recommendations
+- [ ] **Cost Alerting**: Real-time cost anomaly detection
+- [ ] **Compliance Reporting**: SOC 2 and audit trail generation
 
 ## Conclusion
 
