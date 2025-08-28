@@ -2,8 +2,6 @@ name: Benchmark
 permissions:
   contents: write
 on:
-  push:
-    branches: ["**"]
   pull_request:
     branches: [main]
 jobs:
