@@ -7,15 +7,15 @@
 //!
 //! ```bash
 //! # Start proxy
-//! inferno proxy --port 8080 --backends backend1:3000,backend2:3000
+//! inferno proxy --listen-addr 0.0.0.0:8080 --backend-addr backend1:3000
 //!
 //! # Start backend
-//! inferno backend --model llama2 --discovery-lb lb1:8080,lb2:8080  
+//! inferno backend --model-path model.bin --listen-addr 0.0.0.0:3000
 //!
 //! # Start governator
-//! inferno governator --providers aws,gcp --metrics prometheus:9090
+//! inferno governator --providers aws,gcp --database-url postgresql://localhost/inferno
 //! ```
 
-pub mod commands;
+pub mod cli_options;
 
-pub use commands::*;
+pub use cli_options::{Cli, Commands};

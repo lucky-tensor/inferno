@@ -41,9 +41,11 @@ use pingora_proxy::{FailToProxy, ProxyHttp, Session};
 use std::sync::Arc;
 use tracing::{debug, error, info, instrument, warn};
 
+pub mod cli_options;
 pub mod config;
 pub mod server;
 
+pub use cli_options::ProxyCliOptions;
 pub use config::ProxyConfig;
 pub use server::ProxyServer;
 

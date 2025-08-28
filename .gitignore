@@ -39,3 +39,6 @@ Thumbs.db
 
 # Ignore CACHEDIR.TAG
 CACHEDIR.TAG
+
+# test files
+benchmarks.json

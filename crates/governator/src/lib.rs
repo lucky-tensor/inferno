@@ -11,9 +11,11 @@
 //! - Multi-cloud cost comparison
 //! - PostgreSQL with time-series optimization
 
+pub mod cli_options;
 pub mod config;
 pub mod cost_analysis;
 pub mod decision_engine;
 pub mod storage;
 
+pub use cli_options::GovernatorCliOptions;
 pub use config::GovernatorConfig;

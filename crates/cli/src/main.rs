@@ -5,21 +5,13 @@
 use clap::Parser;
 use inferno_cli::Cli;
 use inferno_shared::Result;
-use tracing::{error, info};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize logging
-    tracing_subscriber::fmt::init();
+    // Initialize basic logging for the CLI
+    tracing_subscriber::fmt().with_target(false).init();
 
-    info!("Starting Inferno CLI");
-
+    // Parse and run the CLI
     let cli = Cli::parse();
-
-    if let Err(e) = cli.run().await {
-        error!("Command failed: {}", e);
-        std::process::exit(1);
-    }
-
-    Ok(())
+    cli.run().await
 }

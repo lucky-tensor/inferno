@@ -2,32 +2,42 @@
 //!
 //! Cost optimization and resource governance server for Inferno distributed systems.
 
-use inferno_governator::GovernatorConfig;
+use clap::Parser;
+use inferno_governator::GovernatorCliOptions;
 use inferno_shared::Result;
-use tracing::info;
+use tracing::Level;
+use tracing_subscriber::FmtSubscriber;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize logging
-    tracing_subscriber::fmt::init();
+    // Parse command line options
+    let cli_opts = GovernatorCliOptions::parse();
 
-    info!("Starting Inferno Governator");
+    // Initialize logging with the specified level
+    init_logging(&cli_opts.log_level);
 
-    // Load configuration
-    let config = GovernatorConfig::from_env()?;
+    // Run the governator with the parsed options
+    cli_opts.run().await
+}
 
-    info!(
-        listen_addr = %config.listen_addr,
-        database_url = %config.database_url,
-        providers = ?config.providers,
-        "Governator server starting"
-    );
+/// Initialize logging with a specific level
+fn init_logging(level_str: &str) {
+    let level = match level_str.to_lowercase().as_str() {
+        "error" => Level::ERROR,
+        "warn" => Level::WARN,
+        "info" => Level::INFO,
+        "debug" => Level::DEBUG,
+        "trace" => Level::TRACE,
+        _ => Level::INFO,
+    };
 
-    // TODO: Implement actual governator server functionality
-    info!("Governator server is running (placeholder implementation)");
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(level)
+        .with_target(true)
+        .with_thread_ids(true)
+        .with_file(true)
+        .with_line_number(true)
+        .finish();
 
-    // For now, just sleep to keep the process running
-    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-
-    Ok(())
+    tracing::subscriber::set_global_default(subscriber).expect("Failed to set logging subscriber");
 }
