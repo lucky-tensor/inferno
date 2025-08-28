@@ -18,9 +18,14 @@ jobs:
         with:
           cache-on-failure: true
       - name: Run benchmarks
-        run: cargo bench | tee benchmark.txt
+        run: CRITERION_HOME=./.prior_bench cargo bench | tee benchmark.txt
       - name: Upload benchmark report
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-report
           path: benchmark.txt
+      - name: Commit and push prior_bench changes
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: ./.prior_bench
+          message: "Update benchmark results [skip ci]"
