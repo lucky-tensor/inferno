@@ -1,10 +1,10 @@
-//! # Pingora Proxy Demo - Main Entry Point
+//! # Inferno Proxy - Main Entry Point
 //!
 //! High-performance HTTP reverse proxy built with Cloudflare's Pingora framework.
 //!
 //! This demo showcases:
 //! - Zero-allocation request handling patterns
-//! - Comprehensive error handling and observability  
+//! - Comprehensive error handling and observability
 //! - Async/await patterns optimized for high throughput
 //! - Configuration management with validation
 //! - Graceful shutdown and resource cleanup
@@ -17,20 +17,20 @@
 //! cargo run
 //!
 //! # Run with custom configuration via environment variables
-//! PINGORA_LISTEN_ADDR=0.0.0.0:8080 \
-//! PINGORA_BACKEND_ADDR=192.168.1.100:3000 \
-//! PINGORA_LOG_LEVEL=debug \
+//! INFERNO_LISTEN_ADDR=0.0.0.0:8080 \
+//! INFERNO_BACKEND_ADDR=192.168.1.100:3000 \
+//! INFERNO_LOG_LEVEL=debug \
 //! cargo run
 //!
 //! # Run with specific backend servers for load balancing
-//! PINGORA_BACKEND_SERVERS="192.168.1.10:8080,192.168.1.11:8080" \
+//! INFERNO_BACKEND_SERVERS="192.168.1.10:8080,192.168.1.11:8080" \
 //! cargo run
 //! ```
 //!
 //! ## Configuration
 //!
 //! The proxy can be configured through:
-//! 1. Environment variables (PINGORA_* prefix)
+//! 1. Environment variables (INFERNO_* prefix)
 //! 2. Configuration files (future enhancement)
 //! 3. Command line arguments (future enhancement)
 //!
@@ -54,7 +54,7 @@
 //! curl http://localhost:8080/
 //! ```
 
-use pingora_proxy_demo::{ProxyConfig, ProxyError, ProxyServer, Result};
+use inferno_proxy::{ProxyConfig, ProxyError, ProxyServer, Result};
 use std::env;
 use std::io::{self, Write};
 use std::process;
@@ -80,7 +80,7 @@ use tracing_subscriber::{EnvFilter, FmtSubscriber};
 /// # Error Handling Strategy
 ///
 /// - Configuration errors: Exit with code 1 and clear error message
-/// - Startup errors: Exit with code 2 and detailed diagnostics  
+/// - Startup errors: Exit with code 2 and detailed diagnostics
 /// - Runtime errors: Log and attempt graceful recovery
 /// - Shutdown errors: Log warnings but don't fail exit
 #[tokio::main]
@@ -178,12 +178,12 @@ async fn load_configuration() -> Result<ProxyConfig> {
 
     // Check if any environment variables are set for guidance
     let env_vars: Vec<_> = env::vars()
-        .filter(|(k, _)| k.starts_with("PINGORA_"))
+        .filter(|(k, _)| k.starts_with("INFERNO_"))
         .collect();
 
     if env_vars.is_empty() {
-        info!("No PINGORA_* environment variables found, using defaults");
-        info!("Tip: Set PINGORA_BACKEND_ADDR to configure your backend server");
+        info!("No INFERNO_* environment variables found, using defaults");
+        info!("Tip: Set INFERNO_BACKEND_ADDR to configure your backend server");
     } else {
         info!(
             env_vars_count = env_vars.len(),
@@ -425,7 +425,7 @@ fn print_startup_info(server: &ProxyServer) {
     }
 
     println!("   • Graceful shutdown: Ctrl+C or SIGTERM");
-    println!("   • Environment variables: PINGORA_* (see documentation)");
+    println!("   • Environment variables: INFERNO_* (see documentation)");
 
     println!();
     println!("🎯 Ready to handle requests! Press Ctrl+C to stop.");
@@ -446,7 +446,7 @@ mod tests {
     async fn test_load_configuration_defaults() {
         // Clear any existing environment variables
         for (key, _) in std::env::vars() {
-            if key.starts_with("PINGORA_") {
+            if key.starts_with("INFERNO_") {
                 std::env::remove_var(key);
             }
         }
@@ -464,13 +464,13 @@ mod tests {
     async fn test_load_configuration_with_env_vars() {
         // Clear any existing environment variables first
         for (key, _) in std::env::vars() {
-            if key.starts_with("PINGORA_") {
+            if key.starts_with("INFERNO_") {
                 std::env::remove_var(key);
             }
         }
-        std::env::set_var("PINGORA_LISTEN_ADDR", "127.0.0.1:9091");
-        std::env::set_var("PINGORA_BACKEND_ADDR", "127.0.0.1:4000");
-        std::env::set_var("PINGORA_LOG_LEVEL", "debug");
+    std::env::set_var("INFERNO_LISTEN_ADDR", "127.0.0.1:9091");
+    std::env::set_var("INFERNO_BACKEND_ADDR", "127.0.0.1:4000");
+    std::env::set_var("INFERNO_LOG_LEVEL", "debug");
 
         let config = load_configuration().await;
         assert!(config.is_ok());
@@ -481,9 +481,9 @@ mod tests {
         assert_eq!(config.log_level, "debug");
 
         // Clean up
-        std::env::remove_var("PINGORA_LISTEN_ADDR");
-        std::env::remove_var("PINGORA_BACKEND_ADDR");
-        std::env::remove_var("PINGORA_LOG_LEVEL");
+    std::env::remove_var("INFERNO_LISTEN_ADDR");
+    std::env::remove_var("INFERNO_BACKEND_ADDR");
+    std::env::remove_var("INFERNO_LOG_LEVEL");
     }
 
     #[tokio::test]

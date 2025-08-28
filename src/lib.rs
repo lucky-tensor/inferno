@@ -1,6 +1,6 @@
-//! # Pingora Proxy Demo
+//! # Inferno Proxy
 //!
-//! A high-performance reverse proxy implementation using Cloudflare's Pingora framework.
+//! A high-performance reverse proxy implementation for AI inference cloud workloads.
 //! This demo showcases best practices for distributed systems including:
 //!
 //! - Zero-allocation request handling where possible
@@ -20,7 +20,7 @@
 //! ## Usage Example
 //!
 //! ```rust,no_run
-//! use pingora_proxy_demo::{ProxyServer, ProxyConfig};
+//! use inferno_proxy::{ProxyServer, ProxyConfig};
 //! use std::time::Duration;
 //!
 //! #[tokio::main]
@@ -101,8 +101,8 @@ impl ProxyService {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::{ProxyService, ProxyConfig};
-    /// use pingora_proxy_demo::metrics::MetricsCollector;
+    /// use inferno_proxy::{ProxyService, ProxyConfig};
+    /// use inferno_proxy::metrics::MetricsCollector;
     /// use std::sync::Arc;
     ///
     /// let config = Arc::new(ProxyConfig::default());

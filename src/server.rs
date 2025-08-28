@@ -1,6 +1,6 @@
 //! # Proxy Server Implementation
 //!
-//! High-performance HTTP reverse proxy server built on Pingora framework.
+//! High-performance HTTP reverse proxy server built on Inferno Proxy framework.
 //! Provides comprehensive server lifecycle management, configuration handling,
 //! and graceful shutdown capabilities.
 //!
@@ -15,7 +15,7 @@
 //! ## Performance Characteristics
 //!
 //! - **Startup Time**: < 100ms typical
-//! - **Memory Overhead**: < 10MB for server infrastructure  
+//! - **Memory Overhead**: < 10MB for server infrastructure
 //! - **Connection Handling**: Async I/O with connection pooling
 //! - **Request Latency**: < 1ms overhead for local backends
 //! - **Throughput**: > 100,000 RPS on modern hardware
@@ -46,7 +46,7 @@ use tracing::{debug, error, info, instrument, warn};
 /// ## Lifecycle Management
 ///
 /// 1. **Initialization**: Configuration validation and resource allocation
-/// 2. **Startup**: Service binding and worker thread spawning  
+/// 2. **Startup**: Service binding and worker thread spawning
 /// 3. **Runtime**: Request processing with health monitoring
 /// 4. **Shutdown**: Graceful connection draining and resource cleanup
 ///
@@ -68,7 +68,7 @@ use tracing::{debug, error, info, instrument, warn};
 /// ## Example Usage
 ///
 /// ```rust,no_run
-/// use pingora_proxy_demo::{ProxyServer, ProxyConfig};
+/// use inferno_proxy::{ProxyServer, ProxyConfig};
 /// use std::time::Duration;
 ///
 /// #[tokio::main]
@@ -92,7 +92,7 @@ use tracing::{debug, error, info, instrument, warn};
 /// #       load_balancing_algorithm: "round_robin".to_string(),
 /// #       backend_servers: Vec::new(),
 ///     };
-///     
+///
 ///     let server = ProxyServer::new(config).await?;
 ///     server.run().await?;
 ///     Ok(())
@@ -154,7 +154,7 @@ impl ProxyServer {
     ///
     /// // Server is ready to handle requests
     /// println!("Server listening on: {}", server.local_addr());
-    /// # Ok::<(), pingora_proxy_demo::ProxyError>(())
+    /// # Ok::<(), inferno_proxy::ProxyError>(())
     /// # });
     /// ```
     #[instrument(skip(config))]
@@ -336,10 +336,10 @@ impl ProxyServer {
     /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ///     let config = ProxyConfig::default();
     ///     let server = ProxyServer::new(config).await?;
-    ///     
+    ///
     ///     // This will block until shutdown
     ///     server.run().await?;
-    ///     
+    ///
     ///     Ok(())
     /// }
     /// ```

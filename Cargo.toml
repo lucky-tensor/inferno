@@ -1,11 +1,12 @@
 [package]
-name = "pingora-proxy-demo"
+
+name = "inferno-proxy"
 version = "0.1.0"
 edition = "2021"
-authors = ["Pingora Demo <demo@example.com>"]
-description = "A high-performance reverse proxy demo using Pingora"
+authors = ["Inferno Proxy Team <team@example.com>"]
+description = "Inferno Proxy: a self healing cloud for AI inference. High-performance, robust, and observable platform for AI workloads."
 license = "Apache-2.0"
-repository = "https://github.com/example/pingora-proxy-demo"
+repository = "https://github.com/0o-de-lally/inferno"
 
 [dependencies]
 pingora-core = "0.6"

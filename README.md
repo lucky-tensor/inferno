@@ -1,6 +1,7 @@
-# Pingora Proxy Demo
 
-A high-performance HTTP reverse proxy built with Cloudflare's Pingora framework, demonstrating best practices for distributed systems development with comprehensive testing and observability.
+# Inferno Proxy: a self healing cloud for AI inference
+
+Inferno Proxy is a self-healing cloud platform for AI inference, designed for high-performance, reliability, and observability. It demonstrates best practices for distributed systems, with comprehensive testing and robust error recovery for AI workloads.
 
 ## Features
 

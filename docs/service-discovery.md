@@ -2,7 +2,7 @@
 
 ## Overview
 
-Dead simple service discovery for Pingora proxy. Backends register themselves, load balancers check their metrics port for health and status.
+Dead simple service discovery for Inferno Proxy: a self healing cloud for AI inference. Backends register themselves, load balancers check their metrics port for health and status.
 
 ## How It Works
 
@@ -22,7 +22,7 @@ discovery:
   announce_interval: "30s"
   metrics_port: 9090
 
-# For load balancers  
+# For load balancers
 health_check:
   interval: "5s"
   timeout: "2s"
@@ -66,11 +66,11 @@ impl ServiceDiscovery {
     pub async fn register(&self, addr: String) {
         self.backends.write().await.insert(addr);
     }
-    
+
     pub async fn remove(&self, addr: &str) {
         self.backends.write().await.remove(addr);
     }
-    
+
     pub async fn list(&self) -> Vec<String> {
         self.backends.read().await.iter().cloned().collect()
     }
@@ -93,13 +93,13 @@ struct NodeVitals {
 
 async fn health_check_loop(discovery: Arc<ServiceDiscovery>) {
     let client = reqwest::Client::new();
-    
+
     loop {
         let backends = discovery.list().await;
-        
+
         for backend in backends {
             let url = format!("http://{}:9090/metrics", backend.split(':').next().unwrap());
-            
+
             match client.get(&url).send().await {
                 Ok(response) if response.status().is_success() => {
                     // Parse vitals from metrics response
@@ -114,7 +114,7 @@ async fn health_check_loop(discovery: Arc<ServiceDiscovery>) {
                 }
             }
         }
-        
+
         tokio::time::sleep(Duration::from_secs(5)).await;
     }
 }
@@ -127,7 +127,7 @@ impl ProxyService {
     async fn select_backend(&self) -> Option<String> {
         let backends = self.discovery.list().await;
         if backends.is_empty() { return None; }
-        
+
         // Round robin
         let index = self.counter.fetch_add(1, Ordering::Relaxed) % backends.len();
         Some(backends[index].clone())
@@ -159,7 +159,7 @@ impl ProxyService {
 # TYPE node_ready gauge
 node_ready 1
 
-# HELP requests_in_progress Current number of requests being processed  
+# HELP requests_in_progress Current number of requests being processed
 # TYPE requests_in_progress gauge
 requests_in_progress 42
 

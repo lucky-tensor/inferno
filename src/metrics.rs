@@ -1,6 +1,6 @@
 //! # Metrics Collection Module
 //!
-//! High-performance metrics collection system for the Pingora proxy demo.
+//! High-performance metrics collection system for the Inferno Proxy.
 //! Provides comprehensive observability with minimal performance impact.
 //!
 //! ## Design Principles
@@ -53,7 +53,7 @@ use tracing::{debug, warn};
 /// ## Usage Example
 ///
 /// ```rust
-/// use pingora_proxy_demo::metrics::MetricsCollector;
+/// use inferno_proxy::metrics::MetricsCollector;
 /// use std::sync::Arc;
 /// use std::time::Duration;
 ///
@@ -91,7 +91,7 @@ pub struct MetricsCollector {
     /// 2xx response codes
     status_2xx: AtomicU64,
 
-    /// 3xx response codes  
+    /// 3xx response codes
     status_3xx: AtomicU64,
 
     /// 4xx response codes
@@ -194,7 +194,7 @@ impl MetricsCollector {
     ///
     /// This method is called for every request and must be extremely fast:
     /// - Target latency: < 5ns
-    /// - Uses relaxed atomic ordering for maximum performance  
+    /// - Uses relaxed atomic ordering for maximum performance
     /// - No allocations or blocking operations
     /// - Safe for concurrent calls from multiple threads
     ///
@@ -242,7 +242,7 @@ impl MetricsCollector {
     /// # Status Code Classification
     ///
     /// - 200-299: Success responses (2xx counter)
-    /// - 300-399: Redirection responses (3xx counter)  
+    /// - 300-399: Redirection responses (3xx counter)
     /// - 400-499: Client error responses (4xx counter)
     /// - 500-599: Server error responses (5xx counter)
     /// - Other: Logged as warning, counted in total only
@@ -338,7 +338,7 @@ impl MetricsCollector {
     /// # Histogram Buckets
     ///
     /// - Bucket 0: < 1ms (sub-millisecond responses)
-    /// - Bucket 1: < 5ms (very fast responses)  
+    /// - Bucket 1: < 5ms (very fast responses)
     /// - Bucket 2: < 10ms (fast responses)
     /// - Bucket 3: < 50ms (acceptable responses)
     /// - Bucket 4: < 100ms (slow responses)

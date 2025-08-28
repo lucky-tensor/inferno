@@ -1,15 +1,16 @@
-# Pingora Proxy Demo - Implementation Summary
+
+# Inferno Proxy: a self healing cloud for AI inference - Implementation Summary
 
 ## Overview
 
-This project demonstrates a comprehensive, production-ready approach to building a high-performance HTTP reverse proxy using Cloudflare's Pingora framework. The implementation follows Test-Driven Development (TDD) principles and showcases best practices for distributed systems engineering in Rust.
+This project demonstrates a comprehensive, production-ready approach to building a high-performance, self-healing cloud for AI inference. The implementation follows Test-Driven Development (TDD) principles and showcases best practices for distributed systems engineering in Rust.
 
 ## Architecture Achievements
 
 ### 🏗️ Core Components Implemented
 
 1. **Configuration Management (`src/config.rs`)**
-   - Environment variable-based configuration with `PINGORA_*` prefix
+   - Environment variable-based configuration with `INFERNO_*` prefix
    - Comprehensive validation with detailed error messages
    - Support for single backend and load-balanced multiple backends
    - TLS/SSL configuration with security validation
@@ -37,7 +38,7 @@ This project demonstrates a comprehensive, production-ready approach to building
    - Resource cleanup and connection draining
 
 5. **Proxy Service (`src/lib.rs`)**
-   - Pingora ProxyHttp trait implementation
+   - Inferno Proxy trait implementation
    - Upstream peer selection logic
    - Request/response filtering and transformation
    - Comprehensive error mapping and handling
@@ -98,7 +99,7 @@ This project demonstrates a comprehensive, production-ready approach to building
 #### Security Features
 - **Input Validation**: Comprehensive request and configuration validation
 - **Security Headers**: Automatic injection of security headers
-- **TLS Support**: Certificate validation and secure defaults  
+- **TLS Support**: Certificate validation and secure defaults
 - **Resource Limits**: Connection limits and timeout enforcement
 - **Error Information**: Careful error message sanitization
 
@@ -176,7 +177,7 @@ This project demonstrates a comprehensive, production-ready approach to building
 Our validation script confirmed all core components are working correctly:
 
 ✅ **Configuration System**: Environment loading, validation, defaults
-✅ **Error Handling**: Creation, classification, HTTP mapping  
+✅ **Error Handling**: Creation, classification, HTTP mapping
 ✅ **Metrics Collection**: Atomic updates, concurrent safety
 ✅ **Server Lifecycle**: Creation, configuration access, validation
 ✅ **Concurrent Operations**: Thread-safe metrics, no race conditions
@@ -212,7 +213,7 @@ This implementation demonstrates a sophisticated understanding of distributed sy
 The project successfully showcases:
 - **Test-Driven Development** with comprehensive test coverage
 - **Performance Engineering** with benchmarks and optimization
-- **Security-First Design** with validation and secure defaults  
+- **Security-First Design** with validation and secure defaults
 - **Observability Integration** with metrics and monitoring
 - **Production Readiness** with error handling and lifecycle management
 

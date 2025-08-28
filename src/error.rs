@@ -1,6 +1,6 @@
 //! # Error Handling Module
 //!
-//! Comprehensive error handling for the Pingora proxy demo with proper
+//! Comprehensive error handling for the Inferno Proxy with proper
 //! error classification, context preservation, and performance optimization.
 //!
 //! ## Error Categories
@@ -95,7 +95,7 @@ pub enum ProxyError {
     Backend {
         /// Backend server address
         backend: String,
-        /// HTTP status code from backend  
+        /// HTTP status code from backend
         status: u16,
         /// Error message or response body
         message: String,
@@ -203,7 +203,7 @@ impl ProxyError {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::error::ProxyError;
+    /// use inferno_proxy::error::ProxyError;
     ///
     /// let error = ProxyError::configuration("Invalid listen address", None);
     /// ```
@@ -222,7 +222,7 @@ impl ProxyError {
     /// # Arguments
     ///
     /// * `target` - Target address that failed
-    /// * `message` - Error description  
+    /// * `message` - Error description
     /// * `source` - Optional underlying network error
     ///
     /// # Performance Notes
@@ -316,7 +316,7 @@ impl ProxyError {
     ///
     /// # Performance Notes
     ///
-    /// - Two string allocations required  
+    /// - Two string allocations required
     /// - Consider using static strings for common resource types
     /// - Keep messages concise to minimize allocation overhead
     ///
@@ -376,7 +376,7 @@ impl ProxyError {
     ///
     /// # Examples
     ///
-    /// ```rust  
+    /// ```rust
     /// use pingora_proxy_demo::error::ProxyError;
     ///
     /// let error = ProxyError::internal("Failed to serialize metrics", None);
@@ -436,7 +436,7 @@ impl ProxyError {
     /// # Status Code Mapping
     ///
     /// - Configuration errors: Not applicable (startup only)
-    /// - Network errors: 502 Bad Gateway or 504 Gateway Timeout  
+    /// - Network errors: 502 Bad Gateway or 504 Gateway Timeout
     /// - Backend errors: Forward backend status or 502
     /// - Timeout errors: 504 Gateway Timeout
     /// - Resource exhaustion: 503 Service Unavailable
@@ -486,7 +486,7 @@ impl ProxyError {
     ///
     /// **Temporary (retriable):**
     /// - Network timeouts
-    /// - Connection failures  
+    /// - Connection failures
     /// - Resource exhaustion
     /// - Service unavailable
     /// - 5xx backend errors

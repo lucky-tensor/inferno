@@ -1,6 +1,6 @@
 //! # Configuration Management Module
 //!
-//! Comprehensive configuration system for the Pingora proxy demo with
+//! Comprehensive configuration system for the Inferno Proxy with
 //! validation, environment variable support, and hot reloading capabilities.
 //!
 //! ## Design Principles
@@ -14,7 +14,7 @@
 //! ## Configuration Sources (precedence order)
 //!
 //! 1. Command line arguments (highest priority)
-//! 2. Environment variables (PINGORA_*)
+//! 2. Environment variables (INFERNO_*)
 //! 3. Configuration files (JSON/TOML/YAML)
 //! 4. Compiled defaults (lowest priority)
 
@@ -66,7 +66,7 @@ use tracing::{debug, info, warn};
 /// tls_cert_path = "/etc/ssl/certs/proxy.crt"
 /// tls_key_path = "/etc/ssl/private/proxy.key"
 ///
-/// # Logging and metrics  
+/// # Logging and metrics
 /// log_level = "info"
 /// enable_metrics = true
 /// metrics_addr = "127.0.0.1:9090"
@@ -84,7 +84,7 @@ pub struct ProxyConfig {
     /// Address to bind the proxy server to
     ///
     /// **Default**: `127.0.0.1:8080`
-    /// **Environment**: `PINGORA_LISTEN_ADDR`
+    /// **Environment**: `INFERNO_LISTEN_ADDR`
     /// **Validation**: Must be a valid socket address
     ///
     /// Examples:
@@ -96,7 +96,7 @@ pub struct ProxyConfig {
     /// Primary backend server address
     ///
     /// **Default**: `127.0.0.1:3000`
-    /// **Environment**: `PINGORA_BACKEND_ADDR`
+    /// **Environment**: `INFERNO_BACKEND_ADDR`
     /// **Validation**: Must be a valid socket address, not same as listen_addr
     ///
     /// This is the primary backend server that requests will be forwarded to.
@@ -106,7 +106,7 @@ pub struct ProxyConfig {
     /// Request timeout duration
     ///
     /// **Default**: `30 seconds`
-    /// **Environment**: `PINGORA_TIMEOUT_SECONDS`
+    /// **Environment**: `INFERNO_TIMEOUT_SECONDS`
     /// **Validation**: Must be between 1ms and 300 seconds
     ///
     /// This timeout applies to:
@@ -119,7 +119,7 @@ pub struct ProxyConfig {
     /// Maximum number of concurrent connections
     ///
     /// **Default**: `10000`
-    /// **Environment**: `PINGORA_MAX_CONNECTIONS`
+    /// **Environment**: `INFERNO_MAX_CONNECTIONS`
     /// **Validation**: Must be between 1 and 1,000,000
     ///
     /// This limit applies to:
@@ -132,7 +132,7 @@ pub struct ProxyConfig {
     /// Enable backend health checking
     ///
     /// **Default**: `true`
-    /// **Environment**: `PINGORA_ENABLE_HEALTH_CHECK`
+    /// **Environment**: `INFERNO_ENABLE_HEALTH_CHECK`
     ///
     /// When enabled, the proxy will periodically check backend health
     /// and automatically exclude unhealthy backends from rotation.

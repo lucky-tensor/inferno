@@ -2,7 +2,7 @@
 
 ## Overview
 
-Complete configuration guide for Pingora proxy services. Supports environment variables, CLI arguments, and YAML files for maximum deployment flexibility.
+Complete configuration guide for Inferno Proxy: a self healing cloud for AI inference. Supports environment variables, CLI arguments, and YAML files for maximum deployment flexibility.
 
 ## Quick Start
 
@@ -25,7 +25,7 @@ cargo run -- --type=backend --discovery-lb=lb1:8080,lb2:8080
 
 Configuration is loaded in priority order:
 1. **CLI Arguments** (highest priority)
-2. **Environment Variables**  
+2. **Environment Variables**
 3. **YAML Configuration File**
 4. **Built-in Defaults** (lowest priority)
 
@@ -43,20 +43,20 @@ node:
   zone: "us-west-2a"
   environment: "production"
 
-# Network settings  
+# Network settings
 network:
   service_port: 8080     # Main proxy traffic
   metrics_port: 9090     # Metrics and health vitals
   bind_address: "0.0.0.0"
-  
+
 # Service discovery
 discovery:
   # Load balancer endpoints for backend registration
   load_balancers:
     - "lb1.example.com:8080"
-    - "lb2.example.com:8080"  
+    - "lb2.example.com:8080"
     - "lb3.example.com:8080"
-  
+
   # Announcement settings
   announce_interval: "30s"
   retry_attempts: 3
@@ -65,34 +65,34 @@ discovery:
 # Load balancer specific settings
 load_balancer:
   algorithm: "round_robin"  # round_robin | least_connections | ip_hash
-  
+
   # Backend health checking via metrics port
   health_check:
     interval: "5s"
-    timeout: "2s" 
+    timeout: "2s"
     failure_threshold: 3
     recovery_threshold: 2
-    
+
   # Connection settings
   max_connections: 10000
   connection_timeout: "30s"
-  
-# Backend specific settings  
+
+# Backend specific settings
 backend:
   # Resource limits
   max_connections: 1000
   weight: 1.0
-  
+
   # Graceful shutdown
   shutdown:
     drain_timeout: "30s"
     force_timeout: "10s"
-    
+
 # Logging configuration
 logging:
   level: "info"           # error | warn | info | debug | trace
   format: "json"          # json | pretty
-  
+
 # Optional TLS settings
 tls:
   enabled: false
@@ -105,34 +105,34 @@ tls:
 # lb.yaml - Load balancer specific config
 node:
   type: "load_balancer"
-  
+
 network:
   service_port: 8080
   metrics_port: 9090
-  
+
 load_balancer:
   algorithm: "round_robin"
   max_connections: 10000
-  
+
   health_check:
     interval: "5s"
     timeout: "2s"
 ```
 
-### Backend Configuration  
+### Backend Configuration
 ```yaml
 # backend.yaml - Backend specific config
 node:
   type: "backend"
-  
+
 network:
   service_port: 3000
   metrics_port: 9090
-  
+
 discovery:
   load_balancers: ["lb1:8080", "lb2:8080"]
   announce_interval: "30s"
-  
+
 backend:
   max_connections: 1000
   weight: 1.0
@@ -147,10 +147,10 @@ development:
     format: "pretty"
   network:
     service_port: 8080
-    
+
 production:
   logging:
-    level: "warn" 
+    level: "warn"
     format: "json"
   network:
     service_port: 80
@@ -160,39 +160,39 @@ production:
 
 ## Environment Variables
 
-All YAML settings can be overridden with environment variables using `PINGORA_` prefix:
+All YAML settings can be overridden with environment variables using `INFERNO_` prefix:
 
 ```bash
 # Node settings
-export PINGORA_NODE_TYPE="backend"
-export PINGORA_NODE_ID="backend-01" 
-export PINGORA_NODE_REGION="us-west-2"
+export INFERNO_NODE_TYPE="backend"
+export INFERNO_NODE_ID="backend-01"
+export INFERNO_NODE_REGION="us-west-2"
 
 # Network settings
-export PINGORA_NETWORK_SERVICE_PORT="3000"
-export PINGORA_NETWORK_METRICS_PORT="9090"
-export PINGORA_NETWORK_BIND_ADDRESS="0.0.0.0"
+export INFERNO_NETWORK_SERVICE_PORT="3000"
+export INFERNO_NETWORK_METRICS_PORT="9090"
+export INFERNO_NETWORK_BIND_ADDRESS="0.0.0.0"
 
 # Discovery settings
-export PINGORA_DISCOVERY_LOAD_BALANCERS="lb1:8080,lb2:8080,lb3:8080"
-export PINGORA_DISCOVERY_ANNOUNCE_INTERVAL="30s"
+export INFERNO_DISCOVERY_LOAD_BALANCERS="lb1:8080,lb2:8080,lb3:8080"
+export INFERNO_DISCOVERY_ANNOUNCE_INTERVAL="30s"
 
 # Load balancer settings
-export PINGORA_LOAD_BALANCER_ALGORITHM="round_robin"
-export PINGORA_LOAD_BALANCER_MAX_CONNECTIONS="10000"
+export INFERNO_LOAD_BALANCER_ALGORITHM="round_robin"
+export INFERNO_LOAD_BALANCER_MAX_CONNECTIONS="10000"
 
-# Backend settings  
-export PINGORA_BACKEND_MAX_CONNECTIONS="1000"
-export PINGORA_BACKEND_WEIGHT="1.5"
+# Backend settings
+export INFERNO_BACKEND_MAX_CONNECTIONS="1000"
+export INFERNO_BACKEND_WEIGHT="1.5"
 
 # Logging
-export PINGORA_LOGGING_LEVEL="info"
-export PINGORA_LOGGING_FORMAT="json"
+export INFERNO_LOGGING_LEVEL="info"
+export INFERNO_LOGGING_FORMAT="json"
 
 # TLS
-export PINGORA_TLS_ENABLED="true"
-export PINGORA_TLS_CERT_PATH="/etc/ssl/certs/server.pem"
-export PINGORA_TLS_KEY_PATH="/etc/ssl/private/server.key"
+export INFERNO_TLS_ENABLED="true"
+export INFERNO_TLS_CERT_PATH="/etc/ssl/certs/server.pem"
+export INFERNO_TLS_KEY_PATH="/etc/ssl/private/server.key"
 ```
 
 ## CLI Arguments
@@ -200,7 +200,7 @@ export PINGORA_TLS_KEY_PATH="/etc/ssl/private/server.key"
 ```bash
 # Basic node settings
 --type=backend                    # Node type: load_balancer | backend
---node-id=backend-01              # Unique node identifier  
+--node-id=backend-01              # Unique node identifier
 --region=us-west-2                # Deployment region
 --environment=production          # Environment name
 
@@ -209,7 +209,7 @@ export PINGORA_TLS_KEY_PATH="/etc/ssl/private/server.key"
 --metrics-port=9090               # Metrics and health port
 --bind-address=0.0.0.0           # Bind address
 
-# Discovery settings  
+# Discovery settings
 --discovery-lb=lb1:8080,lb2:8080  # Load balancer addresses
 --announce-interval=30s           # How often to announce
 
@@ -240,7 +240,7 @@ export PINGORA_TLS_KEY_PATH="/etc/ssl/private/server.key"
 - **discovery.load_balancers**: At least one load balancer address
 - **node.id**: Must be unique across all backends
 
-### Load Balancer Requirements  
+### Load Balancer Requirements
 - **load_balancer.algorithm**: Valid algorithm name
 - **load_balancer.max_connections**: Must be > 0
 
@@ -269,13 +269,13 @@ discovery:
 ```bash
 # Load balancer
 docker run -p 8080:8080 -p 9090:9090 \
-  -e PINGORA_NODE_TYPE=load_balancer \
+  -e INFERNO_NODE_TYPE=load_balancer \
   pingora-proxy
 
 # Backend with discovery
 docker run -p 3000:3000 -p 9090:9090 \
-  -e PINGORA_NODE_TYPE=backend \
-  -e PINGORA_DISCOVERY_LOAD_BALANCERS=lb1:8080,lb2:8080 \
+  -e INFERNO_NODE_TYPE=backend \
+  -e INFERNO_DISCOVERY_LOAD_BALANCERS=lb1:8080,lb2:8080 \
   pingora-proxy
 ```
 
@@ -307,7 +307,7 @@ spec:
       - name: pingora
         image: pingora-proxy:latest
         env:
-        - name: PINGORA_NODE_TYPE
+  - name: INFERNO_NODE_TYPE
           value: "load_balancer"
         ports:
         - containerPort: 8080
@@ -346,8 +346,8 @@ scrape_configs:
       - targets: ['backend1:9090', 'backend2:9090']
     metrics_path: '/telemetry'
     scrape_interval: 15s
-    
-  - job_name: 'pingora-load-balancers'  
+
+  - job_name: 'pingora-load-balancers'
     static_configs:
       - targets: ['lb1:9090', 'lb2:9090']
     metrics_path: '/telemetry'
@@ -404,7 +404,7 @@ journalctl -u pingora -f
 # Enable debug logging and validation
 logging:
   level: "debug"
-  
+
 # Add validation mode (exits after config check)
 debug:
   validate_and_exit: true
@@ -419,7 +419,7 @@ tls:
   enabled: true
   cert_path: "/etc/ssl/certs/pingora.pem"
   key_path: "/etc/ssl/private/pingora.key"
-  
+
   # Optional: Client certificate verification
   client_ca_path: "/etc/ssl/ca/client-ca.pem"
   verify_client: true
@@ -429,7 +429,7 @@ tls:
 ```yaml
 network:
   bind_address: "127.0.0.1"  # Only local connections
-  
+
   # Access control
   allowed_ips:
     - "10.0.0.0/8"
