@@ -21,8 +21,8 @@
 //! - Memory usage: < 100MB total
 //! - No memory leaks or resource leakage
 
-use pingora_proxy_demo::metrics::{MetricsCollector, MetricsSnapshot};
-use pingora_proxy_demo::{ProxyConfig, ProxyError, ProxyServer, ProxyService};
+use inferno_proxy::metrics::{MetricsCollector, MetricsSnapshot};
+use inferno_proxy::{ProxyConfig, ProxyError, ProxyServer, ProxyService};
 use serial_test::serial;
 use std::error::Error;
 use std::sync::Arc;
@@ -500,7 +500,7 @@ mod metrics_tests {
 
         // Spawn multiple threads updating metrics concurrently
         for _ in 0..4 {
-            let collector_clone = Arc::clone(&collector);
+            let collector_clone: Arc<MetricsCollector> = Arc::clone(&collector);
             let handle = std::thread::spawn(move || {
                 for _ in 0..250 {
                     collector_clone.record_request();

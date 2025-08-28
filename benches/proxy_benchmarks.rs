@@ -40,9 +40,9 @@
 //! ```
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use pingora_proxy_demo::error::ProxyError;
-use pingora_proxy_demo::metrics::MetricsCollector;
-use pingora_proxy_demo::{ProxyConfig, ProxyServer, ProxyService};
+use inferno_proxy::error::ProxyError;
+use inferno_proxy::metrics::MetricsCollector;
+use inferno_proxy::{ProxyConfig, ProxyServer, ProxyService};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Runtime;
@@ -322,7 +322,7 @@ fn bench_concurrent_operations(c: &mut Criterion) {
                 b.iter(|| {
                     let handles: Vec<_> = (0..thread_count)
                         .map(|_| {
-                            let metrics = Arc::clone(&metrics);
+                            let metrics: Arc<MetricsCollector> = Arc::clone(&metrics);
                             std::thread::spawn(move || {
                                 for _ in 0..1000 {
                                     metrics.record_request();

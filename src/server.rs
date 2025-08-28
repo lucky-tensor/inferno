@@ -146,7 +146,7 @@ impl ProxyServer {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::{ProxyServer, ProxyConfig};
+    /// use inferno_proxy::{ProxyServer, ProxyConfig};
     ///
     /// # tokio_test::block_on(async {
     /// let config = ProxyConfig::default();
@@ -214,7 +214,7 @@ impl ProxyServer {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::{ProxyServer, ProxyConfig};
+    /// use inferno_proxy::{ProxyServer, ProxyConfig};
     ///
     /// # tokio_test::block_on(async {
     /// let mut config = ProxyConfig::default();
@@ -224,7 +224,7 @@ impl ProxyServer {
     /// let addr = server.local_addr();
     ///
     /// println!("Server is listening on: {}", addr);
-    /// # Ok::<(), pingora_proxy_demo::ProxyError>(())
+    /// # Ok::<(), inferno_proxy::ProxyError>(())
     /// # });
     /// ```
     pub fn local_addr(&self) -> SocketAddr {
@@ -250,7 +250,7 @@ impl ProxyServer {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::{ProxyServer, ProxyConfig};
+    /// use inferno_proxy::{ProxyServer, ProxyConfig};
     ///
     /// # tokio_test::block_on(async {
     /// let server = ProxyServer::new(ProxyConfig::default()).await?;
@@ -259,7 +259,7 @@ impl ProxyServer {
     /// let snapshot = metrics.snapshot();
     /// println!("Total requests: {}", snapshot.total_requests);
     /// println!("Success rate: {:.2}%", snapshot.success_rate() * 100.0);
-    /// # Ok::<(), pingora_proxy_demo::ProxyError>(())
+    /// # Ok::<(), inferno_proxy::ProxyError>(())
     /// # });
     /// ```
     pub fn metrics(&self) -> &MetricsCollector {
@@ -278,7 +278,7 @@ impl ProxyServer {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::{ProxyServer, ProxyConfig};
+    /// use inferno_proxy::{ProxyServer, ProxyConfig};
     ///
     /// # tokio_test::block_on(async {
     /// let server = ProxyServer::new(ProxyConfig::default()).await?;
@@ -286,7 +286,7 @@ impl ProxyServer {
     ///
     /// println!("Max connections: {}", config.max_connections);
     /// println!("Backend: {}", config.backend_addr);
-    /// # Ok::<(), pingora_proxy_demo::ProxyError>(())
+    /// # Ok::<(), inferno_proxy::ProxyError>(())
     /// # });
     /// ```
     pub fn config(&self) -> &ProxyConfig {
@@ -330,7 +330,7 @@ impl ProxyServer {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use pingora_proxy_demo::{ProxyServer, ProxyConfig};
+    /// use inferno_proxy::{ProxyServer, ProxyConfig};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -588,7 +588,7 @@ impl ProxyServer {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use pingora_proxy_demo::{ProxyServer, ProxyConfig};
+    /// use inferno_proxy::{ProxyServer, ProxyConfig};
     /// use std::sync::Arc;
     /// use std::sync::atomic::{AtomicBool, Ordering};
     ///
@@ -609,7 +609,7 @@ impl ProxyServer {
     /// // This would normally block until shutdown
     /// // server.run().await?;
     ///
-    /// # Ok::<(), pingora_proxy_demo::ProxyError>(())
+    /// # Ok::<(), inferno_proxy::ProxyError>(())
     /// # });
     /// ```
     pub async fn shutdown(&mut self) -> Result<()> {

@@ -249,7 +249,7 @@ async fn test_request_headers_forwarding() {
 /// - Memory overhead: < 10MB
 /// - Connection establishment: < 1ms
 async fn start_test_proxy(backend_addr: &SocketAddr) -> SocketAddr {
-    use pingora_proxy_demo::{ProxyConfig, ProxyServer};
+    use inferno_proxy::{ProxyConfig, ProxyServer};
 
     let config = ProxyConfig {
         listen_addr: "127.0.0.1:0".parse().unwrap(), // Use any available port

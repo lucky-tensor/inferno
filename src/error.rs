@@ -234,7 +234,7 @@ impl ProxyError {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::error::ProxyError;
+    /// use inferno_proxy::error::ProxyError;
     ///
     /// let error = ProxyError::network("192.168.1.1:8080", "Connection refused", None);
     /// ```
@@ -267,7 +267,7 @@ impl ProxyError {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::error::ProxyError;
+    /// use inferno_proxy::error::ProxyError;
     ///
     /// let error = ProxyError::backend("api.example.com:443", 500, "Internal Server Error");
     /// ```
@@ -295,7 +295,7 @@ impl ProxyError {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::error::ProxyError;
+    /// use inferno_proxy::error::ProxyError;
     /// use std::time::Duration;
     ///
     /// let error = ProxyError::timeout(Duration::from_secs(30), "backend connection");
@@ -323,7 +323,7 @@ impl ProxyError {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::error::ProxyError;
+    /// use inferno_proxy::error::ProxyError;
     ///
     /// let error = ProxyError::resource_exhausted("connection_pool", "All 1000 connections in use");
     /// ```
@@ -350,7 +350,7 @@ impl ProxyError {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::error::ProxyError;
+    /// use inferno_proxy::error::ProxyError;
     ///
     /// let error = ProxyError::request_validation("Invalid Content-Type header", Some("POST /api/data".to_string()));
     /// ```
@@ -377,7 +377,7 @@ impl ProxyError {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::error::ProxyError;
+    /// use inferno_proxy::error::ProxyError;
     ///
     /// let error = ProxyError::internal("Failed to serialize metrics", None);
     /// ```
@@ -407,7 +407,7 @@ impl ProxyError {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::error::ProxyError;
+    /// use inferno_proxy::error::ProxyError;
     ///
     /// let error = ProxyError::service_unavailable("Circuit breaker open", Some(60));
     /// ```

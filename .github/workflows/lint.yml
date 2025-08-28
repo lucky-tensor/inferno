@@ -24,3 +24,9 @@ jobs:
 
       - name: Check code format
         run: cargo fmt -- --check
+
+      - name: Install cargo-machete
+        run: cargo install cargo-machete
+
+      - name: Check for unused dependencies
+        run: cargo machete

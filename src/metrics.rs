@@ -141,7 +141,7 @@ impl MetricsCollector {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::metrics::MetricsCollector;
+    /// use inferno_proxy::metrics::MetricsCollector;
     ///
     /// let collector = MetricsCollector::new();
     /// assert_eq!(collector.snapshot().total_requests, 0);
@@ -206,7 +206,7 @@ impl MetricsCollector {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::metrics::MetricsCollector;
+    /// use inferno_proxy::metrics::MetricsCollector;
     ///
     /// let metrics = MetricsCollector::new();
     /// metrics.record_request();
@@ -250,7 +250,7 @@ impl MetricsCollector {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::metrics::MetricsCollector;
+    /// use inferno_proxy::metrics::MetricsCollector;
     ///
     /// let metrics = MetricsCollector::new();
     /// metrics.record_request();
@@ -303,7 +303,7 @@ impl MetricsCollector {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::metrics::MetricsCollector;
+    /// use inferno_proxy::metrics::MetricsCollector;
     ///
     /// let metrics = MetricsCollector::new();
     /// metrics.record_request();
@@ -350,7 +350,7 @@ impl MetricsCollector {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::metrics::MetricsCollector;
+    /// use inferno_proxy::metrics::MetricsCollector;
     /// use std::time::Duration;
     ///
     /// let metrics = MetricsCollector::new();
@@ -398,7 +398,7 @@ impl MetricsCollector {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::metrics::MetricsCollector;
+    /// use inferno_proxy::metrics::MetricsCollector;
     /// use std::time::Duration;
     ///
     /// let metrics = MetricsCollector::new();
@@ -486,7 +486,7 @@ impl MetricsCollector {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::metrics::MetricsCollector;
+    /// use inferno_proxy::metrics::MetricsCollector;
     ///
     /// let metrics = MetricsCollector::new();
     /// let snapshot = metrics.snapshot();
@@ -668,7 +668,7 @@ impl MetricsSnapshot {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::metrics::MetricsSnapshot;
+    /// use inferno_proxy::metrics::MetricsSnapshot;
     /// use std::time::{Duration, SystemTime};
     ///
     /// let snapshot = MetricsSnapshot {

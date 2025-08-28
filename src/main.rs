@@ -327,7 +327,7 @@ fn init_logging_with_level(log_level: &str) {
         .with_env_filter(
             EnvFilter::from_default_env()
                 .add_directive(level.into())
-                .add_directive("pingora_proxy_demo=debug".parse().unwrap()),
+                .add_directive("inferno_proxy=debug".parse().unwrap()),
         )
         .with_target(true)
         .with_thread_ids(true)
@@ -464,13 +464,13 @@ mod tests {
     async fn test_load_configuration_with_env_vars() {
         // Clear any existing environment variables first
         for (key, _) in std::env::vars() {
-            if key.starts_with("INFERNO_") {
+            if key.starts_with("PINGORA_") {
                 std::env::remove_var(key);
             }
         }
-    std::env::set_var("INFERNO_LISTEN_ADDR", "127.0.0.1:9091");
-    std::env::set_var("INFERNO_BACKEND_ADDR", "127.0.0.1:4000");
-    std::env::set_var("INFERNO_LOG_LEVEL", "debug");
+        std::env::set_var("PINGORA_LISTEN_ADDR", "127.0.0.1:9091");
+        std::env::set_var("PINGORA_BACKEND_ADDR", "127.0.0.1:4000");
+        std::env::set_var("PINGORA_LOG_LEVEL", "debug");
 
         let config = load_configuration().await;
         assert!(config.is_ok());
@@ -481,9 +481,9 @@ mod tests {
         assert_eq!(config.log_level, "debug");
 
         // Clean up
-    std::env::remove_var("INFERNO_LISTEN_ADDR");
-    std::env::remove_var("INFERNO_BACKEND_ADDR");
-    std::env::remove_var("INFERNO_LOG_LEVEL");
+        std::env::remove_var("PINGORA_LISTEN_ADDR");
+        std::env::remove_var("PINGORA_BACKEND_ADDR");
+        std::env::remove_var("PINGORA_LOG_LEVEL");
     }
 
     #[tokio::test]

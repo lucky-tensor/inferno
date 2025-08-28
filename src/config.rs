@@ -325,7 +325,7 @@ impl ProxyConfig {
     /// # Examples
     ///
     /// ```rust
-    /// use pingora_proxy_demo::ProxyConfig;
+    /// use inferno_proxy::ProxyConfig;
     /// use std::time::Duration;
     ///
     /// let mut config = ProxyConfig::default();
@@ -333,7 +333,7 @@ impl ProxyConfig {
     /// config.max_connections = 5000;
     ///
     /// let validated = ProxyConfig::new(config)?;
-    /// # Ok::<(), pingora_proxy_demo::ProxyError>(())
+    /// # Ok::<(), inferno_proxy::ProxyError>(())
     /// ```
     pub fn new(config: ProxyConfig) -> Result<Self> {
         info!("Validating proxy configuration");
@@ -533,10 +533,10 @@ impl ProxyConfig {
     /// ```
     ///
     /// ```rust
-    /// use pingora_proxy_demo::ProxyConfig;
+    /// use inferno_proxy::ProxyConfig;
     ///
     /// let config = ProxyConfig::from_env()?;
-    /// # Ok::<(), pingora_proxy_demo::ProxyError>(())
+    /// # Ok::<(), inferno_proxy::ProxyError>(())
     /// ```
     pub fn from_env() -> Result<Self> {
         debug!("Loading configuration from environment variables");
