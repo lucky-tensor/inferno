@@ -3,6 +3,7 @@ permissions:
   contents: write
 on:
   push:
+    branches: ["**"]
   pull_request:
     branches: [main]
 jobs:
@@ -22,7 +23,7 @@ jobs:
       - name: Install cargo-criterion
         run: cargo install cargo-criterion
       - name: Run benchmarks and check for regressions
-        run: ./benches/check-performance.sh
+        run: ./benchmarking/check-performance.sh
       - name: Upload benchmark artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -30,12 +31,11 @@ jobs:
           path: |
             benchmark.json
       - name: Commit benchmark results
+        if: github.ref == 'refs/heads/main'
         uses: EndBug/add-and-commit@v9
         with:
           add: |
             ./.prior_bench
-            ./benchmark.json
           message: "Update benchmark results [skip ci]"
-          author_name: github-actions[bot]
-          author_email: github-actions[bot]@users.noreply.github.com
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_author: github_actions
+          push: origin HEAD:${{ github.head_ref || github.ref_name }}
