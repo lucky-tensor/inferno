@@ -16,5 +16,7 @@ jobs:
           profile: minimal
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
       - name: Build for production
         run: cargo build --release
