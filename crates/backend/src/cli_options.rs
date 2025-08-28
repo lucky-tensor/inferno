@@ -5,7 +5,9 @@
 
 use crate::BackendConfig;
 use clap::Parser;
-use inferno_shared::Result;
+use inferno_shared::{
+    HealthCheckOptions, LoggingOptions, MetricsOptions, Result, ServiceDiscoveryOptions,
+};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use tracing::info;
@@ -59,29 +61,17 @@ pub struct BackendCliOptions {
     #[arg(long, default_value_t = 3600, env = "INFERNO_CACHE_TTL_SECONDS")]
     pub cache_ttl_seconds: u64,
 
-    /// Logging level (error, warn, info, debug, trace)
-    #[arg(long, default_value = "info", env = "INFERNO_LOG_LEVEL")]
-    pub log_level: String,
+    #[command(flatten)]
+    pub logging: LoggingOptions,
 
-    /// Enable metrics collection
-    #[arg(long, default_value_t = true, env = "INFERNO_ENABLE_METRICS")]
-    pub enable_metrics: bool,
+    #[command(flatten)]
+    pub metrics: MetricsOptions,
 
-    /// Metrics server address
-    #[arg(long, default_value = "127.0.0.1:9091", env = "INFERNO_METRICS_ADDR")]
-    pub metrics_addr: SocketAddr,
+    #[command(flatten)]
+    pub health_check: HealthCheckOptions,
 
-    /// Health check endpoint path
-    #[arg(long, default_value = "/health", env = "INFERNO_HEALTH_CHECK_PATH")]
-    pub health_check_path: String,
-
-    /// Registration endpoint for service discovery
-    #[arg(long, env = "INFERNO_REGISTRATION_ENDPOINT")]
-    pub registration_endpoint: Option<String>,
-
-    /// Service name for registration
-    #[arg(long, default_value = "inferno-backend", env = "INFERNO_SERVICE_NAME")]
-    pub service_name: String,
+    #[command(flatten)]
+    pub service_discovery: ServiceDiscoveryOptions,
 }
 
 impl BackendCliOptions {
@@ -125,6 +115,7 @@ impl BackendCliOptions {
         });
 
         let registration_endpoint = self
+            .service_discovery
             .registration_endpoint
             .as_ref()
             .and_then(|s| s.parse().ok());
@@ -140,11 +131,11 @@ impl BackendCliOptions {
             discovery_lb: discovery_lb.unwrap_or_default(),
             enable_cache: self.enable_cache,
             cache_ttl_seconds: self.cache_ttl_seconds,
-            enable_metrics: self.enable_metrics,
-            metrics_addr: self.metrics_addr,
-            health_check_path: self.health_check_path.clone(),
+            enable_metrics: self.metrics.enable_metrics,
+            metrics_addr: self.metrics.get_metrics_addr(9091),
+            health_check_path: self.health_check.health_check_path.clone(),
             registration_endpoint,
-            service_name: self.service_name.clone(),
+            service_name: self.service_discovery.get_service_name("inferno-backend"),
         })
     }
 }

@@ -5,7 +5,7 @@
 
 use crate::GovernatorConfig;
 use clap::Parser;
-use inferno_shared::Result;
+use inferno_shared::{HealthCheckOptions, LoggingOptions, MetricsOptions, Result};
 use std::net::SocketAddr;
 use tracing::info;
 
@@ -79,21 +79,14 @@ pub struct GovernatorCliOptions {
     #[arg(long, env = "INFERNO_ALERT_WEBHOOK")]
     pub alert_webhook: Option<String>,
 
-    /// Logging level (error, warn, info, debug, trace)
-    #[arg(long, default_value = "info", env = "INFERNO_LOG_LEVEL")]
-    pub log_level: String,
+    #[command(flatten)]
+    pub logging: LoggingOptions,
 
-    /// Enable metrics collection
-    #[arg(long, default_value_t = true, env = "INFERNO_ENABLE_METRICS")]
-    pub enable_metrics: bool,
+    #[command(flatten)]
+    pub metrics: MetricsOptions,
 
-    /// Metrics server address
-    #[arg(long, default_value = "127.0.0.1:9092", env = "INFERNO_METRICS_ADDR")]
-    pub metrics_addr: SocketAddr,
-
-    /// Health check endpoint path
-    #[arg(long, default_value = "/health", env = "INFERNO_HEALTH_CHECK_PATH")]
-    pub health_check_path: String,
+    #[command(flatten)]
+    pub health_check: HealthCheckOptions,
 
     /// Budget enforcement mode (warn, enforce, off)
     #[arg(long, default_value = "warn", env = "INFERNO_BUDGET_MODE")]
@@ -164,9 +157,9 @@ impl GovernatorCliOptions {
             scale_down_threshold: self.scale_down_threshold,
             metrics_endpoint,
             alert_webhook,
-            enable_metrics: self.enable_metrics,
-            metrics_addr: self.metrics_addr,
-            health_check_path: self.health_check_path.clone(),
+            enable_metrics: self.metrics.enable_metrics,
+            metrics_addr: self.metrics.get_metrics_addr(9092),
+            health_check_path: self.health_check.health_check_path.clone(),
             budget_mode: self.budget_mode.clone(),
             monthly_budget: self.monthly_budget,
         })

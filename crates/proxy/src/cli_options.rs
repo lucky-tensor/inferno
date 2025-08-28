@@ -5,7 +5,7 @@
 
 use crate::{ProxyConfig, ProxyServer};
 use clap::Parser;
-use inferno_shared::{InfernoError, Result};
+use inferno_shared::{HealthCheckOptions, InfernoError, LoggingOptions, MetricsOptions, Result};
 use std::net::SocketAddr;
 use std::time::Duration;
 use tracing::{error, info};
@@ -51,21 +51,14 @@ pub struct ProxyCliOptions {
     )]
     pub health_check_interval: u64,
 
-    /// Health check endpoint path
-    #[arg(long, default_value = "/health", env = "INFERNO_HEALTH_CHECK_PATH")]
-    pub health_check_path: String,
+    #[command(flatten)]
+    pub health_check: HealthCheckOptions,
 
-    /// Logging level (error, warn, info, debug, trace)
-    #[arg(long, default_value = "info", env = "INFERNO_LOG_LEVEL")]
-    pub log_level: String,
+    #[command(flatten)]
+    pub logging: LoggingOptions,
 
-    /// Enable metrics collection
-    #[arg(long, default_value_t = true, env = "INFERNO_ENABLE_METRICS")]
-    pub enable_metrics: bool,
-
-    /// Metrics server address
-    #[arg(long, default_value = "127.0.0.1:9090", env = "INFERNO_METRICS_ADDR")]
-    pub metrics_addr: SocketAddr,
+    #[command(flatten)]
+    pub metrics: MetricsOptions,
 
     /// Enable TLS/SSL
     #[arg(long, default_value_t = false, env = "INFERNO_ENABLE_TLS")]
@@ -156,14 +149,14 @@ impl ProxyCliOptions {
             max_connections: self.max_connections as u32,
             enable_health_check: self.enable_health_check,
             health_check_interval: Duration::from_secs(self.health_check_interval),
-            health_check_path: self.health_check_path.clone(),
+            health_check_path: self.health_check.health_check_path.clone(),
             health_check_timeout: Duration::from_secs(5), // Default timeout
             enable_tls: self.enable_tls,
             tls_cert_path: None, // Would need to add to CLI options if needed
             tls_key_path: None,  // Would need to add to CLI options if needed
-            log_level: self.log_level.clone(),
-            enable_metrics: self.enable_metrics,
-            metrics_addr: self.metrics_addr,
+            log_level: self.logging.log_level.clone(),
+            enable_metrics: self.metrics.enable_metrics,
+            metrics_addr: self.metrics.get_metrics_addr(9090),
             load_balancing_algorithm: self.load_balancing_algorithm.clone(),
             backend_servers,
         })

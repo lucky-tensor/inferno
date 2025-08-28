@@ -18,9 +18,11 @@
 //! - **Thread Safety**: All types are designed for concurrent access
 //! - **Observability**: Built-in metrics and structured logging support
 
+pub mod cli;
 pub mod error;
 pub mod metrics;
 
 // Re-export commonly used types for convenience
+pub use cli::{HealthCheckOptions, LoggingOptions, MetricsOptions, ServiceDiscoveryOptions};
 pub use error::{InfernoError, ProxyError, Result};
 pub use metrics::{MetricsCollector, MetricsSnapshot};
