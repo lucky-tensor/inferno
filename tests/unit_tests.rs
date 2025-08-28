@@ -21,13 +21,12 @@
 //! - Memory usage: < 100MB total
 //! - No memory leaks or resource leakage
 
-use pingora_proxy_demo::error::ProxyError as Error;
 use pingora_proxy_demo::metrics::{MetricsCollector, MetricsSnapshot};
-use pingora_proxy_demo::{ProxyConfig, ProxyError, ProxyServer, ProxyService, Result};
+use pingora_proxy_demo::{ProxyConfig, ProxyError, ProxyServer, ProxyService};
+use serial_test::serial;
 use std::error::Error;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
-use tokio::time::timeout;
 
 /// Tests for configuration management functionality
 ///
@@ -90,7 +89,7 @@ mod config_tests {
         let mut config = ProxyConfig::default();
         config.max_connections = 0;
 
-        let result = ProxyConfig::new(config);
+        let result = ProxyConfig::new(config.clone());
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("max_connections"));
 
@@ -175,6 +174,7 @@ mod config_tests {
     }
 
     #[test]
+    #[serial]
     fn test_configuration_from_env_defaults() {
         // Clear any existing environment variables
         for (key, _) in std::env::vars() {
@@ -193,8 +193,16 @@ mod config_tests {
     }
 
     #[test]
+    #[serial]
     fn test_configuration_from_env_custom_values() {
-        std::env::set_var("PINGORA_LISTEN_ADDR", "127.0.0.1:9090");
+        // Clear any existing environment variables first
+        for (key, _) in std::env::vars() {
+            if key.starts_with("PINGORA_") {
+                std::env::remove_var(key);
+            }
+        }
+
+        std::env::set_var("PINGORA_LISTEN_ADDR", "127.0.0.1:9091");
         std::env::set_var("PINGORA_BACKEND_ADDR", "127.0.0.1:4000");
         std::env::set_var("PINGORA_TIMEOUT_SECONDS", "60");
         std::env::set_var("PINGORA_MAX_CONNECTIONS", "5000");
@@ -206,7 +214,7 @@ mod config_tests {
 
         let config = ProxyConfig::from_env().unwrap();
 
-        assert_eq!(config.listen_addr.port(), 9090);
+        assert_eq!(config.listen_addr.port(), 9091);
         assert_eq!(config.backend_addr.port(), 4000);
         assert_eq!(config.timeout, Duration::from_secs(60));
         assert_eq!(config.max_connections, 5000);
@@ -223,7 +231,15 @@ mod config_tests {
     }
 
     #[test]
+    #[serial]
     fn test_configuration_from_env_invalid_values() {
+        // Clear any existing environment variables first
+        for (key, _) in std::env::vars() {
+            if key.starts_with("PINGORA_") {
+                std::env::remove_var(key);
+            }
+        }
+
         std::env::set_var("PINGORA_LISTEN_ADDR", "invalid_address");
 
         let result = ProxyConfig::from_env();
@@ -755,7 +771,7 @@ mod server_tests {
     #[tokio::test]
     async fn test_server_startup_timeout() {
         let config = ProxyConfig::default();
-        let server = ProxyServer::new(config).await.unwrap();
+        let _server = ProxyServer::new(config).await.unwrap();
 
         // Test that server creation completes quickly
         let start = std::time::Instant::now();

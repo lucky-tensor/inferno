@@ -438,9 +438,11 @@ fn print_startup_info(server: &ProxyServer) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     // Duration is used in ProxyConfig::from_env() test
 
     #[tokio::test]
+    #[serial]
     async fn test_load_configuration_defaults() {
         // Clear any existing environment variables
         for (key, _) in std::env::vars() {
@@ -458,8 +460,15 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_load_configuration_with_env_vars() {
-        std::env::set_var("PINGORA_LISTEN_ADDR", "127.0.0.1:9090");
+        // Clear any existing environment variables first
+        for (key, _) in std::env::vars() {
+            if key.starts_with("PINGORA_") {
+                std::env::remove_var(key);
+            }
+        }
+        std::env::set_var("PINGORA_LISTEN_ADDR", "127.0.0.1:9091");
         std::env::set_var("PINGORA_BACKEND_ADDR", "127.0.0.1:4000");
         std::env::set_var("PINGORA_LOG_LEVEL", "debug");
 
@@ -467,7 +476,7 @@ mod tests {
         assert!(config.is_ok());
 
         let config = config.unwrap();
-        assert_eq!(config.listen_addr.port(), 9090);
+        assert_eq!(config.listen_addr.port(), 9091);
         assert_eq!(config.backend_addr.port(), 4000);
         assert_eq!(config.log_level, "debug");
 

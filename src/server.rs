@@ -108,6 +108,8 @@ pub struct ProxyServer {
     local_addr: SocketAddr,
     /// Optional shutdown signal channel
     shutdown_tx: Option<oneshot::Sender<()>>,
+    /// Shutdown receiver to keep the channel alive
+    _shutdown_rx: Option<oneshot::Receiver<()>>,
 }
 
 impl ProxyServer {
@@ -181,11 +183,15 @@ impl ProxyServer {
             "Proxy server initialized successfully"
         );
 
+        // Initialize shutdown channel for graceful shutdown
+        let (shutdown_tx, shutdown_rx) = oneshot::channel();
+
         Ok(Self {
             config,
             metrics,
             local_addr,
-            shutdown_tx: None,
+            shutdown_tx: Some(shutdown_tx),
+            _shutdown_rx: Some(shutdown_rx),
         })
     }
 
@@ -784,6 +790,7 @@ mod tests {
 
         // Simulate active requests by incrementing the counter
         server.metrics.record_request();
+        server.metrics.record_response(200);
 
         // Graceful shutdown should handle active requests
         let shutdown_future = server.shutdown_gracefully();
