@@ -19,6 +19,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+      - name: Install cargo-criterion
+        run: cargo install cargo-criterion
       - name: Run benchmarks and check for regressions
         run: ./benches/check-performance.sh
       - name: Upload benchmark artifacts
