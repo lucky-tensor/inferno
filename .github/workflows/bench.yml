@@ -31,6 +31,7 @@ jobs:
           path: |
             benchmark.json
       - name: Commit benchmark results
+        if: github.ref == 'refs/heads/main'
         uses: EndBug/add-and-commit@v9
         with:
           add: |
