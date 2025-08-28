@@ -41,6 +41,9 @@ wiremock = "0.5"
 serial_test = "3.0"
 reqwest = { version = "0.11", features = ["json", "blocking", "multipart"] }
 
+# Coverage dependencies
+cargo-llvm-cov = "0.6"
+
 # Backend-specific dependencies
 sqlx = { version = "0.6", features = ["postgres", "chrono", "runtime-tokio-native-tls"] }
 
