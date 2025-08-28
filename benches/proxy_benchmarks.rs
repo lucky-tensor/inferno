@@ -44,7 +44,7 @@ use pingora_proxy_demo::error::ProxyError;
 use pingora_proxy_demo::metrics::MetricsCollector;
 use pingora_proxy_demo::{ProxyConfig, ProxyServer, ProxyService};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::runtime::Runtime;
 
 /// Benchmarks for metrics collection performance
@@ -229,9 +229,9 @@ fn bench_error_performance(c: &mut Criterion) {
 
     // Benchmark error conversion
     group.bench_function("error_io_conversion", |b| {
-        let io_error = std::io::Error::from(std::io::ErrorKind::ConnectionRefused);
         b.iter(|| {
-            let _proxy_error: ProxyError = io_error.kind().into();
+            let io_error = std::io::Error::from(std::io::ErrorKind::ConnectionRefused);
+            let _proxy_error: ProxyError = io_error.into();
         })
     });
 

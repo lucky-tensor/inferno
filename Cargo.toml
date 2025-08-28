@@ -23,7 +23,7 @@ async-trait = "0.1"
 criterion = { version = "0.5", features = ["html_reports"] }
 tokio-test = "0.4"
 proptest = "1.4"
-wiremock = "0.6"
+wiremock = "0.5"
 serial_test = "3.0"
 
 [build-dependencies]

@@ -438,7 +438,7 @@ fn print_startup_info(server: &ProxyServer) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
+    // Duration is used in ProxyConfig::from_env() test
 
     #[tokio::test]
     async fn test_load_configuration_defaults() {
