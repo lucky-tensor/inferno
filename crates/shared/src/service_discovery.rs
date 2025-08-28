@@ -817,12 +817,12 @@ impl ServiceDiscovery {
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let discovery = ServiceDiscovery::new();
-    /// let handle = discovery.start_health_checking();
+    /// let handle = discovery.start_health_checking().await;
     ///
     /// // Service runs...
     ///
     /// discovery.stop_health_checking().await;
-    /// handle.await?;
+    /// handle.await.unwrap();
     /// # Ok(())
     /// # }
     /// ```
@@ -973,12 +973,12 @@ impl ServiceDiscovery {
     ///
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// let discovery = ServiceDiscovery::new();
-    /// let handle = discovery.start_health_checking();
+    /// let handle = discovery.start_health_checking().await;
     ///
     /// // ... service runs ...
     ///
     /// discovery.stop_health_checking().await;
-    /// handle.await?;
+    /// handle.await.unwrap();
     /// # Ok(())
     /// # }
     /// ```
