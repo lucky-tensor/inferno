@@ -547,7 +547,10 @@ mod error_tests {
         assert!(matches!(timeout_err, InfernoError::Timeout { .. }));
 
         let resource_err = InfernoError::resource_exhausted("memory", "OOM");
-        assert!(matches!(resource_err, InfernoError::ResourceExhausted { .. }));
+        assert!(matches!(
+            resource_err,
+            InfernoError::ResourceExhausted { .. }
+        ));
 
         let validation_err =
             InfernoError::request_validation("Bad header", Some("POST /api".to_string()));
@@ -580,7 +583,10 @@ mod error_tests {
             InfernoError::backend("host", 404, "not found").to_http_status(),
             404
         );
-        assert_eq!(InfernoError::backend("host", 200, "ok").to_http_status(), 502); // Invalid success code mapped to 502
+        assert_eq!(
+            InfernoError::backend("host", 200, "ok").to_http_status(),
+            502
+        ); // Invalid success code mapped to 502
         assert_eq!(
             InfernoError::backend("host", 999, "invalid").to_http_status(),
             502
