@@ -19,17 +19,20 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-      - name: Run benchmarks
-        run: CRITERION_HOME=./.prior_bench cargo bench | tee benchmark.txt
-      - name: Upload benchmark report
+      - name: Run benchmarks and check for regressions
+        run: ./benches/check-performance.sh
+      - name: Upload benchmark artifacts
         uses: actions/upload-artifact@v4
         with:
           name: benchmark-report
-          path: benchmark.txt
-      - name: Commit and push prior_bench changes
+          path: |
+            benchmark.json
+      - name: Commit benchmark results
         uses: EndBug/add-and-commit@v9
         with:
-          add: ./.prior_bench
+          add: |
+            ./.prior_bench
+            ./benchmark.json
           message: "Update benchmark results [skip ci]"
           author_name: github-actions[bot]
           author_email: github-actions[bot]@users.noreply.github.com
