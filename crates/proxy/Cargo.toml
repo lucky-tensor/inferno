@@ -23,6 +23,7 @@ async-trait = { workspace = true }
 clap = { workspace = true }
 
 [dev-dependencies]
+inferno-shared = { path = "../shared" }
 criterion = { workspace = true }
 tokio-test = { workspace = true }
 proptest = { workspace = true }
@@ -33,3 +34,38 @@ reqwest = { workspace = true }
 [[bin]]
 name = "inferno-proxy"
 path = "src/main.rs"
+
+[[bench]]
+name = "metrics"
+harness = false
+path = "../../benches/metrics.rs"
+
+[[bench]]
+name = "config"
+harness = false
+path = "../../benches/config.rs"
+
+[[bench]]
+name = "error"
+harness = false
+path = "../../benches/error.rs"
+
+[[bench]]
+name = "proxy_service"
+harness = false
+path = "../../benches/proxy_service.rs"
+
+[[bench]]
+name = "concurrency"
+harness = false
+path = "../../benches/concurrency.rs"
+
+[[bench]]
+name = "memory"
+harness = false
+path = "../../benches/memory.rs"
+
+[[bench]]
+name = "scalability"
+harness = false
+path = "../../benches/scalability.rs"
