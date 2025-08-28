@@ -352,7 +352,7 @@ impl ProxyError {
     /// ```rust
     /// use pingora_proxy_demo::error::ProxyError;
     ///
-    /// let error = ProxyError::request_validation("Invalid Content-Type header", Some("POST /api/data"));
+    /// let error = ProxyError::request_validation("Invalid Content-Type header", Some("POST /api/data".to_string()));
     /// ```
     pub fn request_validation(reason: impl Into<String>, context: Option<String>) -> Self {
         Self::RequestValidation {

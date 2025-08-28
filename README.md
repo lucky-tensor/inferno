@@ -294,7 +294,7 @@ X-Forwarded-By: pingora-proxy-demo
 
 #### Before a task is complete, these checks must pass:
 No lint errors
-1. `cargo clippy`
+1. `cargo clippy --all-targets --all-features -- -D warnings`
 Formatted
 2. `cargo fmt --check`
 No unused dependencies

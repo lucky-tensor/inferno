@@ -498,12 +498,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_validate_backend_reachability_invalid() {
-        let mut config = ProxyConfig::default();
         // This should fail because 999.999.999.999 is not a valid IP
-        config.backend_addr = "999.999.999.999:8080".parse().unwrap_or_else(|_| {
-            // If parsing fails (which it should), use a different invalid address
-            "127.0.0.1:0".parse().unwrap()
-        });
+        let config = ProxyConfig {
+            backend_addr: "999.999.999.999:8080".parse().unwrap_or_else(|_| {
+                // If parsing fails (which it should), use a different invalid address
+                "127.0.0.1:0".parse().unwrap()
+            }),
+            ..Default::default()
+        };
 
         // Since we can't create an actually invalid SocketAddr (parsing would fail),
         // we'll skip this test or test with a different approach

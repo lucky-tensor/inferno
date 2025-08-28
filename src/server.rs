@@ -465,7 +465,6 @@ impl ProxyServer {
     #[instrument(skip(self))]
     fn start_health_checking(&self) -> tokio::task::JoinHandle<()> {
         let config = Arc::clone(&self.config);
-        let _metrics = Arc::clone(&self.metrics);
 
         info!(
             interval = ?config.health_check_interval,
@@ -588,21 +587,27 @@ impl ProxyServer {
     ///
     /// # Examples
     ///
-    /// ```rust
+    /// ```rust,no_run
     /// use pingora_proxy_demo::{ProxyServer, ProxyConfig};
     /// use std::sync::Arc;
+    /// use std::sync::atomic::{AtomicBool, Ordering};
     ///
     /// # tokio_test::block_on(async {
-    /// let server = Arc::new(ProxyServer::new(ProxyConfig::default()).await?);
+    /// let mut server = ProxyServer::new(ProxyConfig::default()).await?;
     ///
-    /// // Start server in background task
-    /// let server_clone = Arc::clone(&server);
-    /// let server_task = tokio::spawn(async move {
-    ///     server_clone.run().await
+    /// // Create shutdown signal
+    /// let shutdown_flag = Arc::new(AtomicBool::new(false));
+    /// let shutdown_clone = Arc::clone(&shutdown_flag);
+    ///
+    /// // Start server with shutdown signal monitoring
+    /// tokio::spawn(async move {
+    ///     // Simulate shutdown signal after some time
+    ///     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    ///     shutdown_clone.store(true, Ordering::Relaxed);
     /// });
     ///
-    /// // Later, trigger graceful shutdown
-    /// // server.shutdown().await?;
+    /// // This would normally block until shutdown
+    /// // server.run().await?;
     ///
     /// # Ok::<(), pingora_proxy_demo::ProxyError>(())
     /// # });
@@ -723,8 +728,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_server_configuration_access() {
-        let mut config = ProxyConfig::default();
-        config.max_connections = 5000;
+        let config = ProxyConfig {
+            max_connections: 5000,
+            ..Default::default()
+        };
 
         let server = ProxyServer::new(config).await.unwrap();
         assert_eq!(server.config().max_connections, 5000);
@@ -744,8 +751,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_server_local_addr() {
-        let mut config = ProxyConfig::default();
-        config.listen_addr = "127.0.0.1:9999".parse().unwrap();
+        let config = ProxyConfig {
+            listen_addr: "127.0.0.1:9999".parse().unwrap(),
+            ..Default::default()
+        };
 
         let server = ProxyServer::new(config).await.unwrap();
         assert_eq!(server.local_addr().port(), 9999);

@@ -44,7 +44,7 @@ async fn test_basic_proxy_functionality() {
     // Test: Send request through proxy
     let client = Client::new();
     let response = client
-        .get(&format!("http://{}/test", proxy_addr))
+        .get(format!("http://{}/test", proxy_addr))
         .timeout(Duration::from_millis(100))
         .send()
         .await
@@ -73,7 +73,7 @@ async fn test_proxy_handles_backend_errors() {
     // Test: Send request that will cause backend error
     let client = Client::new();
     let response = client
-        .get(&format!("http://{}/error", proxy_addr))
+        .get(format!("http://{}/error", proxy_addr))
         .send()
         .await
         .expect("Request should complete");
@@ -92,7 +92,7 @@ async fn test_proxy_handles_unreachable_backend() {
     let client = Client::new();
     let result = timeout(Duration::from_secs(5), async {
         client
-            .get(&format!("http://{}/test", proxy_addr))
+            .get(format!("http://{}/test", proxy_addr))
             .send()
             .await
     })
@@ -226,7 +226,7 @@ async fn test_request_headers_forwarding() {
 
     // Test: Send request with custom headers
     let response = client
-        .get(&format!("http://{}/headers", proxy_addr))
+        .get(format!("http://{}/headers", proxy_addr))
         .header("X-Custom-Header", "test-value")
         .header("Authorization", "Bearer token123")
         .send()
@@ -251,13 +251,15 @@ async fn test_request_headers_forwarding() {
 async fn start_test_proxy(backend_addr: &SocketAddr) -> SocketAddr {
     use pingora_proxy_demo::{ProxyConfig, ProxyServer};
 
-    let mut config = ProxyConfig::default();
-    config.listen_addr = "127.0.0.1:0".parse().unwrap(); // Use any available port
-    config.backend_addr = *backend_addr;
-    config.timeout = Duration::from_secs(30);
-    config.max_connections = 1000;
-    config.enable_health_check = true;
-    config.health_check_interval = Duration::from_secs(10);
+    let config = ProxyConfig {
+        listen_addr: "127.0.0.1:0".parse().unwrap(), // Use any available port
+        backend_addr: *backend_addr,
+        timeout: Duration::from_secs(30),
+        max_connections: 1000,
+        enable_health_check: true,
+        health_check_interval: Duration::from_secs(10),
+        ..Default::default()
+    };
 
     let server = ProxyServer::new(config)
         .await
@@ -313,7 +315,7 @@ mod property_tests {
 
                 // Should not panic or crash with arbitrary paths
                 let result = timeout(Duration::from_secs(1), async {
-                    client.get(&format!("http://{}{}", proxy_addr, path)).send().await
+                    client.get(format!("http://{}{}", proxy_addr, path)).send().await
                 }).await;
 
                 // Either succeeds or fails gracefully (no panics)

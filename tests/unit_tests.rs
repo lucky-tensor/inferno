@@ -76,8 +76,10 @@ mod config_tests {
 
     #[test]
     fn test_configuration_validation_invalid_timeout() {
-        let mut config = ProxyConfig::default();
-        config.timeout = Duration::from_secs(0);
+        let config = ProxyConfig {
+            timeout: Duration::from_secs(0),
+            ..Default::default()
+        };
 
         let result = ProxyConfig::new(config);
         assert!(result.is_err());
@@ -86,8 +88,10 @@ mod config_tests {
 
     #[test]
     fn test_configuration_validation_invalid_connections() {
-        let mut config = ProxyConfig::default();
-        config.max_connections = 0;
+        let mut config = ProxyConfig {
+            max_connections: 0,
+            ..Default::default()
+        };
 
         let result = ProxyConfig::new(config.clone());
         assert!(result.is_err());
@@ -100,8 +104,10 @@ mod config_tests {
 
     #[test]
     fn test_configuration_tls_validation() {
-        let mut config = ProxyConfig::default();
-        config.enable_tls = true;
+        let config = ProxyConfig {
+            enable_tls: true,
+            ..Default::default()
+        };
         // tls_cert_path and tls_key_path remain None
 
         let result = ProxyConfig::new(config);
@@ -114,8 +120,10 @@ mod config_tests {
 
     #[test]
     fn test_configuration_invalid_log_level() {
-        let mut config = ProxyConfig::default();
-        config.log_level = "invalid_level".to_string();
+        let config = ProxyConfig {
+            log_level: "invalid_level".to_string(),
+            ..Default::default()
+        };
 
         let result = ProxyConfig::new(config);
         assert!(result.is_err());
@@ -127,8 +135,10 @@ mod config_tests {
 
     #[test]
     fn test_configuration_invalid_load_balancing_algorithm() {
-        let mut config = ProxyConfig::default();
-        config.load_balancing_algorithm = "invalid_algorithm".to_string();
+        let config = ProxyConfig {
+            load_balancing_algorithm: "invalid_algorithm".to_string(),
+            ..Default::default()
+        };
 
         let result = ProxyConfig::new(config);
         assert!(result.is_err());
@@ -140,8 +150,10 @@ mod config_tests {
 
     #[test]
     fn test_configuration_health_check_path_validation() {
-        let mut config = ProxyConfig::default();
-        config.health_check_path = "invalid_path".to_string(); // Doesn't start with /
+        let config = ProxyConfig {
+            health_check_path: "invalid_path".to_string(), // Doesn't start with /
+            ..Default::default()
+        };
 
         let result = ProxyConfig::new(config);
         assert!(result.is_err());
@@ -160,12 +172,14 @@ mod config_tests {
 
     #[test]
     fn test_effective_backends_multiple() {
-        let mut config = ProxyConfig::default();
-        config.backend_servers = vec![
-            "192.168.1.1:8080".parse().unwrap(),
-            "192.168.1.2:8080".parse().unwrap(),
-            "192.168.1.3:8080".parse().unwrap(),
-        ];
+        let config = ProxyConfig {
+            backend_servers: vec![
+                "192.168.1.1:8080".parse().unwrap(),
+                "192.168.1.2:8080".parse().unwrap(),
+                "192.168.1.3:8080".parse().unwrap(),
+            ],
+            ..Default::default()
+        };
 
         let backends = config.effective_backends();
         assert_eq!(backends.len(), 3);
@@ -697,11 +711,13 @@ mod server_tests {
 
     #[tokio::test]
     async fn test_server_with_custom_config() {
-        let mut config = ProxyConfig::default();
-        config.listen_addr = "127.0.0.1:9999".parse().unwrap();
-        config.backend_addr = "127.0.0.1:4000".parse().unwrap();
-        config.max_connections = 5000;
-        config.timeout = Duration::from_secs(60);
+        let config = ProxyConfig {
+            listen_addr: "127.0.0.1:9999".parse().unwrap(),
+            backend_addr: "127.0.0.1:4000".parse().unwrap(),
+            max_connections: 5000,
+            timeout: Duration::from_secs(60),
+            ..Default::default()
+        };
 
         let result = ProxyServer::new(config).await;
         assert!(result.is_ok());
@@ -742,9 +758,11 @@ mod server_tests {
 
     #[tokio::test]
     async fn test_server_config_access() {
-        let mut config = ProxyConfig::default();
-        config.max_connections = 7500;
-        config.enable_health_check = false;
+        let config = ProxyConfig {
+            max_connections: 7500,
+            enable_health_check: false,
+            ..Default::default()
+        };
 
         let server = ProxyServer::new(config).await.unwrap();
         let server_config = server.config();
@@ -817,11 +835,13 @@ mod service_tests {
 
     #[test]
     fn test_proxy_service_with_multiple_backends() {
-        let mut config = ProxyConfig::default();
-        config.backend_servers = vec![
-            "192.168.1.1:8080".parse().unwrap(),
-            "192.168.1.2:8080".parse().unwrap(),
-        ];
+        let config = ProxyConfig {
+            backend_servers: vec![
+                "192.168.1.1:8080".parse().unwrap(),
+                "192.168.1.2:8080".parse().unwrap(),
+            ],
+            ..Default::default()
+        };
 
         let config = Arc::new(config);
         let metrics = Arc::new(MetricsCollector::new());
@@ -867,8 +887,10 @@ mod integration_tests {
     #[tokio::test]
     async fn test_config_validation_integration() {
         // Test that invalid configurations are properly rejected
-        let mut config = ProxyConfig::default();
-        config.timeout = Duration::from_secs(0); // Invalid
+        let config = ProxyConfig {
+            timeout: Duration::from_secs(0), // Invalid
+            ..Default::default()
+        };
 
         let result = ProxyServer::new(config).await;
         assert!(result.is_err());
@@ -903,9 +925,11 @@ mod integration_tests {
 
         for i in 0..5 {
             let handle = tokio::spawn(async move {
-                let mut config = ProxyConfig::default();
-                config.listen_addr = format!("127.0.0.1:{}", 9000 + i).parse().unwrap();
-                config.backend_addr = format!("127.0.0.1:{}", 3000 + i).parse().unwrap();
+                let config = ProxyConfig {
+                    listen_addr: format!("127.0.0.1:{}", 9000 + i).parse().unwrap(),
+                    backend_addr: format!("127.0.0.1:{}", 3000 + i).parse().unwrap(),
+                    ..Default::default()
+                };
 
                 ProxyServer::new(config).await
             });
@@ -988,9 +1012,11 @@ mod performance_tests {
         let start = Instant::now();
 
         for i in 0..10 {
-            let mut config = ProxyConfig::default();
-            config.listen_addr = format!("127.0.0.1:{}", 8000 + i).parse().unwrap();
-            config.backend_addr = format!("127.0.0.1:{}", 3000 + i).parse().unwrap();
+            let config = ProxyConfig {
+                listen_addr: format!("127.0.0.1:{}", 8000 + i).parse().unwrap(),
+                backend_addr: format!("127.0.0.1:{}", 3000 + i).parse().unwrap(),
+                ..Default::default()
+            };
 
             let _server = ProxyServer::new(config).await.unwrap();
         }

@@ -48,8 +48,12 @@ Your core responsibilities:
 
 When reviewing code, provide specific, actionable feedback on performance optimizations, test coverage gaps, documentation improvements, and distributed systems concerns. Always suggest concrete benchmarking strategies and identify potential performance bottlenecks.
 
-Before a task is complete, you will have run:
-1. cargo clippy (no lint errors)
-2. cargo fmt --check (fomatted)
-3. cargo machete (no unused dependencies)
-4. cargo test (no failing tests)
+# Before a task is complete, these checks must pass:
+No lint errors
+1. `cargo clippy --all-targets --all-features -- -D warnings`
+Formatted
+2. `cargo fmt --check`
+No unused dependencies
+3. `cargo machete`
+No failing tests
+4. `cargo test`

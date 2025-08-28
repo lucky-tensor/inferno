@@ -25,14 +25,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let config = ProxyConfig {
-//!         listen_addr: "127.0.0.1:8080".parse()?,
-//!         backend_addr: "127.0.0.1:3000".parse()?,
-//!         timeout: Duration::from_secs(30),
-//!         max_connections: 10000,
-//!         enable_health_check: true,
-//!         health_check_interval: Duration::from_secs(30),
-//!     };
+//!     let config = ProxyConfig::default();
 //!
 //!     let server = ProxyServer::new(config).await?;
 //!     server.run().await?;

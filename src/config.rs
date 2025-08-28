@@ -732,8 +732,10 @@ mod tests {
 
     #[test]
     fn test_config_validation_invalid_timeout() {
-        let mut config = ProxyConfig::default();
-        config.timeout = Duration::from_secs(0);
+        let config = ProxyConfig {
+            timeout: Duration::from_secs(0),
+            ..Default::default()
+        };
 
         let result = ProxyConfig::new(config);
         assert!(result.is_err());
@@ -742,8 +744,10 @@ mod tests {
 
     #[test]
     fn test_config_validation_invalid_connections() {
-        let mut config = ProxyConfig::default();
-        config.max_connections = 0;
+        let config = ProxyConfig {
+            max_connections: 0,
+            ..Default::default()
+        };
 
         let result = ProxyConfig::new(config);
         assert!(result.is_err());
@@ -752,8 +756,10 @@ mod tests {
 
     #[test]
     fn test_config_validation_tls_without_files() {
-        let mut config = ProxyConfig::default();
-        config.enable_tls = true;
+        let config = ProxyConfig {
+            enable_tls: true,
+            ..Default::default()
+        };
         // tls_cert_path and tls_key_path remain None
 
         let result = ProxyConfig::new(config);
@@ -766,8 +772,10 @@ mod tests {
 
     #[test]
     fn test_config_validation_invalid_log_level() {
-        let mut config = ProxyConfig::default();
-        config.log_level = "invalid".to_string();
+        let config = ProxyConfig {
+            log_level: "invalid".to_string(),
+            ..Default::default()
+        };
 
         let result = ProxyConfig::new(config);
         assert!(result.is_err());
@@ -787,11 +795,13 @@ mod tests {
 
     #[test]
     fn test_effective_backends_multiple() {
-        let mut config = ProxyConfig::default();
-        config.backend_servers = vec![
-            "192.168.1.1:8080".parse().unwrap(),
-            "192.168.1.2:8080".parse().unwrap(),
-        ];
+        let config = ProxyConfig {
+            backend_servers: vec![
+                "192.168.1.1:8080".parse().unwrap(),
+                "192.168.1.2:8080".parse().unwrap(),
+            ],
+            ..Default::default()
+        };
 
         let backends = config.effective_backends();
         assert_eq!(backends.len(), 2);
@@ -803,8 +813,10 @@ mod tests {
         let config = ProxyConfig::default();
         assert!(!config.has_multiple_backends());
 
-        let mut config = ProxyConfig::default();
-        config.backend_servers = vec!["192.168.1.1:8080".parse().unwrap()];
+        let config = ProxyConfig {
+            backend_servers: vec!["192.168.1.1:8080".parse().unwrap()],
+            ..Default::default()
+        };
         assert!(config.has_multiple_backends());
     }
 }

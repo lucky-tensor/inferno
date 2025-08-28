@@ -176,14 +176,16 @@ fn bench_config_performance(c: &mut Criterion) {
 
     // Benchmark effective backends calculation
     group.bench_function("effective_backends", |b| {
-        let mut config = ProxyConfig::default();
-        config.backend_servers = vec![
-            "192.168.1.1:8080".parse().unwrap(),
-            "192.168.1.2:8080".parse().unwrap(),
-            "192.168.1.3:8080".parse().unwrap(),
-            "192.168.1.4:8080".parse().unwrap(),
-            "192.168.1.5:8080".parse().unwrap(),
-        ];
+        let config = ProxyConfig {
+            backend_servers: vec![
+                "192.168.1.1:8080".parse().unwrap(),
+                "192.168.1.2:8080".parse().unwrap(),
+                "192.168.1.3:8080".parse().unwrap(),
+                "192.168.1.4:8080".parse().unwrap(),
+                "192.168.1.5:8080".parse().unwrap(),
+            ],
+            ..Default::default()
+        };
 
         b.iter(|| {
             let _backends = config.effective_backends();
@@ -266,7 +268,6 @@ fn bench_error_performance(c: &mut Criterion) {
 /// - Connection establishment: < 1ms to local backends
 /// - Memory footprint: < 1KB per service instance
 fn bench_proxy_service(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
     let mut group = c.benchmark_group("proxy_service");
 
     // Benchmark proxy service creation
@@ -282,9 +283,13 @@ fn bench_proxy_service(c: &mut Criterion) {
     // Benchmark server creation (async operation)
     group.bench_function("server_creation", |b| {
         let config = ProxyConfig::default();
+        let rt = tokio::runtime::Runtime::new().unwrap();
 
-        b.to_async(&rt).iter(|| async {
-            let _server = ProxyServer::new(config.clone()).await.unwrap();
+        b.iter(|| {
+            let config = config.clone();
+            rt.block_on(async {
+                let _server = ProxyServer::new(config).await.unwrap();
+            })
         })
     });
 
@@ -416,10 +421,12 @@ fn bench_scalability(c: &mut Criterion) {
             BenchmarkId::new("config_validation_backends", backend_count),
             backend_count,
             |b, &backend_count| {
-                let mut config = ProxyConfig::default();
-                config.backend_servers = (0..*backend_count)
-                    .map(|i| format!("192.168.1.{}:8080", i % 255).parse().unwrap())
-                    .collect();
+                let config = ProxyConfig {
+                    backend_servers: (0..backend_count)
+                        .map(|i| format!("192.168.1.{}:8080", i % 255).parse().unwrap())
+                        .collect(),
+                    ..Default::default()
+                };
 
                 b.iter(|| {
                     let _validated = ProxyConfig::new(config.clone()).unwrap();
@@ -448,9 +455,11 @@ fn bench_startup_performance(c: &mut Criterion) {
 
     // Benchmark complete startup sequence
     group.bench_function("full_startup", |b| {
-        b.to_async(&rt).iter(|| async {
-            let config = ProxyConfig::default();
-            let _server = ProxyServer::new(config).await.unwrap();
+        b.iter(|| {
+            rt.block_on(async {
+                let config = ProxyConfig::default();
+                let _server = ProxyServer::new(config).await.unwrap();
+            })
         })
     });
 
@@ -489,13 +498,14 @@ fn bench_realistic_workload(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(10)); // Longer measurement time
 
     group.bench_function("mixed_operations", |b| {
-        b.to_async(&rt).iter(|| async {
-            let config = Arc::new(ProxyConfig::default());
-            let metrics = Arc::new(MetricsCollector::new());
-            let _service = ProxyService::new(config, Arc::clone(&metrics));
+        b.iter(|| {
+            rt.block_on(async {
+                let config = Arc::new(ProxyConfig::default());
+                let metrics = Arc::new(MetricsCollector::new());
+                let _service = ProxyService::new(config, Arc::clone(&metrics));
 
-            // Simulate 1000 requests with realistic patterns
-            for i in 0..1000 {
+                // Simulate 1000 requests with realistic patterns
+                for i in 0..1000 {
                 metrics.record_request();
 
                 // Simulate request processing delay
@@ -519,8 +529,9 @@ fn bench_realistic_workload(c: &mut Criterion) {
                 metrics.record_request_duration(response_time);
             }
 
-            // Collect final metrics (simulates monitoring)
-            let _snapshot = metrics.snapshot();
+                // Collect final metrics (simulates monitoring)
+                let _snapshot = metrics.snapshot();
+            })
         })
     });
 
@@ -545,6 +556,7 @@ criterion_main!(benches);
 
 #[cfg(test)]
 mod benchmark_tests {
+    #[allow(unused_imports)]
     use super::*;
 
     /// Test that benchmark functions can run without panicking
