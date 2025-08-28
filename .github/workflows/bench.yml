@@ -23,7 +23,7 @@ jobs:
       - name: Install cargo-criterion
         run: cargo install cargo-criterion
       - name: Run benchmarks and check for regressions
-        run: ./benches/check-performance.sh
+        run: ./benchmarking/check-performance.sh
       - name: Upload benchmark artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -35,7 +35,6 @@ jobs:
         with:
           add: |
             ./.prior_bench
-            ./benchmark.json
           message: "Update benchmark results [skip ci]"
           default_author: github_actions
           push: origin HEAD:${{ github.head_ref || github.ref_name }}
