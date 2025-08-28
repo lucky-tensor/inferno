@@ -56,6 +56,7 @@ For detailed documentation on each component, see:
    - Prometheus-compatible export format
    - Ready/not-ready state management
    - Performance and capacity reporting
+   - GPU benchmarking function for hardware sampling and metrics
 
 3. **Service Registration**
    - Automatic registration with load balancers

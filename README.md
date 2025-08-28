@@ -1,6 +1,12 @@
 
 # Inferno Proxy: a self healing cloud for AI inference
 
+[![Build](https://github.com/0o-de-lally/inferno/workflows/build/badge.svg)](https://github.com/0o-de-lally/inferno/actions/workflows/build.yml)
+[![Test](https://github.com/0o-de-lally/inferno/workflows/test/badge.svg)](https://github.com/0o-de-lally/inferno/actions/workflows/test.yml)
+[![Benchmark](https://github.com/0o-de-lally/inferno/workflows/bench/badge.svg)](https://github.com/0o-de-lally/inferno/actions/workflows/bench.yml)
+[![Performance](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/0o-de-lally/inferno/main/benchmark-badge.json)](https://github.com/0o-de-lally/inferno/actions/workflows/bench.yml)
+[![Lint](https://github.com/0o-de-lally/inferno/workflows/lint/badge.svg)](https://github.com/0o-de-lally/inferno/actions/workflows/lint.yml)
+
 Inferno Proxy is a self-healing cloud platform for AI inference, designed for high-performance, reliability, and observability. It demonstrates best practices for distributed systems, with comprehensive testing and robust error recovery for AI workloads.
 
 ## Features
