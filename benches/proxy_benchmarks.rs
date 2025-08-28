@@ -506,28 +506,28 @@ fn bench_realistic_workload(c: &mut Criterion) {
 
                 // Simulate 1000 requests with realistic patterns
                 for i in 0..1000 {
-                metrics.record_request();
+                    metrics.record_request();
 
-                // Simulate request processing delay
-                if i % 100 == 0 {
-                    tokio::time::sleep(Duration::from_micros(10)).await;
+                    // Simulate request processing delay
+                    if i % 100 == 0 {
+                        tokio::time::sleep(Duration::from_micros(10)).await;
+                    }
+
+                    // Mix of success and error responses
+                    match i % 20 {
+                        0 => metrics.record_response(404), // 5% 404s
+                        1 => metrics.record_response(500), // 5% 500s
+                        _ => metrics.record_response(200), // 90% success
+                    }
+
+                    // Record realistic response times
+                    let response_time = match i % 10 {
+                        0..=6 => Duration::from_millis(1 + (i % 10)), // Fast responses
+                        7..=8 => Duration::from_millis(50 + (i % 50)), // Medium responses
+                        _ => Duration::from_millis(200),              // Slow responses
+                    };
+                    metrics.record_request_duration(response_time);
                 }
-
-                // Mix of success and error responses
-                match i % 20 {
-                    0 => metrics.record_response(404), // 5% 404s
-                    1 => metrics.record_response(500), // 5% 500s
-                    _ => metrics.record_response(200), // 90% success
-                }
-
-                // Record realistic response times
-                let response_time = match i % 10 {
-                    0..=6 => Duration::from_millis(1 + (i % 10)), // Fast responses
-                    7..=8 => Duration::from_millis(50 + (i % 50)), // Medium responses
-                    _ => Duration::from_millis(200),              // Slow responses
-                };
-                metrics.record_request_duration(response_time);
-            }
 
                 // Collect final metrics (simulates monitoring)
                 let _snapshot = metrics.snapshot();
