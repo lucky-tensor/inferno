@@ -1,4 +1,6 @@
 name: Benchmark
+permissions:
+  contents: write
 on:
   push:
   pull_request:
@@ -29,3 +31,6 @@ jobs:
         with:
           add: ./.prior_bench
           message: "Update benchmark results [skip ci]"
+          author_name: github-actions[bot]
+          author_email: github-actions[bot]@users.noreply.github.com
+          github_token: ${{ secrets.GITHUB_TOKEN }}
