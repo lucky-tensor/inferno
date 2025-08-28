@@ -488,7 +488,7 @@ fn bench_startup_performance(c: &mut Criterion) {
 /// ## Workload Characteristics
 ///
 /// - Request patterns: Bursty traffic with realistic inter-arrival times
-/// - Response patterns: Mix of success/error responses  
+/// - Response patterns: Mix of success/error responses
 /// - Configuration changes: Periodic validation and updates
 /// - Metrics collection: Continuous background collection
 fn bench_realistic_workload(c: &mut Criterion) {
