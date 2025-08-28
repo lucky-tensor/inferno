@@ -37,6 +37,5 @@ jobs:
             ./.prior_bench
             ./benchmark.json
           message: "Update benchmark results [skip ci]"
-          author_name: github-actions[bot]
-          author_email: github-actions[bot]@users.noreply.github.com
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_author: github_actions
+          push: origin HEAD:${{ github.head_ref || github.ref_name }}
