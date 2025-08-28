@@ -13,6 +13,8 @@ jobs:
         with:
           toolchain: stable
           profile: minimal
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
       - name: Run benchmarks
         run: cargo bench -- --output-format bencher | tee benchmark.txt
       - name: Upload benchmark report
