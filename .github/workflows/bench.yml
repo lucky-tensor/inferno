@@ -18,7 +18,7 @@ jobs:
         with:
           cache-on-failure: true
       - name: Run benchmarks
-        run: cargo bench -- --output-format bencher | tee benchmark.txt
+        run: cargo bench | tee benchmark.txt
       - name: Upload benchmark report
         uses: actions/upload-artifact@v4
         with:
