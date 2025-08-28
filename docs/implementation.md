@@ -77,10 +77,10 @@ For detailed documentation on each component, see:
    - Cloud provider API integrations
 
 3. **Data Collection & Storage**
-   - Embedded PostgreSQL with time-series optimization
-   - Multi-source telemetry aggregation
-   - Historical trend analysis
-   - Audit logging and compliance
+   - Flexible database backend: embedded SQLite for zero-config or PostgreSQL via connection string
+   - Multi-source telemetry aggregation with time-series optimization
+   - Historical trend analysis and capacity planning
+   - Audit logging and compliance reporting
 
 #### Shared Infrastructure
 1. **Error Handling System**
@@ -290,6 +290,55 @@ fn main() {
 - **Deployment**: Flexible deployment patterns (microservices vs monolith)
 - **Development**: Components can be developed and tested independently
 - **Operations**: Can run different components on different hardware profiles
+
+## Zero OS Dependencies Philosophy
+
+### 🐳 Container-Ready Architecture
+
+**Critical Design Principle**: Inferno has **zero OS dependencies** and runs equally well on any environment - from slim Alpine containers to full Ubuntu systems. Users should never need to install any system libraries or OS packages.
+
+#### Implementation Strategy
+- **Pure Rust Dependencies**: All functionality implemented in Rust or via Rust crates only
+- **Static Linking**: All dependencies are statically linked into the binary
+- **No System Calls**: Avoid dependencies on system-specific libraries or utilities
+- **Universal Binaries**: Single binary works across all supported platforms
+
+#### Container Compatibility
+```dockerfile
+# Works perfectly on minimal Alpine
+FROM alpine:3.18
+COPY inferno-proxy /usr/local/bin/
+COPY inferno-backend /usr/local/bin/
+COPY inferno-governator /usr/local/bin/
+RUN addgroup -S inferno && adduser -S -G inferno inferno
+USER inferno
+EXPOSE 8080
+CMD ["inferno-proxy"]
+
+# Also works on full Ubuntu - no additional packages needed
+FROM ubuntu:22.04
+COPY inferno-proxy /usr/local/bin/
+RUN useradd -r -s /bin/false inferno
+USER inferno
+EXPOSE 8080
+CMD ["inferno-proxy"]
+```
+
+#### Benefits
+- **Deployment Simplicity**: Drop-in binary deployment anywhere
+- **Container Efficiency**: Minimal container sizes (Alpine + binary)
+- **Portability**: Runs on any Linux distribution without modification
+- **Security**: Reduced attack surface with no external dependencies
+- **Reliability**: No version conflicts or missing system libraries
+
+#### Dependency Strategy
+- **Database**: Embedded SQLite/libsql for zero-config deployments, with optional PostgreSQL support via connection string
+- **TLS**: `rustls` for zero OS dependencies, with OpenSSL statically linked if needed (no system library requirements)
+- **HTTP**: Pure Rust HTTP implementations (Pingora, hyper)
+- **Compression**: Pure Rust implementations (flate2, brotli)
+- **Metrics**: Built-in Prometheus format export, no external tools
+
+This approach ensures Inferno can be deployed in the most constrained environments while maintaining full functionality and performance.
 
 ## Technical Decisions
 

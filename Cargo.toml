@@ -1,17 +1,23 @@
-[package]
+[workspace]
+members = [
+    "crates/shared",
+    "crates/proxy",
+    "crates/backend",
+    "crates/governator",
+    "crates/cli",
+    "benchmarking",
+]
+resolver = "2"
 
-name = "inferno-proxy"
+[workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["Inferno Proxy Team <team@example.com>"]
-description = "Inferno Proxy: a self healing cloud for AI inference. High-performance, robust, and observable platform for AI workloads."
+authors = ["Inferno Team <team@example.com>"]
 license = "Apache-2.0"
 repository = "https://github.com/0o-de-lally/inferno"
 
-[dependencies]
-pingora-core = "0.6"
-pingora-proxy = "0.6"
-pingora-http = "0.6"
+[workspace.dependencies]
+# Shared dependencies across crates
 tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -19,8 +25,14 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "1.0"
 async-trait = "0.1"
+clap = { version = "4.0", features = ["derive", "env"] }
 
-[dev-dependencies]
+# Pingora dependencies for proxy
+pingora-core = "0.6"
+pingora-proxy = "0.6"
+pingora-http = "0.6"
+
+# Development dependencies
 criterion = { version = "0.5", features = ["html_reports"] }
 tokio-test = "0.4"
 proptest = "1.4"
@@ -28,15 +40,12 @@ wiremock = "0.5"
 serial_test = "3.0"
 reqwest = { version = "0.11", features = ["json", "blocking", "multipart"] }
 
-[build-dependencies]
+# Backend-specific dependencies
+sqlx = { version = "0.6", features = ["postgres", "chrono", "runtime-tokio-native-tls"] }
 
-[[bench]]
-name = "proxy_benchmarks"
-harness = false
-
-[[bin]]
-name = "proxy-server"
-path = "src/main.rs"
+[workspace.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [profile.release]
 codegen-units = 1
