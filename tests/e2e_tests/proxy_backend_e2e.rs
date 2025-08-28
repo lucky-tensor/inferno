@@ -29,8 +29,8 @@ async fn test_proxy_backend_communication() {
     
     // Start the proxy server
     let mut proxy = Command::new("target/release/inferno-proxy")
-        .env("PINGORA_BACKEND_ADDR", "127.0.0.1:3001")
-        .env("PINGORA_LISTEN_ADDR", "127.0.0.1:8081")
+        .env("INFERNO_BACKEND_ADDR", "127.0.0.1:3001")
+        .env("INFERNO_LISTEN_ADDR", "127.0.0.1:8081")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
@@ -54,7 +54,9 @@ async fn test_proxy_backend_communication() {
     
     // Clean up
     let _ = backend.kill();
+    let _ = backend.wait();
     let _ = proxy.kill();
+    let _ = proxy.wait();
 }
 
 /// Test load balancing between multiple backends
@@ -80,8 +82,8 @@ async fn test_load_balancing() {
     
     // Start proxy with multiple backends
     let mut proxy = Command::new("target/release/inferno-proxy")
-        .env("PINGORA_BACKEND_SERVERS", "127.0.0.1:3002,127.0.0.1:3003,127.0.0.1:3004")
-        .env("PINGORA_LISTEN_ADDR", "127.0.0.1:8082")
+        .env("INFERNO_BACKEND_SERVERS", "127.0.0.1:3002,127.0.0.1:3003,127.0.0.1:3004")
+        .env("INFERNO_LISTEN_ADDR", "127.0.0.1:8082")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
@@ -113,8 +115,10 @@ async fn test_load_balancing() {
     
     // Clean up
     let _ = proxy.kill();
+    let _ = proxy.wait();
     for mut backend in backends {
         let _ = backend.kill();
+        let _ = backend.wait();
     }
 }
 
@@ -171,6 +175,7 @@ async fn test_graceful_shutdown() {
     
     // Clean up
     let _ = backend.kill();
+    let _ = backend.wait();
     let _ = proxy.wait();
 }
 
@@ -201,8 +206,8 @@ async fn test_backend_failover() {
     
     // Start proxy with both backends
     let mut proxy = Command::new("target/release/inferno-proxy")
-        .env("PINGORA_BACKEND_SERVERS", "127.0.0.1:3006,127.0.0.1:3007")
-        .env("PINGORA_LISTEN_ADDR", "127.0.0.1:8084")
+        .env("INFERNO_BACKEND_SERVERS", "127.0.0.1:3006,127.0.0.1:3007")
+        .env("INFERNO_LISTEN_ADDR", "127.0.0.1:8084")
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
@@ -221,6 +226,7 @@ async fn test_backend_failover() {
     
     // Kill one backend
     let _ = backend1.kill();
+    let _ = backend1.wait();
     sleep(Duration::from_millis(500)).await;
     
     // Requests should still work via second backend
@@ -232,7 +238,9 @@ async fn test_backend_failover() {
     
     // Clean up
     let _ = proxy.kill();
+    let _ = proxy.wait();
     let _ = backend2.kill();
+    let _ = backend2.wait();
 }
 
 /// Helper function to build release binaries
@@ -240,7 +248,7 @@ fn build_release_binaries() {
     println!("Building release binaries...");
     
     let output = Command::new("cargo")
-        .args(&["build", "--release", "-p", "inferno-proxy"])
+        .args(["build", "--release", "-p", "inferno-proxy"])
         .output()
         .expect("Failed to build proxy");
     
@@ -249,7 +257,7 @@ fn build_release_binaries() {
     }
     
     let output = Command::new("cargo")
-        .args(&["build", "--release", "-p", "inferno-backend"])
+        .args(["build", "--release", "-p", "inferno-backend"])
         .output()
         .expect("Failed to build backend");
     
@@ -258,7 +266,3 @@ fn build_release_binaries() {
     }
 }
 
-#[cfg(unix)]
-extern "C" {
-    fn kill(pid: libc::pid_t, sig: libc::c_int) -> libc::c_int;
-}

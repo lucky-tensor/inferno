@@ -211,18 +211,18 @@ mod config_tests {
     fn test_configuration_from_env_custom_values() {
         // Clear any existing environment variables first
         for (key, _) in std::env::vars() {
-            if key.starts_with("PINGORA_") {
+            if key.starts_with("INFERNO_") {
                 std::env::remove_var(key);
             }
         }
 
-        std::env::set_var("PINGORA_LISTEN_ADDR", "127.0.0.1:9091");
-        std::env::set_var("PINGORA_BACKEND_ADDR", "127.0.0.1:4000");
-        std::env::set_var("PINGORA_TIMEOUT_SECONDS", "60");
-        std::env::set_var("PINGORA_MAX_CONNECTIONS", "5000");
-        std::env::set_var("PINGORA_LOG_LEVEL", "debug");
+        std::env::set_var("INFERNO_LISTEN_ADDR", "127.0.0.1:9091");
+        std::env::set_var("INFERNO_BACKEND_ADDR", "127.0.0.1:4000");
+        std::env::set_var("INFERNO_TIMEOUT_SECONDS", "60");
+        std::env::set_var("INFERNO_MAX_CONNECTIONS", "5000");
+        std::env::set_var("INFERNO_LOG_LEVEL", "debug");
         std::env::set_var(
-            "PINGORA_BACKEND_SERVERS",
+            "INFERNO_BACKEND_SERVERS",
             "192.168.1.1:8080,192.168.1.2:8080",
         );
 
@@ -236,12 +236,12 @@ mod config_tests {
         assert_eq!(config.backend_servers.len(), 2);
 
         // Clean up
-        std::env::remove_var("PINGORA_LISTEN_ADDR");
-        std::env::remove_var("PINGORA_BACKEND_ADDR");
-        std::env::remove_var("PINGORA_TIMEOUT_SECONDS");
-        std::env::remove_var("PINGORA_MAX_CONNECTIONS");
-        std::env::remove_var("PINGORA_LOG_LEVEL");
-        std::env::remove_var("PINGORA_BACKEND_SERVERS");
+        std::env::remove_var("INFERNO_LISTEN_ADDR");
+        std::env::remove_var("INFERNO_BACKEND_ADDR");
+        std::env::remove_var("INFERNO_TIMEOUT_SECONDS");
+        std::env::remove_var("INFERNO_MAX_CONNECTIONS");
+        std::env::remove_var("INFERNO_LOG_LEVEL");
+        std::env::remove_var("INFERNO_BACKEND_SERVERS");
     }
 
     #[test]
@@ -249,21 +249,21 @@ mod config_tests {
     fn test_configuration_from_env_invalid_values() {
         // Clear any existing environment variables first
         for (key, _) in std::env::vars() {
-            if key.starts_with("PINGORA_") {
+            if key.starts_with("INFERNO_") {
                 std::env::remove_var(key);
             }
         }
 
-        std::env::set_var("PINGORA_LISTEN_ADDR", "invalid_address");
+        std::env::set_var("INFERNO_LISTEN_ADDR", "invalid_address");
 
         let result = ProxyConfig::from_env();
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
             .to_string()
-            .contains("Invalid PINGORA_LISTEN_ADDR"));
+            .contains("Invalid INFERNO_LISTEN_ADDR"));
 
-        std::env::remove_var("PINGORA_LISTEN_ADDR");
+        std::env::remove_var("INFERNO_LISTEN_ADDR");
     }
 }
 
@@ -481,16 +481,16 @@ mod metrics_tests {
         let prometheus = snapshot.to_prometheus_format();
 
         // Verify key metrics are present
-        assert!(prometheus.contains("proxy_requests_total"));
-        assert!(prometheus.contains("proxy_responses_by_status_total"));
-        assert!(prometheus.contains("proxy_request_duration_ms"));
-        assert!(prometheus.contains("proxy_success_rate"));
+        assert!(prometheus.contains("inferno_requests_total"));
+        assert!(prometheus.contains("inferno_responses_by_status_total"));
+        assert!(prometheus.contains("inferno_request_duration_ms"));
+        assert!(prometheus.contains("inferno_success_rate"));
 
         // Verify values are correct
-        assert!(prometheus.contains("proxy_requests_total 100"));
-        assert!(prometheus.contains("proxy_responses_by_status_total{status=\"2xx\"} 100"));
-        assert!(prometheus.contains("proxy_responses_by_status_total{status=\"4xx\"} 1"));
-        assert!(prometheus.contains("proxy_responses_by_status_total{status=\"5xx\"} 1"));
+        assert!(prometheus.contains("inferno_requests_total 100"));
+        assert!(prometheus.contains("inferno_responses_by_status_total{status=\"2xx\"} 100"));
+        assert!(prometheus.contains("inferno_responses_by_status_total{status=\"4xx\"} 1"));
+        assert!(prometheus.contains("inferno_responses_by_status_total{status=\"5xx\"} 1"));
     }
 
     #[test]
@@ -904,8 +904,8 @@ mod integration_tests {
     #[tokio::test]
     async fn test_environment_config_integration() {
         // Test environment variable configuration
-        std::env::set_var("PINGORA_LISTEN_ADDR", "127.0.0.1:8888");
-        std::env::set_var("PINGORA_MAX_CONNECTIONS", "15000");
+        std::env::set_var("INFERNO_LISTEN_ADDR", "127.0.0.1:8888");
+        std::env::set_var("INFERNO_MAX_CONNECTIONS", "15000");
 
         let config = ProxyConfig::from_env().unwrap();
         let server = ProxyServer::new(config).await.unwrap();
@@ -914,8 +914,8 @@ mod integration_tests {
         assert_eq!(server.config().max_connections, 15000);
 
         // Clean up
-        std::env::remove_var("PINGORA_LISTEN_ADDR");
-        std::env::remove_var("PINGORA_MAX_CONNECTIONS");
+        std::env::remove_var("INFERNO_LISTEN_ADDR");
+        std::env::remove_var("INFERNO_MAX_CONNECTIONS");
     }
 
     #[tokio::test]
