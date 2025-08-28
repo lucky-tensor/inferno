@@ -2,9 +2,10 @@
 members = [
     "crates/shared",
     "crates/proxy",
-    "crates/backend", 
+    "crates/backend",
     "crates/governator",
     "crates/cli",
+    "benchmarking",
 ]
 resolver = "2"
 

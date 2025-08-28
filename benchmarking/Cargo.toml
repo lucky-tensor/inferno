@@ -1,0 +1,43 @@
+[package]
+name = "inferno-benchmarks"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Performance benchmarks for Inferno distributed systems"
+publish = false
+
+[dependencies]
+inferno-proxy = { path = "../crates/proxy" }
+inferno-shared = { path = "../crates/shared" }
+criterion = { workspace = true }
+tokio = { workspace = true }
+
+[[bench]]
+name = "metrics"
+harness = false
+
+[[bench]]
+name = "config"
+harness = false
+
+[[bench]]
+name = "error"
+harness = false
+
+[[bench]]
+name = "proxy_service"
+harness = false
+
+[[bench]]
+name = "concurrency"
+harness = false
+
+[[bench]]
+name = "memory"
+harness = false
+
+[[bench]]
+name = "scalability"
+harness = false
