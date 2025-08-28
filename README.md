@@ -5,7 +5,7 @@ A high-performance HTTP reverse proxy built with Cloudflare's Pingora framework,
 ## Features
 
 - 🚀 **High Performance**: Zero-allocation request handling patterns where possible
-- 🔒 **Robust Error Handling**: Comprehensive error classification and recovery strategies  
+- 🔒 **Robust Error Handling**: Comprehensive error classification and recovery strategies
 - 📊 **Built-in Observability**: Prometheus metrics, structured logging, and health checks
 - ⚙️ **Flexible Configuration**: Environment variables, validation, and hot reloading support
 - 🧪 **Test-Driven Development**: Extensive unit tests, integration tests, and benchmarks
@@ -65,7 +65,7 @@ cargo run
 # Start a test backend
 python3 -m http.server 3000 &
 
-# Test proxy functionality  
+# Test proxy functionality
 curl http://localhost:8080/
 
 # View metrics
@@ -147,7 +147,7 @@ open target/criterion/report/index.html
 # Lint code
 cargo clippy -- -D warnings
 
-# Format code  
+# Format code
 cargo fmt
 
 # Check for security vulnerabilities
@@ -165,7 +165,7 @@ The proxy achieves the following performance characteristics on modern hardware:
 
 - **Latency**: < 1ms P99 for local backends
 - **Throughput**: > 100,000 requests/second
-- **Memory**: < 1KB per concurrent connection  
+- **Memory**: < 1KB per concurrent connection
 - **CPU**: < 10% overhead vs direct connection
 - **Startup**: < 100ms cold start
 
@@ -186,7 +186,7 @@ The proxy exposes comprehensive metrics in Prometheus format:
 ```
 # Request metrics
 proxy_requests_total
-proxy_requests_active  
+proxy_requests_active
 proxy_responses_total
 proxy_responses_by_status_total
 
@@ -213,7 +213,7 @@ Structured JSON logging with configurable levels:
 ```json
 {
   "timestamp": "2023-12-07T10:30:45Z",
-  "level": "INFO", 
+  "level": "INFO",
   "message": "Request processed successfully",
   "backend": "192.168.1.10:8080",
   "status": 200,
@@ -227,7 +227,7 @@ Structured JSON logging with configurable levels:
 ### Security Features
 
 - Input validation and sanitization
-- Request size limits and rate limiting  
+- Request size limits and rate limiting
 - Security headers (CSP, HSTS, X-Frame-Options)
 - TLS/SSL support with modern cipher suites
 - Secure defaults for all configuration options
@@ -236,7 +236,7 @@ Structured JSON logging with configurable levels:
 
 ```http
 X-Content-Type-Options: nosniff
-X-Frame-Options: DENY  
+X-Frame-Options: DENY
 X-Proxy-Cache: MISS
 X-Forwarded-By: pingora-proxy-demo
 ```
@@ -246,7 +246,7 @@ X-Forwarded-By: pingora-proxy-demo
 ### Algorithms
 
 - **Round Robin**: Distribute requests evenly across backends
-- **Least Connections**: Route to backend with fewest active connections  
+- **Least Connections**: Route to backend with fewest active connections
 - **Weighted**: Route based on backend capacity weights
 
 ### Health Checking
@@ -262,7 +262,7 @@ X-Forwarded-By: pingora-proxy-demo
 
 - **Configuration Errors**: Invalid settings, validation failures
 - **Network Errors**: Connection timeouts, DNS failures
-- **Backend Errors**: Upstream server errors, invalid responses  
+- **Backend Errors**: Upstream server errors, invalid responses
 - **System Errors**: Resource exhaustion, OS-level failures
 
 ### Error Recovery
@@ -291,6 +291,16 @@ X-Forwarded-By: pingora-proxy-demo
 - Document all public APIs with examples
 - Use semantic versioning for releases
 - Include performance benchmarks for changes
+
+#### Before a task is complete, these checks must pass:
+No lint errors
+1. `cargo clippy`
+Formatted
+2. `cargo fmt --check`
+No unused dependencies
+3. `cargo machete`
+No failing tests
+4. `cargo test`
 
 ## License
 
