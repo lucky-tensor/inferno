@@ -7,7 +7,7 @@
 //! ## Test Categories
 //!
 //! 1. **Configuration Tests**: Configuration parsing, validation, and environment handling
-//! 2. **Metrics Tests**: Metrics collection, calculation, and export functionality  
+//! 2. **Metrics Tests**: Metrics collection, calculation, and export functionality
 //! 3. **Error Tests**: Error creation, classification, and conversion
 //! 4. **Server Tests**: Server lifecycle, configuration, and management
 //! 5. **Integration Tests**: Component interaction and end-to-end scenarios
@@ -17,13 +17,14 @@
 //!
 //! All unit tests should complete within reasonable time bounds:
 //! - Individual tests: < 1 second
-//! - Full test suite: < 30 seconds  
+//! - Full test suite: < 30 seconds
 //! - Memory usage: < 100MB total
 //! - No memory leaks or resource leakage
 
 use pingora_proxy_demo::error::ProxyError as Error;
 use pingora_proxy_demo::metrics::{MetricsCollector, MetricsSnapshot};
 use pingora_proxy_demo::{ProxyConfig, ProxyError, ProxyServer, ProxyService, Result};
+use std::error::Error;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tokio::time::timeout;
@@ -94,7 +95,7 @@ mod config_tests {
         assert!(result.unwrap_err().to_string().contains("max_connections"));
 
         config.max_connections = 2_000_000;
-        let result = ProxyConfig::new(config);
+        let result = ProxyConfig::new(config.clone());
         assert!(result.is_err());
     }
 

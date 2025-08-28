@@ -33,7 +33,7 @@
 //!         enable_health_check: true,
 //!         health_check_interval: Duration::from_secs(30),
 //!     };
-//!     
+//!
 //!     let server = ProxyServer::new(config).await?;
 //!     server.run().await?;
 //!     Ok(())
@@ -84,6 +84,10 @@ pub struct ProxyService {
 }
 
 impl ProxyService {
+    /// Returns a reference to the proxy configuration
+    pub fn config(&self) -> &ProxyConfig {
+        &self.config
+    }
     /// Creates a new proxy service instance
     ///
     /// # Arguments
@@ -129,7 +133,7 @@ impl ProxyService {
     ///
     /// Returns a reference to the metrics collector containing:
     /// - Request counts and rates
-    /// - Response time percentiles  
+    /// - Response time percentiles
     /// - Error rates by type
     /// - Backend health status
     /// - Connection pool statistics
@@ -281,7 +285,7 @@ impl ProxyHttp for ProxyService {
     /// # Arguments
     ///
     /// * `_session` - Current HTTP session
-    /// * `e` - The connection error that occurred  
+    /// * `e` - The connection error that occurred
     /// * `_ctx` - Request context
     ///
     /// # Returns
@@ -299,7 +303,7 @@ impl ProxyHttp for ProxyService {
     /// # Error Handling Strategy
     ///
     /// 1. Temporary network errors: Retry with backoff
-    /// 2. Backend overload: Return 503 Service Unavailable  
+    /// 2. Backend overload: Return 503 Service Unavailable
     /// 3. Backend down: Try alternative backend if available
     /// 4. Configuration errors: Log and return 502 Bad Gateway
     #[instrument(skip(self, _session, _ctx))]
@@ -397,7 +401,7 @@ impl ProxyHttp for ProxyService {
     /// # Error Mapping Strategy
     ///
     /// - Connection timeout → 504 Gateway Timeout
-    /// - Connection refused → 502 Bad Gateway  
+    /// - Connection refused → 502 Bad Gateway
     /// - DNS resolution failure → 502 Bad Gateway
     /// - Invalid response → 502 Bad Gateway
     /// - Internal errors → 500 Internal Server Error

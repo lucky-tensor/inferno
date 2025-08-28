@@ -1,6 +1,6 @@
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server, StatusCode};
-use reqwest::Client;
+use reqwest::{Client, Method};
 use serde_json::json;
 use std::convert::Infallible;
 use std::net::SocketAddr;
@@ -170,7 +170,7 @@ async fn test_http_methods_support() {
 
     // Setup mocks for different HTTP methods
     for method_str in &["GET", "POST", "PUT", "DELETE", "PATCH"] {
-        Mock::given(method(method_str))
+    Mock::given(method(method_str.parse().unwrap()))
             .and(path("/api/data"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "method": method_str,
@@ -186,11 +186,11 @@ async fn test_http_methods_support() {
 
     // Test each HTTP method
     let test_cases = vec![
-        (reqwest::Method::GET, "GET"),
-        (reqwest::Method::POST, "POST"),
-        (reqwest::Method::PUT, "PUT"),
-        (reqwest::Method::DELETE, "DELETE"),
-        (reqwest::Method::PATCH, "PATCH"),
+        (Method::GET, "GET"),
+        (Method::POST, "POST"),
+        (Method::PUT, "PUT"),
+        (Method::DELETE, "DELETE"),
+        (Method::PATCH, "PATCH"),
     ];
 
     for (method, expected_method) in test_cases {
