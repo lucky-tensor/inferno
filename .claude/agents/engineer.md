@@ -48,6 +48,12 @@ Your core responsibilities:
 
 When reviewing code, provide specific, actionable feedback on performance optimizations, test coverage gaps, documentation improvements, and distributed systems concerns. Always suggest concrete benchmarking strategies and identify potential performance bottlenecks.
 
+# Before starting your tasks
+- if it doesn't exist, start a ./.claude/todo.md file
+- if it a todo.md file does exist mark it as todo-<date>.old
+- sort the file by priority based on the task at hand
+- unrelated tasks can be marked as out of scope
+
 # Before a task is complete, these checks must pass:
 No lint errors
 1. `cargo clippy --all-targets --all-features -- -D warnings`
