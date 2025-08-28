@@ -1,0 +1,27 @@
+[package]
+name = "inferno-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Unified command-line interface for Inferno distributed systems"
+
+[dependencies]
+inferno-shared = { path = "../shared" }
+inferno-proxy = { path = "../proxy" }
+inferno-backend = { path = "../backend" }
+inferno-governator = { path = "../governator" }
+
+# Core dependencies
+tokio = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+
+[[bin]]
+name = "inferno"
+path = "src/main.rs"

@@ -1,0 +1,37 @@
+[package]
+name = "inferno-proxy"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "High-performance reverse proxy component of Inferno distributed systems"
+
+[dependencies]
+inferno-shared = { path = "../shared" }
+
+# Pingora dependencies
+pingora-core = { workspace = true }
+pingora-proxy = { workspace = true }
+pingora-http = { workspace = true }
+
+# Core dependencies
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+async-trait = { workspace = true }
+clap = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+tokio-test = { workspace = true }
+proptest = { workspace = true }
+wiremock = { workspace = true }
+serial_test = { workspace = true }
+reqwest = { workspace = true }
+
+[[bin]]
+name = "inferno-proxy"
+path = "src/main.rs"
