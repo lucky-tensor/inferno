@@ -317,7 +317,3 @@ Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for detai
 - [Cloudflare Pingora](https://github.com/cloudflare/pingora) - The underlying proxy framework
 - [Tokio](https://tokio.rs/) - Async runtime for Rust
 - [Prometheus](https://prometheus.io/) - Metrics collection and monitoring
-
----
-
-For questions, issues, or contributions, please visit our [GitHub repository](https://github.com/example/pingora-proxy-demo).
