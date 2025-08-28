@@ -140,5 +140,10 @@ fn bench_realistic_workload(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_scalability, bench_startup_performance, bench_realistic_workload);
+criterion_group!(
+    benches,
+    bench_scalability,
+    bench_startup_performance,
+    bench_realistic_workload
+);
 criterion_main!(benches);
