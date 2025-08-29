@@ -69,7 +69,7 @@ use tracing::{debug, info, warn};
 /// # Logging and metrics
 /// log_level = "info"
 /// enable_metrics = true
-/// metrics_addr = "127.0.0.1:9090"
+/// operations_addr = "127.0.0.1:6100"
 ///
 /// # Load balancing
 /// load_balancing_algorithm = "round_robin"
@@ -217,15 +217,15 @@ pub struct ProxyConfig {
     /// metrics via HTTP endpoint.
     pub enable_metrics: bool,
 
-    /// Metrics server bind address
+    /// Operations server bind address (metrics, health, registration)
     ///
-    /// **Default**: `127.0.0.1:9090`
-    /// **Environment**: `INFERNO_METRICS_ADDR`
+    /// **Default**: `127.0.0.1:6100`
+    /// **Environment**: `INFERNO_OPERATIONS_ADDR`
     /// **Validation**: Must be a valid socket address, not same as listen_addr
     ///
-    /// Address where the metrics HTTP server will bind. Metrics
-    /// are exposed in Prometheus format.
-    pub metrics_addr: SocketAddr,
+    /// Address where the operations HTTP server will bind. Serves
+    /// /metrics, /health, and /registration endpoints.
+    pub operations_addr: SocketAddr,
 
     /// Load balancing algorithm
     ///
@@ -287,7 +287,7 @@ impl Default for ProxyConfig {
             tls_key_path: None,
             log_level: "info".to_string(),
             enable_metrics: true,
-            metrics_addr: "127.0.0.1:9090".parse().unwrap(),
+            operations_addr: "127.0.0.1:6100".parse().unwrap(),
             load_balancing_algorithm: "round_robin".to_string(),
             backend_servers: Vec::new(),
         }
@@ -346,9 +346,9 @@ impl ProxyConfig {
             ));
         }
 
-        if config.listen_addr == config.metrics_addr {
+        if config.listen_addr == config.operations_addr {
             return Err(InfernoError::configuration(
-                "listen_addr and metrics_addr cannot be the same",
+                "listen_addr and operations_addr cannot be the same",
                 None,
             ));
         }
@@ -639,9 +639,16 @@ impl ProxyConfig {
             config.backend_servers = backends;
         }
 
-        // Load metrics address
+        // Load operations address
+        if let Ok(operations_addr) = std::env::var("INFERNO_OPERATIONS_ADDR") {
+            config.operations_addr = operations_addr.parse().map_err(|e| {
+                InfernoError::configuration(format!("Invalid INFERNO_OPERATIONS_ADDR: {}", e), None)
+            })?;
+        }
+
+        // Support deprecated INFERNO_METRICS_ADDR for backward compatibility
         if let Ok(metrics_addr) = std::env::var("INFERNO_METRICS_ADDR") {
-            config.metrics_addr = metrics_addr.parse().map_err(|e| {
+            config.operations_addr = metrics_addr.parse().map_err(|e| {
                 InfernoError::configuration(format!("Invalid INFERNO_METRICS_ADDR: {}", e), None)
             })?;
         }

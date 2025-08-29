@@ -59,6 +59,7 @@ fn test_cli_to_config_conversion() {
         },
         metrics: MetricsOptions {
             enable_metrics: true,
+            operations_addr: None,
             metrics_addr: None,
         },
         health_check: HealthCheckOptions {
@@ -109,6 +110,7 @@ fn test_providers_parsing_with_whitespace() {
         },
         metrics: MetricsOptions {
             enable_metrics: true,
+            operations_addr: None,
             metrics_addr: None,
         },
         health_check: HealthCheckOptions {
@@ -143,6 +145,7 @@ fn test_invalid_socket_addr_handling() {
         },
         metrics: MetricsOptions {
             enable_metrics: true,
+            operations_addr: None,
             metrics_addr: None,
         },
         health_check: HealthCheckOptions {

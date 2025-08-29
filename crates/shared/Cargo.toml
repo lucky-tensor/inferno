@@ -13,10 +13,13 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 tokio = { workspace = true }
 reqwest = { workspace = true }
 async-trait = { workspace = true }
 futures = "0.3"
+hyper = { workspace = true }
+http = { workspace = true }
 
 [dev-dependencies]
 tokio-test = { workspace = true }

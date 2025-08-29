@@ -27,6 +27,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "1.0"
 async-trait = "0.1"
 clap = { version = "4.0", features = ["derive", "env"] }
+bytes = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
 
 # Pingora dependencies for proxy
 pingora-core = "0.6"
@@ -40,6 +42,8 @@ proptest = "1.4"
 wiremock = "0.5"
 serial_test = "3.0"
 reqwest = { version = "0.11", features = ["json", "blocking", "multipart"] }
+hyper = { version = "0.14", features = ["full"] }
+http = "0.2"
 
 # Coverage dependencies
 cargo-llvm-cov = "0.6"
