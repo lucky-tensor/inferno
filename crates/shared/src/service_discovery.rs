@@ -1341,11 +1341,11 @@ mod tests {
         // Deregister one
         discovery.deregister_backend("backend-1").await.unwrap();
 
-        let (registrations, deregistrations, _health_checks, _failed_checks, uptime) =
+        let (registrations, deregistrations, _health_checks, _failed_checks, _uptime) =
             discovery.get_statistics();
         assert_eq!(registrations, 2);
         assert_eq!(deregistrations, 1);
-        assert!(uptime >= 0); // Uptime should be non-negative
+        // uptime is u64, always >= 0 by type definition
     }
 
     #[tokio::test]

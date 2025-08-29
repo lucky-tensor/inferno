@@ -61,7 +61,8 @@ fn bench_backend_registration(c: &mut Criterion) {
                                 &format!("backend-{}", i),
                                 3000 + i as u16,
                             );
-                            black_box(discovery.register_backend(registration).await.unwrap());
+                            discovery.register_backend(registration).await.unwrap();
+                            black_box(());
                         }
 
                         black_box(discovery.backend_count().await)
@@ -83,7 +84,8 @@ fn bench_single_registration_latency(c: &mut Criterion) {
             rt.block_on(async {
                 let discovery = ServiceDiscovery::new();
                 let registration = create_test_registration("test-backend", 3000);
-                black_box(discovery.register_backend(registration).await.unwrap());
+                discovery.register_backend(registration).await.unwrap();
+                black_box(());
             });
         });
     });
@@ -221,7 +223,8 @@ fn bench_health_check_config(c: &mut Criterion) {
 
                 // Register a backend to ensure the system is functional
                 let registration = create_test_registration("test-backend", 3000);
-                black_box(discovery.register_backend(registration).await.unwrap());
+                discovery.register_backend(registration).await.unwrap();
+                black_box(());
 
                 black_box(discovery.get_statistics());
             });
