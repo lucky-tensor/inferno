@@ -156,7 +156,7 @@ impl ProxyCliOptions {
             tls_key_path: None,  // Would need to add to CLI options if needed
             log_level: self.logging.log_level.clone(),
             enable_metrics: self.metrics.enable_metrics,
-            metrics_addr: self.metrics.get_metrics_addr(9090),
+            operations_addr: self.metrics.get_operations_addr(6100),
             load_balancing_algorithm: self.load_balancing_algorithm.clone(),
             backend_servers,
         })

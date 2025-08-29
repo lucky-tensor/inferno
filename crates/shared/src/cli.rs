@@ -24,7 +24,11 @@ pub struct MetricsOptions {
     #[arg(long, default_value_t = true, env = "INFERNO_ENABLE_METRICS")]
     pub enable_metrics: bool,
 
-    /// Metrics server address
+    /// Operations server address (metrics, health, registration)
+    #[arg(long, env = "INFERNO_OPERATIONS_ADDR")]
+    pub operations_addr: Option<SocketAddr>,
+
+    /// Metrics server address (deprecated, use operations_addr)
     #[arg(long, env = "INFERNO_METRICS_ADDR")]
     pub metrics_addr: Option<SocketAddr>,
 }
@@ -80,13 +84,19 @@ impl LoggingOptions {
 }
 
 impl MetricsOptions {
-    /// Get the metrics address with component-specific defaults
-    pub fn get_metrics_addr(&self, default_port: u16) -> SocketAddr {
-        self.metrics_addr.unwrap_or_else(|| {
+    /// Get the operations server address with component-specific defaults (port 6100)
+    pub fn get_operations_addr(&self, default_port: u16) -> SocketAddr {
+        // Prefer operations_addr, fall back to metrics_addr for backward compatibility
+        self.operations_addr.or(self.metrics_addr).unwrap_or_else(|| {
             format!("127.0.0.1:{}", default_port)
                 .parse()
-                .expect("Default metrics address should be valid")
+                .expect("Default operations address should be valid")
         })
+    }
+
+    /// Get the metrics address with component-specific defaults (deprecated, use get_operations_addr)
+    pub fn get_metrics_addr(&self, default_port: u16) -> SocketAddr {
+        self.get_operations_addr(default_port)
     }
 }
 

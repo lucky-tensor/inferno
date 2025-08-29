@@ -30,7 +30,7 @@ impl ServiceRegistration {
 
     pub async fn register(&self) -> Result<()> {
         tracing::info!(
-            "Registering backend {} with {} load balancers",
+            "Registering backend {} with {} proxy operations servers",
             self.backend_addr,
             self.load_balancer_addrs.len()
         );
@@ -43,7 +43,9 @@ impl ServiceRegistration {
         });
 
         for lb_addr in &self.load_balancer_addrs {
-            let registration_url = format!("http://{}/register", lb_addr);
+            // Convert proxy address to operations server address (port 6100)
+            let operations_addr = SocketAddr::new(lb_addr.ip(), 6100);
+            let registration_url = format!("http://{}/registration", operations_addr);
             tracing::debug!("Attempting registration at: {}", registration_url);
 
             match client
@@ -55,18 +57,18 @@ impl ServiceRegistration {
             {
                 Ok(response) => {
                     if response.status().is_success() {
-                        tracing::info!("Successfully registered with load balancer: {}", lb_addr);
+                        tracing::info!("Successfully registered with proxy operations server: {}", operations_addr);
                     } else {
                         tracing::warn!(
                             "Registration failed with status {}: {}",
                             response.status(),
-                            lb_addr
+                            operations_addr
                         );
                     }
                 }
                 Err(e) => {
-                    tracing::warn!("Failed to connect to load balancer {}: {}", lb_addr, e);
-                    // Don't return error - continue trying other load balancers
+                    tracing::warn!("Failed to connect to proxy operations server {}: {}", operations_addr, e);
+                    // Don't return error - continue trying other proxy operations servers
                 }
             }
         }

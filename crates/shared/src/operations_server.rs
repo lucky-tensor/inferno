@@ -1,7 +1,7 @@
-//! # HTTP Metrics Server
+//! # HTTP Operations Server
 //!
-//! High-performance HTTP server for exposing metrics data via REST endpoints.
-//! Implements the NodeVitals specification for service discovery and monitoring.
+//! High-performance HTTP server for exposing operational endpoints.
+//! Serves metrics, health checks, and service discovery registration endpoints.
 //!
 //! ## Design Principles
 //!
@@ -21,21 +21,22 @@
 //! ## Endpoints
 //!
 //! - `GET /metrics`: Returns NodeVitals JSON for service discovery
-//! - `GET /health`: Simple health check endpoint
+//! - `GET /health`: Simple health check endpoint  
+//! - `POST /registration`: Service discovery registration endpoint
 //!
 //! ## Usage Example
 //!
 //! ```rust,no_run
-//! use inferno_shared::{MetricsCollector, MetricsServer};
+//! use inferno_shared::{MetricsCollector, OperationsServer};
 //! use std::sync::Arc;
 //! use std::net::SocketAddr;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     let metrics = Arc::new(MetricsCollector::new());
-//!     let addr: SocketAddr = "127.0.0.1:9090".parse()?;
+//!     let addr: SocketAddr = "127.0.0.1:6100".parse()?;
 //!     
-//!     let server = MetricsServer::new(metrics, addr);
+//!     let server = OperationsServer::new(metrics, addr);
 //!     server.start().await?;
 //!     Ok(())
 //! }
@@ -80,7 +81,7 @@ use tracing::{debug, error, info, instrument, warn};
 /// - Connection pooling and keep-alive support
 /// - Non-blocking I/O throughout the request pipeline
 #[derive(Debug)]
-pub struct MetricsServer {
+pub struct OperationsServer {
     /// Shared metrics collector for data access
     metrics: Arc<MetricsCollector>,
     /// Address to bind the HTTP server
@@ -95,7 +96,10 @@ pub struct MetricsServer {
     shutdown_tx: Option<oneshot::Sender<()>>,
 }
 
-impl MetricsServer {
+// Backward compatibility alias
+pub type MetricsServer = OperationsServer;
+
+impl OperationsServer {
     /// Creates a new metrics server instance
     ///
     /// # Arguments
@@ -401,20 +405,21 @@ async fn handle_request(
     version: String,
     connected_peers: Arc<AtomicU32>,
 ) -> std::result::Result<Response<Body>, Infallible> {
-    let method = req.method();
-    let path = req.uri().path();
+    let method = req.method().clone();
+    let path = req.uri().path().to_string();
 
     debug!(
         method = %method,
         path = %path,
-        "Processing metrics server request"
+        "Processing operations server request"
     );
 
-    let response = match (method, path) {
+    let response = match (&method, path.as_str()) {
         (&Method::GET, "/metrics") => {
             handle_metrics_request(metrics, service_name, version, connected_peers).await
         }
         (&Method::GET, "/health") => handle_health_request().await,
+        (&Method::POST, "/registration") => handle_registration_request(req).await,
         _ => {
             warn!(
                 method = %method,
@@ -545,6 +550,67 @@ async fn handle_health_request() -> Response<Body> {
         .body(Body::from("healthy"))
         .unwrap_or_else(|e| {
             error!(error = %e, "Failed to build health response");
+            Response::new(Body::empty())
+        })
+}
+
+/// Handles service discovery registration requests
+async fn handle_registration_request(req: Request<Body>) -> Response<Body> {
+    debug!("Processing service registration request");
+
+    // Read the request body
+    let body_bytes = match hyper::body::to_bytes(req.into_body()).await {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            error!(error = %e, "Failed to read registration request body");
+            return Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header("content-type", "application/json")
+                .body(Body::from("{\"error\":\"Failed to read request body\"}"))
+                .unwrap_or_else(|_| Response::new(Body::empty()));
+        }
+    };
+
+    // Parse the JSON payload
+    let registration_data: serde_json::Value = match serde_json::from_slice(&body_bytes) {
+        Ok(data) => data,
+        Err(e) => {
+            error!(error = %e, "Failed to parse registration JSON");
+            return Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header("content-type", "application/json")
+                .body(Body::from("{\"error\":\"Invalid JSON format\"}"))
+                .unwrap_or_else(|_| Response::new(Body::empty()));
+        }
+    };
+
+    // Validate required fields
+    let id = registration_data.get("id").and_then(|v| v.as_str());
+    let address = registration_data.get("address").and_then(|v| v.as_str());
+    
+    if id.is_none() || address.is_none() {
+        warn!("Registration request missing required fields");
+        return Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .header("content-type", "application/json")
+            .body(Body::from("{\"error\":\"Missing required fields: id, address\"}"))
+            .unwrap_or_else(|_| Response::new(Body::empty()));
+    }
+
+    // Log the registration
+    info!(
+        id = id.unwrap(),
+        address = address.unwrap(),
+        "Service registration received"
+    );
+
+    // Return success response
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("content-type", "application/json")
+        .body(Body::from("{\"status\":\"registered\"}"))
+        .unwrap_or_else(|e| {
+            error!(error = %e, "Failed to build registration response");
             Response::new(Body::empty())
         })
 }

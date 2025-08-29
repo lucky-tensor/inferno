@@ -106,11 +106,11 @@ impl BackendCliOptions {
         // Start HTTP metrics server if enabled
         let metrics_task = if config.enable_metrics {
             let metrics = Arc::new(MetricsCollector::new());
-            let health_service = HealthService::new(Arc::clone(&metrics), config.metrics_addr);
+            let health_service = HealthService::new(Arc::clone(&metrics), config.operations_addr);
 
             info!(
-                metrics_addr = %config.metrics_addr,
-                "Starting HTTP metrics server"
+                operations_addr = %config.operations_addr,
+                "Starting HTTP operations server"
             );
 
             Some(tokio::spawn(async move {
@@ -146,7 +146,7 @@ impl BackendCliOptions {
             let registration = crate::registration::ServiceRegistration::new(
                 self.listen_addr,
                 lb_addrs,
-                config.metrics_addr.port(),
+                config.operations_addr.port(),
                 self.service_discovery.service_name.clone(),
             );
 
@@ -203,7 +203,7 @@ impl BackendCliOptions {
             enable_cache: self.enable_cache,
             cache_ttl_seconds: self.cache_ttl_seconds,
             enable_metrics: self.metrics.enable_metrics,
-            metrics_addr: self.metrics.get_metrics_addr(9091),
+            operations_addr: self.metrics.get_operations_addr(6100),
             health_check_path: self.health_check.health_check_path.clone(),
             registration_endpoint,
             service_name: self.service_discovery.get_service_name("inferno-backend"),

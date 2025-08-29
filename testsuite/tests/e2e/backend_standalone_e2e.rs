@@ -42,6 +42,7 @@ async fn test_backend_standalone_startup() {
         },
         metrics: inferno_shared::MetricsOptions {
             enable_metrics: true,
+            operations_addr: Some(format!("127.0.0.1:{}", metrics_port).parse().unwrap()),
             metrics_addr: Some(format!("127.0.0.1:{}", metrics_port).parse().unwrap()),
         },
         logging: inferno_shared::LoggingOptions {
@@ -268,6 +269,7 @@ async fn test_backend_startup_configurations() {
         },
         metrics: inferno_shared::MetricsOptions {
             enable_metrics: false,
+            operations_addr: None,
             metrics_addr: None,
         },
         logging: inferno_shared::LoggingOptions {
@@ -342,6 +344,7 @@ async fn test_backend_with_service_discovery_config() {
         },
         metrics: inferno_shared::MetricsOptions {
             enable_metrics: true,
+            operations_addr: Some(format!("127.0.0.1:{}", metrics_port).parse().unwrap()),
             metrics_addr: Some(format!("127.0.0.1:{}", metrics_port).parse().unwrap()),
         },
         logging: inferno_shared::LoggingOptions {

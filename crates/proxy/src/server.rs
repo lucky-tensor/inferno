@@ -88,7 +88,7 @@ use tracing::{debug, error, info, instrument, warn};
 /// #       tls_key_path: None,
 /// #       log_level: "info".to_string(),
 /// #       enable_metrics: true,
-/// #       metrics_addr: "127.0.0.1:9090".parse()?,
+/// #       operations_addr: "127.0.0.1:6100".parse()?,
 /// #       load_balancing_algorithm: "round_robin".to_string(),
 /// #       backend_servers: Vec::new(),
 ///     };
@@ -576,19 +576,19 @@ impl ProxyServer {
     #[instrument(skip(self))]
     fn start_metrics_server(&self) -> tokio::task::JoinHandle<()> {
         let metrics = Arc::clone(&self.metrics);
-        let metrics_addr = self.config.metrics_addr;
+        let operations_addr = self.config.operations_addr;
         let backend_count = self.config.effective_backends().len() as u32;
 
         info!(
-            metrics_addr = %metrics_addr,
+            operations_addr = %operations_addr,
             backend_count = backend_count,
-            "Starting HTTP metrics server"
+            "Starting HTTP operations server"
         );
 
         tokio::spawn(async move {
             let server = MetricsServer::with_service_info(
                 metrics,
-                metrics_addr,
+                operations_addr,
                 "inferno-proxy".to_string(),
                 env!("CARGO_PKG_VERSION").to_string(),
             );
@@ -600,8 +600,8 @@ impl ProxyServer {
             if let Err(e) = server.start().await {
                 error!(
                     error = %e,
-                    metrics_addr = %metrics_addr,
-                    "HTTP metrics server failed"
+                    operations_addr = %operations_addr,
+                    "HTTP operations server failed"
                 );
             }
         })

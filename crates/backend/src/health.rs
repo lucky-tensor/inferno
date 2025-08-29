@@ -27,8 +27,8 @@ use tracing::{error, info};
 pub struct HealthService {
     /// Shared metrics collector for accessing performance data
     metrics: Arc<MetricsCollector>,
-    /// Address to bind the HTTP metrics server
-    metrics_addr: SocketAddr,
+    /// Address to bind the HTTP operations server
+    operations_addr: SocketAddr,
     /// Service name for NodeVitals responses
     service_name: String,
     /// Version string for NodeVitals responses
@@ -41,7 +41,7 @@ impl HealthService {
     /// # Arguments
     ///
     /// * `metrics` - Shared metrics collector for accessing service data
-    /// * `metrics_addr` - Address to bind the HTTP metrics server
+    /// * `operations_addr` - Address to bind the HTTP operations server
     ///
     /// # Examples
     ///
@@ -54,10 +54,10 @@ impl HealthService {
     /// let addr = "127.0.0.1:9090".parse().unwrap();
     /// let health_service = HealthService::new(metrics, addr);
     /// ```
-    pub fn new(metrics: Arc<MetricsCollector>, metrics_addr: SocketAddr) -> Self {
+    pub fn new(metrics: Arc<MetricsCollector>, operations_addr: SocketAddr) -> Self {
         Self {
             metrics,
-            metrics_addr,
+            operations_addr,
             service_name: "inferno-backend".to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),
         }
@@ -68,18 +68,18 @@ impl HealthService {
     /// # Arguments
     ///
     /// * `metrics` - Shared metrics collector for accessing service data
-    /// * `metrics_addr` - Address to bind the HTTP metrics server
+    /// * `operations_addr` - Address to bind the HTTP operations server
     /// * `service_name` - Custom service name for NodeVitals responses
     /// * `version` - Custom version string for NodeVitals responses
     pub fn with_service_info(
         metrics: Arc<MetricsCollector>,
-        metrics_addr: SocketAddr,
+        operations_addr: SocketAddr,
         service_name: String,
         version: String,
     ) -> Self {
         Self {
             metrics,
-            metrics_addr,
+            operations_addr,
             service_name,
             version,
         }
@@ -120,15 +120,15 @@ impl HealthService {
     /// ```
     pub async fn start(&self) -> Result<()> {
         info!(
-            metrics_addr = %self.metrics_addr,
+            operations_addr = %self.operations_addr,
             service_name = %self.service_name,
             version = %self.version,
-            "Starting backend HTTP metrics server"
+            "Starting backend HTTP operations server"
         );
 
         let server = MetricsServer::with_service_info(
             Arc::clone(&self.metrics),
-            self.metrics_addr,
+            self.operations_addr,
             self.service_name.clone(),
             self.version.clone(),
         );
@@ -136,8 +136,8 @@ impl HealthService {
         if let Err(e) = server.start().await {
             error!(
                 error = %e,
-                metrics_addr = %self.metrics_addr,
-                "Backend HTTP metrics server failed"
+                operations_addr = %self.operations_addr,
+                "Backend HTTP operations server failed"
             );
             return Err(e);
         }
@@ -150,9 +150,9 @@ impl HealthService {
     ///
     /// # Returns
     ///
-    /// Returns the SocketAddr where the metrics server is bound
-    pub fn metrics_addr(&self) -> SocketAddr {
-        self.metrics_addr
+    /// Returns the SocketAddr where the operations server is bound
+    pub fn operations_addr(&self) -> SocketAddr {
+        self.operations_addr
     }
 
     /// Returns the service name used in NodeVitals responses

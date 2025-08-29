@@ -401,25 +401,11 @@ impl ProxyHttp for ProxyService {
         let path = req_header.uri.path();
         let method = req_header.method.as_str();
 
-        match (method, path) {
-            ("POST", "/register") => {
-                debug!("Handling local backend registration request");
-                self.handle_register(session).await
-            }
-            ("GET", "/metrics") => {
-                debug!("Handling local metrics request");
-                self.handle_metrics(session).await
-            }
-            ("GET", "/health") => {
-                debug!("Handling local health check request");
-                self.handle_health(session).await
-            }
-            _ => {
-                // Continue to upstream for all other requests
-                debug!(method = method, path = path, "Forwarding request to upstream");
-                Ok(false)
-            }
-        }
+        // All operational endpoints (/register, /metrics, /health) are now served
+        // by the operations server on port 6100. The proxy only handles
+        // forwarding regular application requests to backends.
+        debug!(method = method, path = path, "Forwarding request to upstream");
+        Ok(false)
     }
 
     /// Determines the upstream peer for a request

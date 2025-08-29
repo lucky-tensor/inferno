@@ -51,6 +51,7 @@ async fn test_full_service_discovery_workflow() {
         },
         metrics: inferno_shared::MetricsOptions {
             enable_metrics: true,
+            operations_addr: Some(format!("127.0.0.1:{}", proxy_metrics_port).parse().unwrap()),
             metrics_addr: Some(format!("127.0.0.1:{}", proxy_metrics_port).parse().unwrap()),
         },
         logging: inferno_shared::LoggingOptions {
@@ -77,6 +78,11 @@ async fn test_full_service_discovery_workflow() {
         },
         metrics: inferno_shared::MetricsOptions {
             enable_metrics: true,
+            operations_addr: Some(
+                format!("127.0.0.1:{}", backend_metrics_port)
+                    .parse()
+                    .unwrap(),
+            ),
             metrics_addr: Some(
                 format!("127.0.0.1:{}", backend_metrics_port)
                     .parse()
@@ -338,6 +344,7 @@ async fn test_multiple_backend_registration() {
         },
         metrics: inferno_shared::MetricsOptions {
             enable_metrics: true,
+            operations_addr: Some(format!("127.0.0.1:{}", proxy_metrics_port).parse().unwrap()),
             metrics_addr: Some(format!("127.0.0.1:{}", proxy_metrics_port).parse().unwrap()),
         },
         logging: inferno_shared::LoggingOptions {
@@ -380,6 +387,7 @@ async fn test_multiple_backend_registration() {
             },
             metrics: inferno_shared::MetricsOptions {
                 enable_metrics: true,
+                operations_addr: Some(format!("127.0.0.1:{}", metrics_port).parse().unwrap()),
                 metrics_addr: Some(format!("127.0.0.1:{}", metrics_port).parse().unwrap()),
             },
             logging: inferno_shared::LoggingOptions {

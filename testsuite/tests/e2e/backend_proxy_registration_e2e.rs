@@ -40,6 +40,7 @@ async fn test_backend_registration_with_proxy() {
         },
         metrics: inferno_shared::MetricsOptions {
             enable_metrics: true,
+            operations_addr: Some(format!("127.0.0.1:{}", metrics_port + 1).parse().unwrap()),
             metrics_addr: Some(format!("127.0.0.1:{}", metrics_port + 1).parse().unwrap()),
         },
         logging: inferno_shared::LoggingOptions {
@@ -66,6 +67,7 @@ async fn test_backend_registration_with_proxy() {
         },
         metrics: inferno_shared::MetricsOptions {
             enable_metrics: true,
+            operations_addr: Some(format!("127.0.0.1:{}", metrics_port).parse().unwrap()),
             metrics_addr: Some(format!("127.0.0.1:{}", metrics_port).parse().unwrap()),
         },
         logging: inferno_shared::LoggingOptions {
