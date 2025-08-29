@@ -29,6 +29,7 @@ fn test_parse_log_level() {
 fn test_get_metrics_addr() {
     let opts = MetricsOptions {
         enable_metrics: true,
+        operations_addr: Some("192.168.1.1:8080".parse().unwrap()),
         metrics_addr: Some("192.168.1.1:8080".parse().unwrap()),
     };
     assert_eq!(
@@ -38,6 +39,7 @@ fn test_get_metrics_addr() {
 
     let opts = MetricsOptions {
         enable_metrics: true,
+        operations_addr: None,
         metrics_addr: None,
     };
     assert_eq!(

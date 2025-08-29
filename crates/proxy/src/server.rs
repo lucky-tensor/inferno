@@ -29,7 +29,8 @@
 //! - Resource cleanup and file descriptor closure
 
 use crate::ProxyConfig;
-use inferno_shared::{InfernoError, MetricsCollector, Result};
+use inferno_shared::service_discovery::{ServiceDiscovery, ServiceDiscoveryConfig};
+use inferno_shared::{InfernoError, MetricsCollector, MetricsServer, Result};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -88,7 +89,7 @@ use tracing::{debug, error, info, instrument, warn};
 /// #       tls_key_path: None,
 /// #       log_level: "info".to_string(),
 /// #       enable_metrics: true,
-/// #       metrics_addr: "127.0.0.1:9090".parse()?,
+/// #       operations_addr: "127.0.0.1:6100".parse()?,
 /// #       load_balancing_algorithm: "round_robin".to_string(),
 /// #       backend_servers: Vec::new(),
 ///     };
@@ -98,18 +99,21 @@ use tracing::{debug, error, info, instrument, warn};
 ///     Ok(())
 /// }
 /// ```
-#[derive(Debug)]
 pub struct ProxyServer {
     /// Validated proxy configuration
     config: Arc<ProxyConfig>,
     /// Shared metrics collector for observability
     metrics: Arc<MetricsCollector>,
+    /// Service discovery for backend registration and health monitoring
+    service_discovery: Arc<ServiceDiscovery>,
     /// Local address where server is listening
     local_addr: SocketAddr,
     /// Optional shutdown signal channel
     shutdown_tx: Option<oneshot::Sender<()>>,
     /// Shutdown receiver to keep the channel alive
-    _shutdown_rx: Option<oneshot::Receiver<()>>,
+    #[allow(dead_code)]
+    // TODO: Implement shutdown handling
+    shutdown_rx: Option<oneshot::Receiver<()>>,
 }
 
 impl ProxyServer {
@@ -172,6 +176,13 @@ impl ProxyServer {
         // Initialize metrics collector
         let metrics = Arc::new(MetricsCollector::new());
 
+        // Initialize service discovery with configuration-based settings
+        let service_discovery = Arc::new(ServiceDiscovery::with_config(ServiceDiscoveryConfig {
+            health_check_interval: config.health_check_interval,
+            health_check_timeout: config.health_check_timeout,
+            ..ServiceDiscoveryConfig::default()
+        }));
+
         // For now, we'll use the configured listen address as the local address
         // In a real implementation, this would be set after binding
         let local_addr = config.listen_addr;
@@ -180,6 +191,7 @@ impl ProxyServer {
             local_addr = %local_addr,
             backend_count = config.effective_backends().len(),
             max_connections = config.max_connections,
+            service_discovery_enabled = true,
             "Proxy server initialized successfully"
         );
 
@@ -189,9 +201,10 @@ impl ProxyServer {
         Ok(Self {
             config,
             metrics,
+            service_discovery,
             local_addr,
             shutdown_tx: Some(shutdown_tx),
-            _shutdown_rx: Some(shutdown_rx),
+            shutdown_rx: Some(shutdown_rx),
         })
     }
 
@@ -426,6 +439,8 @@ impl ProxyServer {
             None
         };
 
+        // Registration service now handled directly by Pingora in ProxyService::request_filter
+
         // Simulate server operation
         // In a real implementation, this would be replaced with:
         // let mut server = Server::new(Some(Opt::default()))?;
@@ -465,6 +480,8 @@ impl ProxyServer {
             metrics_task.abort();
             let _ = metrics_task.await;
         }
+
+        // Registration service cleanup no longer needed - handled by Pingora
 
         Ok(())
     }
@@ -557,39 +574,62 @@ impl ProxyServer {
         }
     }
 
-    /// Starts the metrics collection task
+    /// Starts the HTTP metrics server
     ///
-    /// This method spawns a background task that periodically logs
-    /// metrics information. For external monitoring, metrics can be
-    /// accessed via the metrics() method.
+    /// This method spawns a background task that serves HTTP endpoints
+    /// for metrics data in NodeVitals JSON format. The server exposes:
+    /// - `/metrics` - NodeVitals JSON for service discovery
+    /// - `/health` - Simple health check endpoint
     ///
     /// # Returns
     ///
-    /// Returns a `tokio::task::JoinHandle` for the metrics task
+    /// Returns a `tokio::task::JoinHandle` for the metrics server task
     #[instrument(skip(self))]
     fn start_metrics_server(&self) -> tokio::task::JoinHandle<()> {
         let metrics = Arc::clone(&self.metrics);
+        let operations_addr = self.config.operations_addr;
+        let backend_count = self.config.effective_backends().len() as u32;
 
-        info!("Starting metrics collection task");
+        info!(
+            operations_addr = %operations_addr,
+            backend_count = backend_count,
+            "Starting HTTP operations server"
+        );
+
+        let service_discovery = Arc::clone(&self.service_discovery);
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_secs(60));
+            let server = MetricsServer::with_service_discovery(
+                metrics,
+                operations_addr,
+                "inferno-proxy".to_string(),
+                env!("CARGO_PKG_VERSION").to_string(),
+                service_discovery,
+            );
 
-            loop {
-                interval.tick().await;
+            // Set the initial connected peers count to the number of configured backends
+            let peer_counter = server.connected_peers_handle();
+            peer_counter.store(backend_count, std::sync::atomic::Ordering::Relaxed);
 
-                let snapshot = metrics.snapshot();
-                info!(
-                    total_requests = snapshot.total_requests,
-                    active_requests = snapshot.active_requests,
-                    success_rate = snapshot.success_rate(),
-                    requests_per_second = snapshot.requests_per_second(),
-                    "Metrics snapshot"
+            if let Err(e) = server.start().await {
+                error!(
+                    error = %e,
+                    operations_addr = %operations_addr,
+                    "HTTP operations server failed"
                 );
             }
         })
     }
 
+    /// Starts the backend registration service
+    ///
+    /// This method spawns a background task that serves HTTP endpoints
+    /// for backend registration. The service handles:
+    /// - `POST /register` - Backend registration requests
+    /// - `GET /health` - Health check endpoint
+    ///
+    /// # Returns
+    ///
     /// Initiates graceful shutdown of the server
     ///
     /// This method can be called from another thread or async task
@@ -711,6 +751,15 @@ impl ProxyServer {
         );
 
         Ok(())
+    }
+}
+
+impl std::fmt::Debug for ProxyServer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProxyServer")
+            .field("local_addr", &self.local_addr)
+            .field("service_discovery", &"<ServiceDiscovery>")
+            .finish_non_exhaustive()
     }
 }
 

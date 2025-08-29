@@ -21,12 +21,16 @@
 pub mod cli;
 pub mod error;
 pub mod metrics;
+pub mod operations_server;
 pub mod service_discovery;
 
 // Re-export commonly used types for convenience
 pub use cli::{HealthCheckOptions, LoggingOptions, MetricsOptions, ServiceDiscoveryOptions};
 pub use error::{InfernoError, ProxyError, Result};
 pub use metrics::{MetricsCollector, MetricsSnapshot};
+pub use operations_server::OperationsServer;
+// Backward compatibility alias
+pub use operations_server::OperationsServer as MetricsServer;
 pub use service_discovery::{
     BackendRegistration, NodeVitals, ServiceDiscovery, ServiceDiscoveryConfig,
 };
