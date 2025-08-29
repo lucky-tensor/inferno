@@ -1,0 +1,46 @@
+name: Update Benchmark Baselines
+permissions:
+  contents: write
+  pull-requests: write
+on:
+  push:
+    branches: [main, bench-workflow]
+  workflow_dispatch:
+jobs:
+  update-baselines:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Rust Stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Install cargo-criterion
+        run: cargo install cargo-criterion
+      - name: Run benchmarks to generate new baselines
+        run: ./benchmarking/check-performance.sh
+      - name: Create or update pull request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: main
+          branch: update-benchmarks
+          add-paths: '.prior_bench'
+          commit-message: 'Update benchmark baselines'
+          title: "Update benchmark baselines"
+          body: |
+            Automated update of benchmark baselines from main branch.
+
+            Please review the changes before merging.
+
+            - Generated from commit ${{ github.sha }}
+          delete-branch: false
