@@ -278,12 +278,20 @@ impl MetricsServer {
         });
 
         // Create and configure the server
-        let server = Server::bind(&self.bind_addr)
-            .serve(make_svc)
-            .with_graceful_shutdown(async {
+        let server = match Server::try_bind(&self.bind_addr) {
+            Ok(server) => server.serve(make_svc).with_graceful_shutdown(async {
                 shutdown_rx.await.ok();
                 info!("Metrics server shutdown signal received");
-            });
+            }),
+            Err(e) => {
+                error!(error = %e, bind_addr = %self.bind_addr, "Failed to bind to address");
+                return Err(InfernoError::network(
+                    self.bind_addr.to_string(),
+                    "Failed to bind to address",
+                    Some(Box::new(e)),
+                ));
+            }
+        };
 
         info!(
             bind_addr = %self.bind_addr,
@@ -455,7 +463,7 @@ async fn handle_request(
 #[instrument(skip_all)]
 async fn handle_metrics_request(
     metrics: Arc<MetricsCollector>,
-    service_name: String,
+    _service_name: String,
     version: String,
     connected_peers: Arc<AtomicU32>,
 ) -> Response<Body> {
@@ -545,8 +553,6 @@ async fn handle_health_request() -> Response<Body> {
 mod tests {
     use super::*;
     use crate::metrics::MetricsCollector;
-    use std::time::Duration;
-    use tokio::time::timeout;
 
     #[tokio::test]
     async fn test_metrics_server_creation() {
@@ -658,12 +664,11 @@ mod tests {
     #[tokio::test]
     async fn test_server_bind_error() {
         let metrics = Arc::new(MetricsCollector::new());
-        // Try to bind to an invalid address
-        let addr: SocketAddr = "256.256.256.256:80".parse().unwrap();
+        // Try to bind to a port that's likely to be unavailable (port 1 requires root)
+        let addr: SocketAddr = "127.0.0.1:1".parse().unwrap();
         let server = MetricsServer::new(metrics, addr);
 
-        let result = timeout(Duration::from_millis(100), server.start()).await;
-        assert!(result.is_ok()); // Timeout should occur
-        assert!(result.unwrap().is_err()); // Server start should fail
+        let result = server.start().await;
+        assert!(result.is_err()); // Server start should fail due to permission denied
     }
 }

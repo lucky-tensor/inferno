@@ -20,6 +20,12 @@ pub struct RegistrationService {
     service_discovery: Arc<ServiceDiscovery>,
 }
 
+impl Default for RegistrationService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RegistrationService {
     /// Creates a new registration service
     pub fn new() -> Self {

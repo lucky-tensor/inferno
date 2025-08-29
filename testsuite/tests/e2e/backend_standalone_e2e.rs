@@ -294,7 +294,7 @@ async fn test_backend_startup_configurations() {
 
     // Since metrics are disabled, we should not be able to connect to metrics endpoints
     let client = Client::new();
-    let metrics_url = format!("http://127.0.0.1:9090/metrics"); // Default metrics port
+    let metrics_url = "http://127.0.0.1:9090/metrics".to_string(); // Default metrics port
 
     match client.get(&metrics_url).send().await {
         Ok(response) => {
