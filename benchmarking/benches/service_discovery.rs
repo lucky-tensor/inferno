@@ -155,7 +155,7 @@ fn bench_concurrent_access(c: &mut Criterion) {
 /// Benchmark service discovery scalability under load
 fn bench_scalability_under_load(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
-    let mut group = c.benchmark_group("scalability");
+    let mut group = c.benchmark_group("service_discovery_scalability");
 
     // Test performance with increasing numbers of backends
     for backend_count in [10, 100, 1000, 5000].iter() {
