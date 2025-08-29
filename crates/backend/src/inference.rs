@@ -8,8 +8,14 @@ pub struct InferenceEngine {
 }
 
 impl InferenceEngine {
+    /// Creates a new inference engine with the specified model path
     pub fn new(model_path: String) -> Result<Self> {
         Ok(Self { model_path })
+    }
+
+    /// Get the model path used by this engine
+    pub fn model_path(&self) -> &str {
+        &self.model_path
     }
 
     pub async fn predict(&self, _input: &[u8]) -> Result<Vec<u8>> {

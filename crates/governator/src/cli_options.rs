@@ -132,7 +132,7 @@ impl GovernatorCliOptions {
     }
 
     /// Convert CLI options to GovernatorConfig
-    fn to_config(&self) -> Result<GovernatorConfig> {
+    pub fn to_config(&self) -> Result<GovernatorConfig> {
         let providers = self
             .providers
             .split(',')
