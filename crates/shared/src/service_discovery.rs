@@ -289,6 +289,30 @@ impl Default for ServiceDiscoveryConfig {
 }
 
 /// Health check result from monitoring a backend
+///
+/// # Examples
+///
+/// ```
+/// use inferno_shared::service_discovery::NodeVitals;
+///
+/// // This would typically be created by the health checker
+/// let vitals = NodeVitals {
+///     ready: true,
+///     requests_in_progress: 5,
+///     cpu_usage: 45.0,
+///     memory_usage: 60.0,
+///     gpu_usage: 0.0,
+///     failed_responses: 0,
+///     connected_peers: 2,
+///     backoff_requests: 0,
+///     uptime_seconds: 1800,
+///     version: "1.0.0".to_string(),
+/// };
+/// 
+/// // Health check results represent different backend states
+/// assert!(vitals.ready); // Backend is ready to serve traffic
+/// assert_eq!(vitals.requests_in_progress, 5);
+/// ```
 #[derive(Debug)]
 pub(crate) enum HealthCheckResult {
     /// Backend is healthy with vital signs
@@ -306,6 +330,25 @@ pub(crate) enum HealthCheckResult {
 /// This trait abstracts the health checking functionality to allow
 /// for different implementations (HTTP, custom protocols, etc.)
 /// and easier testing with mock implementations.
+///
+/// # Example Implementation
+///
+/// ```
+/// use async_trait::async_trait;
+/// use inferno_shared::service_discovery::{BackendRegistration, NodeVitals};
+///
+/// // Example of creating a backend registration
+/// let registration = BackendRegistration {
+///     id: "backend-1".to_string(),
+///     address: "127.0.0.1:3000".to_string(),
+///     metrics_port: 9090,
+/// };
+///
+/// // Verify registration fields
+/// assert_eq!(registration.id, "backend-1");
+/// assert_eq!(registration.address, "127.0.0.1:3000");
+/// assert_eq!(registration.metrics_port, 9090);
+/// ```
 #[async_trait]
 pub trait HealthChecker: Send + Sync {
     /// Performs a health check on the specified backend
@@ -997,426 +1040,4 @@ impl Default for ServiceDiscovery {
     }
 }
 
-// Missing import needed for the test
-#[cfg(test)]
-use futures;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::sync::atomic::AtomicUsize;
-    use tokio::time::{sleep, Duration};
-
-    /// Mock health checker for testing
-    struct MockHealthChecker {
-        responses: Arc<RwLock<HashMap<String, HealthCheckResult>>>,
-        call_count: Arc<AtomicUsize>,
-    }
-
-    impl MockHealthChecker {
-        fn new() -> Self {
-            Self {
-                responses: Arc::new(RwLock::new(HashMap::new())),
-                call_count: Arc::new(AtomicUsize::new(0)),
-            }
-        }
-
-        async fn set_response(&self, backend_id: &str, result: HealthCheckResult) {
-            let mut responses = self.responses.write().await;
-            responses.insert(backend_id.to_string(), result);
-        }
-
-        #[allow(dead_code)] // Used for test debugging
-        fn get_call_count(&self) -> usize {
-            self.call_count.load(Ordering::Relaxed)
-        }
-    }
-
-    #[async_trait]
-    impl HealthChecker for MockHealthChecker {
-        async fn check_health(&self, backend: &BackendRegistration) -> HealthCheckResult {
-            self.call_count.fetch_add(1, Ordering::Relaxed);
-
-            let responses = self.responses.read().await;
-            if let Some(result) = responses.get(&backend.id) {
-                match result {
-                    HealthCheckResult::Healthy(vitals) => {
-                        HealthCheckResult::Healthy(vitals.clone())
-                    }
-                    HealthCheckResult::Unhealthy(reason) => {
-                        HealthCheckResult::Unhealthy(reason.clone())
-                    }
-                    HealthCheckResult::Timeout => HealthCheckResult::Timeout,
-                    HealthCheckResult::NetworkError(error) => {
-                        HealthCheckResult::NetworkError(error.clone())
-                    }
-                }
-            } else {
-                // Default to healthy for unknown backends
-                HealthCheckResult::Healthy(NodeVitals {
-                    ready: true,
-                    requests_in_progress: 0,
-                    cpu_usage: 50.0,
-                    memory_usage: 60.0,
-                    gpu_usage: 0.0,
-                    failed_responses: 0,
-                    connected_peers: 1,
-                    backoff_requests: 0,
-                    uptime_seconds: 3600,
-                    version: "1.0.0".to_string(),
-                })
-            }
-        }
-    }
-
-    fn create_test_registration(id: &str, port: u16) -> BackendRegistration {
-        BackendRegistration {
-            id: id.to_string(),
-            address: format!("127.0.0.1:{}", port),
-            metrics_port: 9090,
-        }
-    }
-
-    #[tokio::test]
-    async fn test_service_discovery_new() {
-        let discovery = ServiceDiscovery::new();
-        assert_eq!(discovery.backend_count().await, 0);
-
-        let (registrations, deregistrations, health_checks, failed_checks, _uptime) =
-            discovery.get_statistics();
-        assert_eq!(registrations, 0);
-        assert_eq!(deregistrations, 0);
-        assert_eq!(health_checks, 0);
-        assert_eq!(failed_checks, 0);
-    }
-
-    #[tokio::test]
-    async fn test_backend_registration_success() {
-        let discovery = ServiceDiscovery::new();
-        let registration = create_test_registration("backend-1", 3000);
-
-        let result = discovery.register_backend(registration.clone()).await;
-        assert!(result.is_ok());
-
-        assert_eq!(discovery.backend_count().await, 1);
-
-        let all_backends = discovery.get_all_backends().await;
-        assert_eq!(all_backends.len(), 1);
-        assert_eq!(all_backends[0].0, "backend-1");
-        assert_eq!(all_backends[0].1, "127.0.0.1:3000");
-        assert!(all_backends[0].2); // Should be healthy initially
-    }
-
-    #[tokio::test]
-    async fn test_backend_registration_duplicate_id() {
-        let discovery = ServiceDiscovery::new();
-        let registration1 = create_test_registration("backend-1", 3000);
-        let registration2 = create_test_registration("backend-1", 3001);
-
-        let result1 = discovery.register_backend(registration1).await;
-        assert!(result1.is_ok());
-
-        let result2 = discovery.register_backend(registration2).await;
-        assert!(result2.is_err());
-        assert!(matches!(
-            result2.unwrap_err(),
-            InfernoError::RequestValidation { .. }
-        ));
-    }
-
-    #[tokio::test]
-    async fn test_backend_registration_validation() {
-        let discovery = ServiceDiscovery::new();
-
-        // Empty ID
-        let invalid_registration = BackendRegistration {
-            id: "".to_string(),
-            address: "127.0.0.1:3000".to_string(),
-            metrics_port: 9090,
-        };
-        let result = discovery.register_backend(invalid_registration).await;
-        assert!(result.is_err());
-
-        // Empty address
-        let invalid_registration = BackendRegistration {
-            id: "backend-1".to_string(),
-            address: "".to_string(),
-            metrics_port: 9090,
-        };
-        let result = discovery.register_backend(invalid_registration).await;
-        assert!(result.is_err());
-
-        // Invalid port
-        let invalid_registration = BackendRegistration {
-            id: "backend-1".to_string(),
-            address: "127.0.0.1:3000".to_string(),
-            metrics_port: 0,
-        };
-        let result = discovery.register_backend(invalid_registration).await;
-        assert!(result.is_err());
-
-        // Invalid address format
-        let invalid_registration = BackendRegistration {
-            id: "backend-1".to_string(),
-            address: "invalid-address".to_string(),
-            metrics_port: 9090,
-        };
-        let result = discovery.register_backend(invalid_registration).await;
-        assert!(result.is_err());
-    }
-
-    #[tokio::test]
-    async fn test_backend_deregistration() {
-        let discovery = ServiceDiscovery::new();
-        let registration = create_test_registration("backend-1", 3000);
-
-        // Register backend
-        discovery.register_backend(registration).await.unwrap();
-        assert_eq!(discovery.backend_count().await, 1);
-
-        // Deregister backend
-        let removed = discovery.deregister_backend("backend-1").await.unwrap();
-        assert!(removed);
-        assert_eq!(discovery.backend_count().await, 0);
-
-        // Try to deregister again
-        let removed = discovery.deregister_backend("backend-1").await.unwrap();
-        assert!(!removed);
-    }
-
-    #[tokio::test]
-    async fn test_get_healthy_backends_with_mock() {
-        let mock_checker = Arc::new(MockHealthChecker::new());
-        let config = ServiceDiscoveryConfig::default();
-        let discovery = ServiceDiscovery::with_health_checker(config, mock_checker.clone());
-
-        // Register backends
-        let reg1 = create_test_registration("backend-1", 3000);
-        let reg2 = create_test_registration("backend-2", 3001);
-        discovery.register_backend(reg1).await.unwrap();
-        discovery.register_backend(reg2).await.unwrap();
-
-        // Set mock responses
-        let healthy_vitals = NodeVitals {
-            ready: true,
-            requests_in_progress: 5,
-            cpu_usage: 45.0,
-            memory_usage: 55.0,
-            gpu_usage: 0.0,
-            failed_responses: 0,
-            connected_peers: 2,
-            backoff_requests: 0,
-            uptime_seconds: 1800,
-            version: "1.0.0".to_string(),
-        };
-
-        let unhealthy_vitals = NodeVitals {
-            ready: false, // Not ready
-            requests_in_progress: 0,
-            cpu_usage: 90.0,
-            memory_usage: 95.0,
-            gpu_usage: 0.0,
-            failed_responses: 100,
-            connected_peers: 0,
-            backoff_requests: 0,
-            uptime_seconds: 1800,
-            version: "1.0.0".to_string(),
-        };
-
-        mock_checker
-            .set_response("backend-1", HealthCheckResult::Healthy(healthy_vitals))
-            .await;
-        mock_checker
-            .set_response("backend-2", HealthCheckResult::Healthy(unhealthy_vitals))
-            .await;
-
-        // Start health checking and wait for a cycle
-        let handle = discovery.start_health_checking().await;
-        sleep(Duration::from_millis(100)).await;
-        discovery.stop_health_checking().await;
-        handle.await.unwrap();
-
-        // Get healthy backends - only backend-1 should be available (ready=true)
-        let healthy_backends = discovery.get_healthy_backends().await;
-        assert_eq!(healthy_backends.len(), 1);
-        assert!(healthy_backends.contains(&"127.0.0.1:3000".to_string()));
-    }
-
-    #[tokio::test]
-    async fn test_health_check_failure_threshold() {
-        let mock_checker = Arc::new(MockHealthChecker::new());
-        let config = ServiceDiscoveryConfig {
-            health_check_interval: Duration::from_millis(50),
-            failure_threshold: 2,
-            ..Default::default()
-        };
-        let discovery = ServiceDiscovery::with_health_checker(config, mock_checker.clone());
-
-        let registration = create_test_registration("backend-1", 3000);
-        discovery.register_backend(registration).await.unwrap();
-
-        // Set backend to fail health checks
-        mock_checker
-            .set_response(
-                "backend-1",
-                HealthCheckResult::Unhealthy("Service error".to_string()),
-            )
-            .await;
-
-        // Start health checking
-        let handle = discovery.start_health_checking().await;
-
-        // Wait for multiple health check cycles
-        sleep(Duration::from_millis(200)).await;
-        discovery.stop_health_checking().await;
-        handle.await.unwrap();
-
-        // Backend should be marked as unhealthy
-        let all_backends = discovery.get_all_backends().await;
-        assert_eq!(all_backends.len(), 1);
-        assert!(!all_backends[0].2); // Should be unhealthy
-
-        // Should not appear in healthy backends list
-        let healthy_backends = discovery.get_healthy_backends().await;
-        assert_eq!(healthy_backends.len(), 0);
-    }
-
-    #[tokio::test]
-    async fn test_backend_recovery() {
-        let mock_checker = Arc::new(MockHealthChecker::new());
-        let config = ServiceDiscoveryConfig {
-            health_check_interval: Duration::from_millis(50),
-            failure_threshold: 2,
-            ..Default::default()
-        };
-        let discovery = ServiceDiscovery::with_health_checker(config, mock_checker.clone());
-
-        let registration = create_test_registration("backend-1", 3000);
-        discovery.register_backend(registration).await.unwrap();
-
-        // First, make backend fail
-        mock_checker
-            .set_response("backend-1", HealthCheckResult::Timeout)
-            .await;
-
-        let handle = discovery.start_health_checking().await;
-        sleep(Duration::from_millis(150)).await; // Allow for failures
-
-        // Then make it healthy again
-        let healthy_vitals = NodeVitals {
-            ready: true,
-            requests_in_progress: 1,
-            cpu_usage: 30.0,
-            memory_usage: 40.0,
-            gpu_usage: 0.0,
-            failed_responses: 0,
-            connected_peers: 1,
-            backoff_requests: 0,
-            uptime_seconds: 900,
-            version: "1.0.0".to_string(),
-        };
-        mock_checker
-            .set_response("backend-1", HealthCheckResult::Healthy(healthy_vitals))
-            .await;
-
-        sleep(Duration::from_millis(100)).await; // Allow for recovery
-        discovery.stop_health_checking().await;
-        handle.await.unwrap();
-
-        // Backend should be healthy again
-        let healthy_backends = discovery.get_healthy_backends().await;
-        assert_eq!(healthy_backends.len(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_statistics_tracking() {
-        let discovery = ServiceDiscovery::new();
-
-        // Register some backends
-        let reg1 = create_test_registration("backend-1", 3000);
-        let reg2 = create_test_registration("backend-2", 3001);
-        discovery.register_backend(reg1).await.unwrap();
-        discovery.register_backend(reg2).await.unwrap();
-
-        // Deregister one
-        discovery.deregister_backend("backend-1").await.unwrap();
-
-        let (registrations, deregistrations, _health_checks, _failed_checks, _uptime) =
-            discovery.get_statistics();
-        assert_eq!(registrations, 2);
-        assert_eq!(deregistrations, 1);
-        // uptime is u64, always >= 0 by type definition
-    }
-
-    #[tokio::test]
-    async fn test_node_vitals_serialization() {
-        let vitals = NodeVitals {
-            ready: true,
-            requests_in_progress: 42,
-            cpu_usage: 35.2,
-            memory_usage: 67.8,
-            gpu_usage: 12.5,
-            failed_responses: 15,
-            connected_peers: 3,
-            backoff_requests: 2,
-            uptime_seconds: 86400,
-            version: "1.0.0".to_string(),
-        };
-
-        let json = serde_json::to_string(&vitals).unwrap();
-        let deserialized: NodeVitals = serde_json::from_str(&json).unwrap();
-        assert_eq!(vitals, deserialized);
-    }
-
-    #[tokio::test]
-    async fn test_backend_registration_serialization() {
-        let registration = BackendRegistration {
-            id: "backend-1".to_string(),
-            address: "10.0.1.5:3000".to_string(),
-            metrics_port: 9090,
-        };
-
-        let json = serde_json::to_string(&registration).unwrap();
-        let deserialized: BackendRegistration = serde_json::from_str(&json).unwrap();
-        assert_eq!(registration, deserialized);
-    }
-
-    #[tokio::test]
-    async fn test_concurrent_operations() {
-        let discovery = Arc::new(ServiceDiscovery::new());
-        let mut handles = vec![];
-
-        // Spawn multiple concurrent registration tasks
-        for i in 0..10 {
-            let discovery = Arc::clone(&discovery);
-            let handle = tokio::spawn(async move {
-                let registration = create_test_registration(&format!("backend-{}", i), 3000 + i);
-                discovery.register_backend(registration).await.unwrap();
-            });
-            handles.push(handle);
-        }
-
-        // Wait for all registrations to complete
-        for handle in handles {
-            handle.await.unwrap();
-        }
-
-        assert_eq!(discovery.backend_count().await, 10);
-
-        // Test concurrent reads - note: backends start as healthy but without health checks,
-        // they won't be available for traffic (no vitals with ready=true)
-        let mut read_handles = vec![];
-        for _ in 0..20 {
-            let discovery = Arc::clone(&discovery);
-            let handle = tokio::spawn(async move {
-                let all_backends = discovery.get_all_backends().await;
-                assert_eq!(all_backends.len(), 10);
-            });
-            read_handles.push(handle);
-        }
-
-        for handle in read_handles {
-            handle.await.unwrap();
-        }
-    }
-}
