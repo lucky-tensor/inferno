@@ -553,4 +553,3 @@ impl From<std::io::Error> for InfernoError {
 
 // Compatibility alias for existing ProxyError usage
 pub type ProxyError = InfernoError;
-

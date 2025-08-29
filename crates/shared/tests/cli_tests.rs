@@ -2,7 +2,9 @@
 //!
 //! Tests for CLI options parsing and validation.
 
-use inferno_shared::cli::{LoggingOptions, MetricsOptions, ServiceDiscoveryOptions, parse_socket_addrs, parse_string_list};
+use inferno_shared::cli::{
+    parse_socket_addrs, parse_string_list, LoggingOptions, MetricsOptions, ServiceDiscoveryOptions,
+};
 use tracing::Level;
 
 #[test]

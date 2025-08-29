@@ -4,8 +4,8 @@
 
 use inferno_shared::metrics::{MetricsCollector, MetricsSnapshot};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
 use std::thread;
+use std::time::{Duration, SystemTime};
 
 #[test]
 fn test_metrics_collector_new() {

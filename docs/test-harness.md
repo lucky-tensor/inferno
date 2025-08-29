@@ -4,10 +4,68 @@
 
 We implement a comprehensive testing pyramid with four levels of testing, from fast unit tests to complete end-to-end scenarios:
 
-1. **Unit Tests** - Doc tests within module definitions
-2. **Module Tests** - Exported public functions in `./tests/<module-name>_test.rs`
-3. **Integration Tests** - Client-server connection testing for different endpoints
+1. **Doc Tests** - Documentation examples with private type testing
+2. **Module Tests** - Standalone test files within each crate 
+3. **Integration Tests** - Cross-component testing with controlled environments
 4. **End-to-End Tests** - Full binary execution with real network interfaces
+
+## Test Classification Decision Matrix
+
+### When to use Doc Tests
+✅ **Use Doc Tests when:**
+- Testing private types or functions (keep encapsulation)
+- Providing usage examples in documentation
+- Testing individual functions in isolation
+- Validating public API behavior with simple examples
+- The test doubles as documentation
+
+❌ **Don't use Doc Tests when:**
+- Testing complex multi-step workflows
+- Requiring extensive setup or teardown
+- Testing interactions between multiple components
+- Needing async test frameworks or serial execution
+
+### When to use Module Tests (in crate/tests/)
+✅ **Use Module Tests when:**
+- Testing public functions across module boundaries
+- Complex test scenarios with multiple assertions
+- Tests require substantial setup/teardown logic
+- Testing error conditions and edge cases
+- Need test utilities and helper functions
+- Tests are specific to one crate's functionality
+
+❌ **Don't use Module Tests when:**
+- Testing interactions between different crates
+- Requiring network communication or real services
+- Testing the full application binary behavior
+
+### When to use Integration Tests (test-suite/)
+✅ **Use Integration Tests when:**
+- Testing communication between different crates
+- Verifying service endpoints work correctly
+- Testing with controlled mock environments
+- Validating configuration-driven behavior
+- Testing load balancing, service discovery protocols
+- Need to start/stop services but not full binaries
+
+❌ **Don't use Integration Tests when:**
+- Testing private implementation details
+- Requiring full binary execution and real network interfaces
+- Simple function validation that doesn't cross boundaries
+
+### When to use E2E Tests (test-suite/e2e/)
+✅ **Use E2E Tests when:**
+- Testing complete user workflows
+- Validating real binary execution
+- Testing with actual network interfaces and ports
+- Verifying system behavior under real conditions
+- Testing graceful shutdown, process management
+- Validating metrics collection in live environment
+
+❌ **Don't use E2E Tests when:**
+- Testing implementation details
+- Simple function validation
+- Fast feedback is required (E2E tests are slow)
 
 ## Testing Pyramid
 
@@ -23,7 +81,129 @@ We implement a comprehensive testing pyramid with four levels of testing, from f
    \__/
 ```
 
-## 1. Unit Tests (Doc Tests)
+## Practical Examples from Our Codebase
+
+### Current Test Organization
+```
+crates/
+├── shared/
+│   ├── src/
+│   │   ├── service_discovery.rs    # Contains doc tests for private HealthCheckResult
+│   │   ├── metrics.rs              # Contains doc tests for MetricsCollector
+│   │   └── error.rs                # Contains doc tests for error types
+│   └── tests/
+│       ├── cli_tests.rs            # 5 module tests for CLI parsing
+│       ├── error_tests.rs          # 5 module tests for error handling
+│       └── metrics_tests.rs        # 10 module tests for metrics collection
+├── proxy/
+│   └── tests/
+│       ├── config_tests.rs         # 14 module tests for configuration
+│       ├── error_tests.rs          # 7 module tests for proxy errors
+│       ├── integration_tests.rs    # 4 integration tests for components
+│       ├── metrics_tests.rs        # 11 module tests for metrics
+│       ├── performance_tests.rs    # 6 performance regression tests
+│       ├── server_tests.rs         # 7 module tests for server lifecycle
+│       └── service_tests.rs        # 3 module tests for proxy service
+└── test-suite/
+    ├── tests/integration/           # Cross-component integration tests
+    │   ├── service_discovery_integration.rs  # 9 service discovery tests
+    │   └── peer_manager_integration.rs       # 6 peer management tests
+    └── tests/e2e/                   # End-to-end with real processes
+        ├── proxy_backend_e2e.rs     # Real binary execution tests
+        └── service_discovery_e2e.rs # Process communication tests
+```
+
+### Decision Examples
+
+#### ✅ Doc Test Example (Private Type Testing)
+```rust
+// In src/service_discovery.rs - testing private HealthCheckResult
+/// Health check result from monitoring a backend
+///
+/// # Examples
+/// ```
+/// use inferno_shared::service_discovery::NodeVitals;
+/// 
+/// let vitals = NodeVitals {
+///     ready: true,
+///     requests_in_progress: 5,
+///     // ... other fields
+/// };
+/// assert!(vitals.ready);
+/// ```
+pub(crate) enum HealthCheckResult {
+    Healthy(NodeVitals),
+    // ...
+}
+```
+
+#### ✅ Module Test Example (Complex Setup)
+```rust
+// In crates/shared/tests/metrics_tests.rs
+#[test]
+fn test_concurrent_metrics_updates() {
+    let collector = Arc::new(MetricsCollector::new());
+    let mut handles = vec![];
+
+    // Complex setup with multiple threads
+    for _ in 0..10 {
+        let collector_clone = Arc::clone(&collector);
+        let handle = thread::spawn(move || {
+            for _ in 0..1000 {
+                collector_clone.record_request();
+                collector_clone.record_response(200);
+            }
+        });
+        handles.push(handle);
+    }
+    
+    // Wait and validate results...
+}
+```
+
+#### ✅ Integration Test Example (Cross-Component)
+```rust
+// In test-suite/tests/integration/service_discovery_integration.rs
+#[tokio::test]
+async fn test_proxy_backend_selection_simulation() {
+    let discovery = ServiceDiscovery::new();
+    
+    // Register multiple backends
+    register_backend(&discovery, "backend-1", 3000).await;
+    register_backend(&discovery, "backend-2", 3001).await;
+    
+    // Test selection logic across components
+    let selected = select_best_backend(&discovery).await;
+    assert!(selected.is_some());
+}
+```
+
+#### ✅ E2E Test Example (Real Processes) 
+```rust
+// In test-suite/tests/e2e/proxy_backend_e2e.rs  
+#[tokio::test]
+async fn test_proxy_backend_communication() {
+    // Start real proxy binary
+    let proxy_process = Command::new("cargo")
+        .args(["run", "--bin", "inferno-proxy"])
+        .spawn()
+        .expect("Failed to start proxy");
+        
+    // Start real backend binary
+    let backend_process = Command::new("cargo")
+        .args(["run", "--bin", "inferno-backend"])
+        .spawn()
+        .expect("Failed to start backend");
+        
+    // Test real HTTP communication
+    let response = reqwest::get("http://127.0.0.1:8080/test").await?;
+    assert_eq!(response.status(), 200);
+    
+    // Cleanup processes...
+}
+```
+
+## 1. Doc Tests
 
 ### Purpose
 Test individual functions and methods in isolation with documentation examples.
@@ -59,23 +239,36 @@ cargo test --doc config
 ## 2. Module Tests
 
 ### Purpose
-Test exported public functions and struct behavior across module boundaries.
+Test exported public functions and struct behavior within a single crate using standalone test files.
 
 ### Location
-`./tests/<module-name>_test.rs` files
+`crates/{crate-name}/tests/{module-name}_tests.rs` files
 
-### Structure
+### Current Structure
+Based on our implementation, each crate contains focused test files:
+
 ```
-tests/
-├── config_test.rs          # Configuration module tests
-├── server_test.rs          # Server module tests
-├── metrics_test.rs         # Metrics module tests
-├── discovery_test.rs       # Service discovery tests
-└── common/
-    ├── mod.rs              # Test utilities
-    ├── fixtures.rs         # Test data fixtures
-    └── helpers.rs          # Helper functions
+crates/shared/tests/
+├── cli_tests.rs            # CLI parsing and validation (5 tests)
+├── error_tests.rs          # Error creation and classification (5 tests)
+└── metrics_tests.rs        # Metrics collection and calculations (10 tests)
+
+crates/proxy/tests/
+├── config_tests.rs         # Configuration validation (14 tests)
+├── error_tests.rs          # Proxy-specific error handling (7 tests)
+├── integration_tests.rs    # Component integration (4 tests)
+├── metrics_tests.rs        # Proxy metrics functionality (11 tests)
+├── performance_tests.rs    # Performance regression tests (6 tests)
+├── server_tests.rs         # Server lifecycle management (7 tests)
+└── service_tests.rs        # Proxy service functionality (3 tests)
 ```
+
+### Key Principles
+- **One test file per logical module/component**
+- **Focus on public API testing within the crate**
+- **Include complex scenarios requiring setup/teardown**
+- **Test error conditions and edge cases**
+- **Keep tests isolated to single crate functionality**
 
 ### Example Module Test
 ```rust

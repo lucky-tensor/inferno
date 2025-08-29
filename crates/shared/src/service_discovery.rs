@@ -308,7 +308,7 @@ impl Default for ServiceDiscoveryConfig {
 ///     uptime_seconds: 1800,
 ///     version: "1.0.0".to_string(),
 /// };
-/// 
+///
 /// // Health check results represent different backend states
 /// assert!(vitals.ready); // Backend is ready to serve traffic
 /// assert_eq!(vitals.requests_in_progress, 5);
@@ -1039,5 +1039,3 @@ impl Default for ServiceDiscovery {
         Self::new()
     }
 }
-
-
