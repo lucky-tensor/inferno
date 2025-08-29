@@ -11,6 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Rust Stable
         uses: actions-rs/toolchain@v1
         with:
@@ -30,9 +34,6 @@ jobs:
           name: benchmark-report
           path: |
             benchmark.json
-      - name: Checkout PR branch
-        if: github.event_name == 'pull_request'
-        run: git checkout ${{ github.head_ref }}
       - name: Commit benchmark results to feature branch
         if: github.event_name == 'pull_request'
         uses: EndBug/add-and-commit@v9
