@@ -5,3 +5,4 @@
 //! and peer communication.
 
 pub mod consensus_tests;
+pub mod update_tests;

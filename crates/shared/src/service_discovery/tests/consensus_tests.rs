@@ -63,7 +63,14 @@ async fn test_consensus_single_peer_response() {
 async fn test_consensus_no_conflicts() {
     let resolver = ConsensusResolver::new();
 
-    let peer1 = create_peer_info("backend-1", "10.0.1.5:3000", 9090, NodeType::Backend, false, 0);
+    let peer1 = create_peer_info(
+        "backend-1",
+        "10.0.1.5:3000",
+        9090,
+        NodeType::Backend,
+        false,
+        0,
+    );
     let peer2 = create_peer_info("proxy-1", "10.0.1.1:8080", 6100, NodeType::Proxy, true, 0);
 
     let peer_responses = vec![
@@ -89,12 +96,26 @@ async fn test_consensus_majority_rule() {
     let resolver = ConsensusResolver::new();
 
     // Create different versions of the same peer
-    let peer_v1 = create_peer_info("backend-1", "10.0.1.5:3000", 9090, NodeType::Backend, false, -10);
-    let peer_v2 = create_peer_info("backend-1", "10.0.1.6:3000", 9090, NodeType::Backend, false, 0);
+    let peer_v1 = create_peer_info(
+        "backend-1",
+        "10.0.1.5:3000",
+        9090,
+        NodeType::Backend,
+        false,
+        -10,
+    );
+    let peer_v2 = create_peer_info(
+        "backend-1",
+        "10.0.1.6:3000",
+        9090,
+        NodeType::Backend,
+        false,
+        0,
+    );
 
     let peer_responses = vec![
         vec![peer_v1.clone()], // Peer 1 sees old version
-        vec![peer_v2.clone()], // Peer 2 sees new version  
+        vec![peer_v2.clone()], // Peer 2 sees new version
         vec![peer_v2.clone()], // Peer 3 sees new version (majority)
     ];
 
@@ -116,8 +137,22 @@ async fn test_consensus_timestamp_tie_breaking() {
     let resolver = ConsensusResolver::new();
 
     // Create two versions with equal votes but different timestamps
-    let peer_v1 = create_peer_info("backend-1", "10.0.1.5:3000", 9090, NodeType::Backend, false, -10);
-    let peer_v2 = create_peer_info("backend-1", "10.0.1.6:3000", 9090, NodeType::Backend, false, 0);
+    let peer_v1 = create_peer_info(
+        "backend-1",
+        "10.0.1.5:3000",
+        9090,
+        NodeType::Backend,
+        false,
+        -10,
+    );
+    let peer_v2 = create_peer_info(
+        "backend-1",
+        "10.0.1.6:3000",
+        9090,
+        NodeType::Backend,
+        false,
+        0,
+    );
 
     let peer_responses = vec![
         vec![peer_v1.clone()], // Peer 1 sees old version
@@ -141,8 +176,22 @@ async fn test_consensus_timestamp_tie_breaking() {
 async fn test_consensus_multiple_nodes_with_conflicts() {
     let resolver = ConsensusResolver::new();
 
-    let backend1_v1 = create_peer_info("backend-1", "10.0.1.5:3000", 9090, NodeType::Backend, false, -10);
-    let backend1_v2 = create_peer_info("backend-1", "10.0.1.6:3000", 9090, NodeType::Backend, false, 0);
+    let backend1_v1 = create_peer_info(
+        "backend-1",
+        "10.0.1.5:3000",
+        9090,
+        NodeType::Backend,
+        false,
+        -10,
+    );
+    let backend1_v2 = create_peer_info(
+        "backend-1",
+        "10.0.1.6:3000",
+        9090,
+        NodeType::Backend,
+        false,
+        0,
+    );
     let proxy1 = create_peer_info("proxy-1", "10.0.1.1:8080", 6100, NodeType::Proxy, true, 0);
 
     let peer_responses = vec![
@@ -178,7 +227,7 @@ async fn test_consensus_insufficient_peers() {
     let peer_responses = vec![];
 
     let result = resolver.resolve_consensus(peer_responses).await;
-    
+
     assert!(result.is_err());
     if let Err(e) = result {
         assert!(e.to_string().contains("No peer responses provided"));
@@ -209,12 +258,47 @@ async fn test_consensus_complex_scenario() {
     let resolver = ConsensusResolver::new();
 
     // Complex scenario with multiple nodes, different conflicts
-    let backend1_v1 = create_peer_info("backend-1", "10.0.1.5:3000", 9090, NodeType::Backend, false, -20);
-    let backend1_v2 = create_peer_info("backend-1", "10.0.1.6:3000", 9090, NodeType::Backend, false, -10);
-    let backend1_v3 = create_peer_info("backend-1", "10.0.1.7:3000", 9090, NodeType::Backend, false, 0);
+    let backend1_v1 = create_peer_info(
+        "backend-1",
+        "10.0.1.5:3000",
+        9090,
+        NodeType::Backend,
+        false,
+        -20,
+    );
+    let backend1_v2 = create_peer_info(
+        "backend-1",
+        "10.0.1.6:3000",
+        9090,
+        NodeType::Backend,
+        false,
+        -10,
+    );
+    let backend1_v3 = create_peer_info(
+        "backend-1",
+        "10.0.1.7:3000",
+        9090,
+        NodeType::Backend,
+        false,
+        0,
+    );
 
-    let backend2_v1 = create_peer_info("backend-2", "10.0.2.5:3000", 9091, NodeType::Backend, false, -5);
-    let backend2_v2 = create_peer_info("backend-2", "10.0.2.6:3000", 9091, NodeType::Backend, false, 5);
+    let backend2_v1 = create_peer_info(
+        "backend-2",
+        "10.0.2.5:3000",
+        9091,
+        NodeType::Backend,
+        false,
+        -5,
+    );
+    let backend2_v2 = create_peer_info(
+        "backend-2",
+        "10.0.2.6:3000",
+        9091,
+        NodeType::Backend,
+        false,
+        5,
+    );
 
     let proxy1 = create_peer_info("proxy-1", "10.0.1.1:8080", 6100, NodeType::Proxy, true, 0);
 
@@ -263,8 +347,22 @@ async fn test_consensus_performance_metrics() {
     let resolver = ConsensusResolver::new();
 
     let peer_responses = vec![
-        vec![create_peer_info("backend-1", "10.0.1.5:3000", 9090, NodeType::Backend, false, 0)],
-        vec![create_peer_info("backend-1", "10.0.1.5:3000", 9090, NodeType::Backend, false, 0)],
+        vec![create_peer_info(
+            "backend-1",
+            "10.0.1.5:3000",
+            9090,
+            NodeType::Backend,
+            false,
+            0,
+        )],
+        vec![create_peer_info(
+            "backend-1",
+            "10.0.1.5:3000",
+            9090,
+            NodeType::Backend,
+            false,
+            0,
+        )],
     ];
 
     let start = std::time::Instant::now();
@@ -286,9 +384,23 @@ async fn test_consensus_performance_metrics() {
 async fn test_consensus_different_node_types() {
     let resolver = ConsensusResolver::new();
 
-    let backend = create_peer_info("backend-1", "10.0.1.5:3000", 9090, NodeType::Backend, false, 0);
+    let backend = create_peer_info(
+        "backend-1",
+        "10.0.1.5:3000",
+        9090,
+        NodeType::Backend,
+        false,
+        0,
+    );
     let proxy = create_peer_info("proxy-1", "10.0.1.1:8080", 6100, NodeType::Proxy, true, 0);
-    let governator = create_peer_info("gov-1", "10.0.1.10:7000", 9095, NodeType::Governator, false, 0);
+    let governator = create_peer_info(
+        "gov-1",
+        "10.0.1.10:7000",
+        9095,
+        NodeType::Governator,
+        false,
+        0,
+    );
 
     let peer_responses = vec![
         vec![backend.clone(), proxy.clone()],
@@ -306,10 +418,8 @@ async fn test_consensus_different_node_types() {
     assert_eq!(metrics.peer_count, 3);
 
     // Verify all node types are present
-    let node_types: std::collections::HashSet<NodeType> = consensus
-        .iter()
-        .map(|p| p.node_type)
-        .collect();
+    let node_types: std::collections::HashSet<NodeType> =
+        consensus.iter().map(|p| p.node_type).collect();
     assert_eq!(node_types.len(), 3);
     assert!(node_types.contains(&NodeType::Backend));
     assert!(node_types.contains(&NodeType::Proxy));
@@ -339,10 +449,7 @@ async fn test_consensus_identical_timestamps() {
         last_updated: now, // Same timestamp
     };
 
-    let peer_responses = vec![
-        vec![peer_v1.clone()],
-        vec![peer_v2.clone()],
-    ];
+    let peer_responses = vec![vec![peer_v1.clone()], vec![peer_v2.clone()]];
 
     let (consensus, metrics) = resolver
         .resolve_consensus(peer_responses)
@@ -352,7 +459,7 @@ async fn test_consensus_identical_timestamps() {
     assert_eq!(consensus.len(), 1);
     assert_eq!(metrics.conflicts_detected, 1);
     assert_eq!(metrics.tie_breaks, 1);
-    
+
     // With identical timestamps, the algorithm should still pick one consistently
     assert!(consensus[0].address == "10.0.1.5:3000" || consensus[0].address == "10.0.1.6:3000");
 }

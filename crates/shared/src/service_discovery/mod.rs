@@ -72,9 +72,11 @@ pub mod consensus;
 pub mod errors;
 pub mod health;
 pub mod registration;
+pub mod retry;
 pub mod server;
 pub mod service;
 pub mod types;
+pub mod updates;
 
 #[cfg(test)]
 pub mod tests;
@@ -89,9 +91,11 @@ pub use health::{HealthCheckResult, HealthChecker, HttpHealthChecker, NodeVitals
 pub use registration::{
     RegistrationAction, RegistrationHandler, RegistrationRequest, RegistrationResponse,
 };
+pub use retry::{RetryConfig, RetryManager, RetryMetrics};
 pub use server::ServiceDiscoveryServer;
 pub use service::ServiceDiscovery;
 pub use types::{BackendRegistration, NodeInfo, NodeType, PeerInfo};
+pub use updates::{NodeUpdate, UpdatePropagator, UpdateResult};
 
 // Legacy compatibility - re-export old structure names
 pub use health::NodeVitals as BackendVitals;

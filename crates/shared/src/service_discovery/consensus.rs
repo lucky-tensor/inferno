@@ -30,7 +30,7 @@
 //! let resolver = ConsensusResolver::new();
 //!
 //! let peer_responses = vec![
-//!     vec![PeerInfo { 
+//!     vec![PeerInfo {
 //!         id: "backend-1".to_string(),
 //!         address: "10.0.1.5:3000".to_string(),
 //!         metrics_port: 9090,
@@ -41,7 +41,7 @@
 //!     // More peer responses...
 //! ];
 //!
-//! let consensus = resolver.resolve_consensus(peer_responses).await?;
+//! let (consensus, metrics) = resolver.resolve_consensus(peer_responses).await?;
 //! println!("Consensus reached with {} peers", consensus.len());
 //! # Ok(())
 //! # }
@@ -101,10 +101,12 @@ pub struct ConsensusResolver {
 #[derive(Debug, Clone)]
 struct ConsensusConfig {
     /// Minimum number of peer responses required for consensus
+    #[allow(dead_code)] // Reserved for future use
     pub min_peers_for_consensus: usize,
     /// Whether to enable detailed conflict logging
     pub enable_conflict_logging: bool,
     /// Maximum age difference to consider timestamps equal (in seconds)
+    #[allow(dead_code)] // Reserved for future use
     pub timestamp_tolerance_secs: u64,
 }
 
@@ -190,7 +192,7 @@ impl ConsensusResolver {
     /// let resolver = ConsensusResolver::new();
     ///
     /// let peer_responses = vec![
-    ///     vec![PeerInfo { 
+    ///     vec![PeerInfo {
     ///         id: "backend-1".to_string(),
     ///         address: "10.0.1.5:3000".to_string(),
     ///         metrics_port: 9090,
@@ -211,7 +213,7 @@ impl ConsensusResolver {
         peer_responses: Vec<Vec<PeerInfo>>,
     ) -> ServiceDiscoveryResult<(Vec<PeerInfo>, ConsensusMetrics)> {
         let start_time = std::time::Instant::now();
-        
+
         if peer_responses.is_empty() {
             return Err(ServiceDiscoveryError::ConsensusError {
                 reason: "No peer responses provided for consensus".to_string(),
@@ -232,7 +234,7 @@ impl ConsensusResolver {
                 total_nodes += 1;
                 node_groups
                     .entry(peer_info.id.clone())
-                    .or_insert_with(Vec::new)
+                    .or_default()
                     .push((peer_info.clone(), peer_idx));
             }
         }
@@ -240,7 +242,7 @@ impl ConsensusResolver {
         let mut conflicts_detected = 0;
         let mut tie_breaks = 0;
         let mut consensus_peers = Vec::new();
-        let majority_threshold = (peer_responses.len() + 1) / 2;
+        let majority_threshold = peer_responses.len() / 2 + 1;
 
         // Resolve consensus for each node ID
         for (node_id, node_versions) in node_groups {
@@ -248,30 +250,35 @@ impl ConsensusResolver {
                 // No conflict - single version from one peer
                 node_versions[0].0.clone()
             } else {
-                // Multiple versions - need consensus resolution
-                conflicts_detected += 1;
-                
-                if self._config.enable_conflict_logging {
-                    warn!(
-                        node_id = %node_id,
-                        versions = node_versions.len(),
-                        "Detected conflicting peer information"
-                    );
-                }
+                // Multiple peer responses for this node - check if they actually conflict
 
                 // Group identical peer information together
                 let mut version_groups: HashMap<String, Vec<(PeerInfo, usize)>> = HashMap::new();
-                for (peer_info, peer_idx) in node_versions {
-                    let version_key = format!("{}-{}-{}-{}", 
-                        peer_info.address, 
+                for (peer_info, peer_idx) in &node_versions {
+                    let version_key = format!(
+                        "{}-{}-{}-{}",
+                        peer_info.address,
                         peer_info.metrics_port,
                         peer_info.node_type.as_str(),
                         peer_info.is_load_balancer
                     );
                     version_groups
                         .entry(version_key)
-                        .or_insert_with(Vec::new)
-                        .push((peer_info, peer_idx));
+                        .or_default()
+                        .push((peer_info.clone(), *peer_idx));
+                }
+
+                // Only count as conflict if there are multiple different versions
+                if version_groups.len() > 1 {
+                    conflicts_detected += 1;
+
+                    if self._config.enable_conflict_logging {
+                        warn!(
+                            node_id = %node_id,
+                            versions = version_groups.len(),
+                            "Detected conflicting peer information"
+                        );
+                    }
                 }
 
                 // Find majority version
@@ -291,14 +298,14 @@ impl ConsensusResolver {
                         .into_values()
                         .flat_map(|group| group.into_iter())
                         .collect();
-                    
+
                     all_versions.sort_by(|a, b| b.0.last_updated.cmp(&a.0.last_updated));
-                    
+
                     debug!(
                         node_id = %node_id,
                         "Using timestamp tie-breaking for consensus"
                     );
-                    
+
                     all_versions[0].0.clone()
                 }
             };
