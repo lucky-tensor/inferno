@@ -1,0 +1,49 @@
+[package]
+name = "inferno-tests"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Test suite for Inferno distributed systems"
+publish = false
+
+[dependencies]
+inferno-proxy = { path = "../crates/proxy" }
+inferno-backend = { path = "../crates/backend" }
+inferno-shared = { path = "../crates/shared" }
+
+tokio = { workspace = true }
+serde_json = { workspace = true }
+reqwest = { workspace = true }
+wiremock = { workspace = true }
+proptest = { workspace = true }
+tokio-test = { workspace = true }
+tracing-subscriber = { workspace = true }
+rand = "0.8"
+libc = "0.2"
+
+[[test]]
+name = "proxy_backend_e2e"
+path = "tests/e2e/proxy_backend_e2e.rs"
+
+[[test]]
+name = "proxy_integration"
+path = "tests/integration/proxy_integration.rs"
+
+
+[[test]]
+name = "service_discovery_integration"
+path = "tests/integration/service_discovery_integration.rs"
+
+[[test]]
+name = "service_discovery_e2e"
+path = "tests/e2e/service_discovery_e2e.rs"
+
+[[test]]
+name = "peer_manager_integration"
+path = "tests/integration/peer_manager_integration.rs"
+
+[[test]]
+name = "backend_proxy_registration_e2e"
+path = "tests/e2e/backend_proxy_registration_e2e.rs"

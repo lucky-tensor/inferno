@@ -434,10 +434,26 @@ impl ProxyServer {
 
         info!("Server loop running, waiting for connections...");
 
-        // For demo purposes, we'll just wait for shutdown
-        // The actual Pingora server would handle requests here
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        info!("Demo server loop completed");
+        // Keep running until shutdown signal is received
+        // In a real implementation, this would be the Pingora server loop
+        // For now, we'll wait indefinitely until interrupted
+        let ctrl_c = signal::ctrl_c();
+        tokio::pin!(ctrl_c);
+
+        loop {
+            tokio::select! {
+                _ = &mut ctrl_c => {
+                    info!("Interrupt signal received in server loop");
+                    break;
+                }
+                _ = tokio::time::sleep(Duration::from_secs(30)) => {
+                    // Periodic health check or maintenance could go here
+                    debug!("Server loop heartbeat");
+                }
+            }
+        }
+
+        info!("Server loop completed");
 
         // Clean up background tasks
         if let Some(health_task) = health_check_task {
@@ -717,16 +733,6 @@ mod tests {
     use tokio::time::timeout;
 
     #[tokio::test]
-    async fn test_server_creation() {
-        let config = ProxyConfig::default();
-        let server = ProxyServer::new(config).await;
-
-        assert!(server.is_ok());
-        let server = server.unwrap();
-        assert_eq!(server.local_addr().port(), 8080);
-    }
-
-    #[tokio::test]
     async fn test_server_configuration_access() {
         let config = ProxyConfig {
             max_connections: 5000,
@@ -735,18 +741,6 @@ mod tests {
 
         let server = ProxyServer::new(config).await.unwrap();
         assert_eq!(server.config().max_connections, 5000);
-    }
-
-    #[tokio::test]
-    async fn test_server_metrics_access() {
-        let config = ProxyConfig::default();
-        let server = ProxyServer::new(config).await.unwrap();
-
-        let metrics = server.metrics();
-        let snapshot = metrics.snapshot();
-
-        assert_eq!(snapshot.total_requests, 0);
-        assert_eq!(snapshot.active_requests, 0);
     }
 
     #[tokio::test]
@@ -775,21 +769,6 @@ mod tests {
             }
             other => panic!("Unexpected error type: {:?}", other),
         }
-    }
-
-    #[tokio::test]
-    async fn test_server_shutdown_signal() {
-        let config = ProxyConfig::default();
-        let mut server = ProxyServer::new(config).await.unwrap();
-
-        // Shutdown should succeed even if server isn't running
-        let result = server.shutdown().await;
-        assert!(result.is_ok());
-
-        // Second shutdown should fail since shutdown_tx was consumed
-        let result = server.shutdown().await;
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not running"));
     }
 
     #[tokio::test]

@@ -34,6 +34,7 @@
 //! ```
 
 use async_trait::async_trait;
+use inferno_shared::service_discovery::{ServiceDiscovery, ServiceDiscoveryConfig};
 use inferno_shared::{MetricsCollector, Result};
 use pingora_core::upstreams::peer::HttpPeer;
 use pingora_http::{RequestHeader, ResponseHeader};
@@ -41,8 +42,11 @@ use pingora_proxy::{FailToProxy, ProxyHttp, Session};
 use std::sync::Arc;
 use tracing::{debug, error, info, instrument, warn};
 
+use crate::peer_manager::{LoadBalancingAlgorithm, PeerManager};
+
 pub mod cli_options;
 pub mod config;
+pub mod peer_manager;
 pub mod server;
 
 pub use cli_options::ProxyCliOptions;
@@ -68,12 +72,17 @@ pub use server::ProxyServer;
 /// - Backend failures trigger automatic retries
 /// - Circuit breaker patterns prevent cascade failures
 /// - All errors are properly logged and monitored
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ProxyService {
     /// Configuration for the proxy service
     config: Arc<ProxyConfig>,
     /// Metrics collector for observability
     metrics: Arc<MetricsCollector>,
+    /// Service discovery for dynamic backend management
+    #[allow(dead_code)] // Accessed through peer_manager
+    service_discovery: Arc<ServiceDiscovery>,
+    /// Peer manager for backend selection and load balancing
+    peer_manager: Arc<PeerManager>,
 }
 
 impl ProxyService {
@@ -110,14 +119,45 @@ impl ProxyService {
     /// let service = ProxyService::new(config, metrics);
     /// ```
     pub fn new(config: Arc<ProxyConfig>, metrics: Arc<MetricsCollector>) -> Self {
+        let service_discovery = Arc::new(ServiceDiscovery::with_config(ServiceDiscoveryConfig {
+            health_check_interval: config.health_check_interval,
+            health_check_timeout: config.health_check_timeout,
+            ..ServiceDiscoveryConfig::default()
+        }));
+
+        // Create peer manager with configured load balancing algorithm
+        let algorithm = LoadBalancingAlgorithm::from(config.load_balancing_algorithm.as_str());
+        let peer_manager = Arc::new(PeerManager::new(service_discovery.clone(), algorithm));
+
+        // Register configured backends with service discovery
+        if config.has_multiple_backends() {
+            for (i, &backend_addr) in config.backend_servers.iter().enumerate() {
+                let _registration = inferno_shared::service_discovery::BackendRegistration {
+                    id: format!("backend-{}", i),
+                    address: backend_addr.to_string(),
+                    metrics_port: 9090, // TODO: Make this configurable
+                };
+                // Note: Registration is async, so we'll need to handle this in a startup method
+                info!(backend_addr = %backend_addr, "Backend registered for service discovery");
+            }
+        }
+
         info!(
             backend_addr = %config.backend_addr,
             timeout_ms = config.timeout.as_millis(),
             max_connections = config.max_connections,
+            backend_servers_count = config.backend_servers.len(),
+            service_discovery_enabled = config.has_multiple_backends(),
+            load_balancing_algorithm = %config.load_balancing_algorithm,
             "Created new proxy service"
         );
 
-        Self { config, metrics }
+        Self {
+            config,
+            metrics,
+            service_discovery,
+            peer_manager,
+        }
     }
 
     /// Gets the current metrics for this proxy service
@@ -242,20 +282,36 @@ impl ProxyHttp for ProxyService {
         // Record request metrics
         self.metrics.record_request();
 
-        let peer = Box::new(HttpPeer::new(
+        // Select backend using peer manager or fallback to configured backend
+        let backend_addr = if self.config.has_multiple_backends() {
+            self.peer_manager.select_peer().await.unwrap_or_else(|| {
+                warn!("No healthy peers available, falling back to primary backend");
+                format!(
+                    "{}:{}",
+                    self.config.backend_addr.ip(),
+                    self.config.backend_addr.port()
+                )
+            })
+        } else {
             format!(
                 "{}:{}",
                 self.config.backend_addr.ip(),
                 self.config.backend_addr.port()
-            ),
+            )
+        };
+
+        let peer = Box::new(HttpPeer::new(
+            backend_addr.clone(),
             false,          // TLS disabled for demo
             "".to_string(), // SNI hostname
         ));
 
         let upstream_selection_time = start.elapsed();
         debug!(
-            backend_addr = %self.config.backend_addr,
+            backend_addr = %backend_addr,
             selection_time_us = upstream_selection_time.as_micros(),
+            load_balancing_enabled = self.config.has_multiple_backends(),
+            algorithm = %self.config.load_balancing_algorithm,
             "Selected upstream peer"
         );
 

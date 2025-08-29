@@ -41,6 +41,7 @@ pub struct BackendConfig {
 }
 
 impl Default for BackendConfig {
+    /// Creates a default backend configuration with sensible defaults
     fn default() -> Self {
         Self {
             listen_addr: "127.0.0.1:3000".parse().unwrap(),
@@ -63,6 +64,7 @@ impl Default for BackendConfig {
 }
 
 impl BackendConfig {
+    /// Creates configuration from environment variables, falling back to defaults
     pub fn from_env() -> Result<Self> {
         // TODO: Implement proper environment variable loading
         Ok(Self::default())
