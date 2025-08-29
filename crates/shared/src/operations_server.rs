@@ -44,7 +44,10 @@
 
 use crate::error::{InfernoError, Result};
 use crate::metrics::MetricsCollector;
-use crate::service_discovery::{BackendRegistration, NodeVitals, ServiceDiscovery};
+use crate::service_discovery::{
+    BackendRegistration, NodeVitals, RegistrationAction, RegistrationHandler, RegistrationRequest,
+    ServiceDiscovery,
+};
 use http::{Method, StatusCode};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server};
@@ -508,7 +511,7 @@ async fn handle_request(
 async fn handle_metrics_request(
     metrics: Arc<MetricsCollector>,
     _service_name: String,
-    version: String,
+    _version: String,
     connected_peers: Arc<AtomicU32>,
 ) -> Response<Body> {
     let snapshot = metrics.snapshot();
@@ -516,16 +519,21 @@ async fn handle_metrics_request(
 
     // Create NodeVitals from metrics snapshot
     let node_vitals = NodeVitals {
-        ready: true, // Service is ready if metrics server is responding
-        requests_in_progress: snapshot.active_requests as u32,
-        cpu_usage: 0.0,    // TODO: Implement actual CPU monitoring
-        memory_usage: 0.0, // TODO: Implement actual memory monitoring
-        gpu_usage: 0.0,    // TODO: Implement GPU monitoring if available
-        failed_responses: snapshot.total_errors,
-        connected_peers: connected_peers_count,
-        backoff_requests: 0, // TODO: Track backoff requests if implemented
-        uptime_seconds: snapshot.uptime.as_secs(),
-        version,
+        ready: true,             // Service is ready if metrics server is responding
+        cpu_usage: Some(0.0),    // TODO: Implement actual CPU monitoring
+        memory_usage: Some(0.0), // TODO: Implement actual memory monitoring
+        active_requests: Some(snapshot.active_requests as u64),
+        avg_response_time_ms: None, // TODO: Implement response time tracking
+        error_rate: if snapshot.total_requests > 0 {
+            Some((snapshot.total_errors as f64 / snapshot.total_requests as f64) * 100.0)
+        } else {
+            None
+        },
+        status_message: Some(format!(
+            "Uptime: {}s, Peers: {}",
+            snapshot.uptime.as_secs(),
+            connected_peers_count
+        )),
     };
 
     // Serialize to JSON
@@ -533,9 +541,9 @@ async fn handle_metrics_request(
         Ok(json) => {
             debug!(
                 ready = node_vitals.ready,
-                requests_in_progress = node_vitals.requests_in_progress,
-                connected_peers = node_vitals.connected_peers,
-                uptime_seconds = node_vitals.uptime_seconds,
+                active_requests = ?node_vitals.active_requests,
+                connected_peers = connected_peers_count,
+                cpu_usage = ?node_vitals.cpu_usage,
                 "Returning NodeVitals metrics"
             );
 
@@ -593,12 +601,15 @@ async fn handle_health_request() -> Response<Body> {
         })
 }
 
-/// Handles service discovery registration requests
+/// Handles enhanced service discovery registration requests
+///
+/// Supports both legacy BackendRegistration format and enhanced RegistrationRequest format
+/// with peer information sharing in responses.
 async fn handle_registration_request(
     req: Request<Body>,
     service_discovery: Option<Arc<ServiceDiscovery>>,
 ) -> Response<Body> {
-    debug!("Processing service registration request");
+    debug!("Processing enhanced service registration request");
 
     // Read the request body
     let body_bytes = match hyper::body::to_bytes(req.into_body()).await {
@@ -626,46 +637,110 @@ async fn handle_registration_request(
         }
     };
 
-    // Parse into BackendRegistration struct
-    let registration: BackendRegistration = match serde_json::from_value(registration_data) {
-        Ok(reg) => reg,
-        Err(e) => {
-            error!(error = %e, "Failed to parse registration data into BackendRegistration");
-            return Response::builder()
-                .status(StatusCode::BAD_REQUEST)
-                .header("content-type", "application/json")
-                .body(Body::from(
-                    "{\"error\":\"Invalid registration data format\"}",
-                ))
-                .unwrap_or_else(|_| Response::new(Body::empty()));
-        }
+    // Try to parse as enhanced format first, then fall back to legacy
+    let (registration_request, legacy_mode) = if let Ok(enhanced_request) =
+        serde_json::from_value::<RegistrationRequest>(registration_data.clone())
+    {
+        // Enhanced format
+        debug!("Processing enhanced registration format");
+        (enhanced_request, false)
+    } else if let Ok(legacy_registration) =
+        serde_json::from_value::<BackendRegistration>(registration_data)
+    {
+        // Legacy format - convert to enhanced
+        debug!("Processing legacy registration format, converting to enhanced format");
+        let enhanced_request = RegistrationRequest {
+            action: RegistrationAction::Register,
+            node: legacy_registration.to_node_info(),
+        };
+        (enhanced_request, true)
+    } else {
+        error!("Failed to parse registration data in either enhanced or legacy format");
+        return Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .header("content-type", "application/json")
+            .body(Body::from(
+                "{\"error\":\"Invalid registration data format\"}",
+            ))
+            .unwrap_or_else(|_| Response::new(Body::empty()));
     };
+
+    // Validate the registration request
+    let handler = RegistrationHandler::new();
+    if let Err(e) = handler.validate_request(&registration_request) {
+        warn!(error = %e, "Registration validation failed");
+        return Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .header("content-type", "application/json")
+            .body(Body::from(format!(
+                "{{\"error\":\"Validation failed: {}\"}}",
+                e
+            )))
+            .unwrap_or_else(|_| Response::new(Body::empty()));
+    }
 
     // Check if service discovery is available (proxy only)
     if let Some(service_discovery) = service_discovery {
-        // Actually register the backend with the proxy's service discovery
+        // Process the registration with the enhanced protocol
+        let backend_registration = BackendRegistration::from_node_info(&registration_request.node);
+
         match service_discovery
-            .register_backend(registration.clone())
+            .register_backend(backend_registration)
             .await
         {
             Ok(()) => {
                 info!(
-                    backend_id = %registration.id,
-                    address = %registration.address,
-                    metrics_port = registration.metrics_port,
-                    "Backend successfully registered with service discovery"
+                    node_id = %registration_request.node.id,
+                    action = %registration_request.action,
+                    node_type = %registration_request.node.node_type,
+                    address = %registration_request.node.address,
+                    "Node successfully registered/updated with service discovery"
                 );
-                Response::builder()
-                    .status(StatusCode::OK)
-                    .header("content-type", "application/json")
-                    .body(Body::from("{\"status\":\"registered\"}"))
-                    .unwrap_or_else(|e| {
-                        error!(error = %e, "Failed to build registration response");
-                        Response::new(Body::empty())
-                    })
+
+                // Get all peers for enhanced response
+                let all_peers = service_discovery.get_all_peers().await;
+
+                // Create enhanced response with peer information
+                let enhanced_response = handler.create_response(
+                    registration_request.action,
+                    &registration_request.node.id,
+                    all_peers,
+                );
+
+                // For legacy mode, return simple response for backward compatibility
+                if legacy_mode {
+                    Response::builder()
+                        .status(StatusCode::OK)
+                        .header("content-type", "application/json")
+                        .body(Body::from("{\"status\":\"registered\"}"))
+                        .unwrap_or_else(|e| {
+                            error!(error = %e, "Failed to build legacy registration response");
+                            Response::new(Body::empty())
+                        })
+                } else {
+                    // Return enhanced response with peer information
+                    match serde_json::to_string(&enhanced_response) {
+                        Ok(json) => Response::builder()
+                            .status(StatusCode::OK)
+                            .header("content-type", "application/json")
+                            .body(Body::from(json))
+                            .unwrap_or_else(|e| {
+                                error!(error = %e, "Failed to build enhanced registration response");
+                                Response::new(Body::empty())
+                            }),
+                        Err(e) => {
+                            error!(error = %e, "Failed to serialize enhanced registration response");
+                            Response::builder()
+                                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                                .header("content-type", "application/json")
+                                .body(Body::from("{\"error\":\"Failed to serialize response\"}"))
+                                .unwrap_or_else(|_| Response::new(Body::empty()))
+                        }
+                    }
+                }
             }
             Err(e) => {
-                error!(error = %e, "Failed to register backend with service discovery");
+                error!(error = %e, "Failed to register node with service discovery");
                 Response::builder()
                     .status(StatusCode::INTERNAL_SERVER_ERROR)
                     .header("content-type", "application/json")
@@ -679,15 +754,23 @@ async fn handle_registration_request(
     } else {
         // No service discovery available (backend server)
         info!(
-            backend_id = %registration.id,
-            address = %registration.address,
-            metrics_port = registration.metrics_port,
+            node_id = %registration_request.node.id,
+            address = %registration_request.node.address,
+            metrics_port = registration_request.node.metrics_port,
             "Registration request received (no service discovery integration)"
         );
+
+        // Return appropriate response based on format
+        let response_json = if legacy_mode {
+            "{\"status\":\"received\"}"
+        } else {
+            "{\"status\":\"received\",\"message\":\"Registration received but no service discovery integration available\",\"peers\":[]}"
+        };
+
         Response::builder()
             .status(StatusCode::OK)
             .header("content-type", "application/json")
-            .body(Body::from("{\"status\":\"received\"}"))
+            .body(Body::from(response_json))
             .unwrap_or_else(|e| {
                 error!(error = %e, "Failed to build registration response");
                 Response::new(Body::empty())
@@ -778,9 +861,13 @@ mod tests {
         let node_vitals: NodeVitals = serde_json::from_slice(&body).unwrap();
 
         assert!(node_vitals.ready);
-        assert_eq!(node_vitals.connected_peers, 3);
-        assert_eq!(node_vitals.version, "1.0.0");
-        assert_eq!(node_vitals.requests_in_progress, 0); // Request completed
+        assert!(node_vitals.status_message.is_some());
+        assert!(node_vitals
+            .status_message
+            .as_ref()
+            .unwrap()
+            .contains("Peers: 3"));
+        assert_eq!(node_vitals.active_requests, Some(0)); // Request completed
     }
 
     #[tokio::test]

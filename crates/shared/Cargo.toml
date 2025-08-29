@@ -25,4 +25,9 @@ http = { workspace = true }
 tokio-test = { workspace = true }
 proptest = { workspace = true }
 wiremock = { workspace = true }
+criterion = { version = "0.5", features = ["html_reports", "async_tokio"] }
 futures = "0.3"
+
+[[bench]]
+name = "consensus_benchmarks"
+harness = false
