@@ -35,6 +35,7 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          git checkout ${{ github.head_ref }}
           git add ./.prior_bench
           git commit -m "Update benchmark results [skip ci]" || exit 0
           git push
