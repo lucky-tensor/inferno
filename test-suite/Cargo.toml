@@ -23,13 +23,13 @@ tokio-test = { workspace = true }
 libc = "0.2"
 
 [[test]]
-name = "integration"
-path = "integration.rs"
+name = "proxy_backend_e2e"
+path = "tests/e2e/proxy_backend_e2e.rs"
 
 [[test]]
-name = "module_tests"
-path = "module_tests.rs"
+name = "proxy_integration"
+path = "tests/integration/proxy_integration.rs"
 
 [[test]]
-name = "e2e_tests"
-path = "e2e_tests.rs"
+name = "proxy_module"
+path = "tests/module/proxy_module.rs"
