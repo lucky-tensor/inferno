@@ -9,6 +9,8 @@ on:
 jobs:
   bench:
     runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.pull_request.head.commit.message, 'Update benchmark results') }}
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,5 +41,5 @@ jobs:
         uses: EndBug/add-and-commit@v9
         with:
           add: '.prior_bench'
-          message: 'Update benchmark results [skip ci]'
+          message: 'Update benchmark results'
           default_author: github_actions
