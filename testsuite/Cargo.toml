@@ -47,3 +47,15 @@ path = "tests/integration/peer_manager_integration.rs"
 [[test]]
 name = "backend_proxy_registration_e2e"
 path = "tests/e2e/backend_proxy_registration_e2e.rs"
+
+[[test]]
+name = "proxy_standalone_e2e"
+path = "tests/e2e/proxy_standalone_e2e.rs"
+
+[[test]]
+name = "backend_standalone_e2e"
+path = "tests/e2e/backend_standalone_e2e.rs"
+
+[[test]]
+name = "service_discovery_full_e2e"
+path = "tests/e2e/service_discovery_full_e2e.rs"

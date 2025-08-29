@@ -47,6 +47,7 @@ use crate::peer_manager::{LoadBalancingAlgorithm, PeerManager};
 pub mod cli_options;
 pub mod config;
 pub mod peer_manager;
+// pub mod registration; // Disabled due to hyper compatibility issues
 pub mod server;
 
 pub use cli_options::ProxyCliOptions;

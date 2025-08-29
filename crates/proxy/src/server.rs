@@ -29,6 +29,7 @@
 //! - Resource cleanup and file descriptor closure
 
 use crate::ProxyConfig;
+// use crate::registration::RegistrationService; // Disabled due to compilation issues
 use inferno_shared::{InfernoError, MetricsCollector, MetricsServer, Result};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -426,6 +427,10 @@ impl ProxyServer {
             None
         };
 
+        // Start registration service (disabled due to compilation issues)
+        // let registration_task = Some(self.start_registration_service());
+        let registration_task: Option<tokio::task::JoinHandle<()>> = None;
+
         // Simulate server operation
         // In a real implementation, this would be replaced with:
         // let mut server = Server::new(Some(Opt::default()))?;
@@ -464,6 +469,11 @@ impl ProxyServer {
         if let Some(metrics_task) = metrics_task {
             metrics_task.abort();
             let _ = metrics_task.await;
+        }
+
+        if let Some(registration_task) = registration_task {
+            registration_task.abort();
+            let _ = registration_task.await;
         }
 
         Ok(())
@@ -598,6 +608,40 @@ impl ProxyServer {
                     "HTTP metrics server failed"
                 );
             }
+        })
+    }
+
+    /// Starts the backend registration service
+    ///
+    /// This method spawns a background task that serves HTTP endpoints
+    /// for backend registration. The service handles:
+    /// - `POST /register` - Backend registration requests
+    /// - `GET /health` - Health check endpoint
+    ///
+    /// # Returns
+    ///
+    /// Returns a `tokio::task::JoinHandle` for the registration service task
+    /// Currently disabled due to hyper compatibility issues
+    #[allow(dead_code)]
+    #[instrument(skip(self))]
+    fn start_registration_service(&self) -> tokio::task::JoinHandle<()> {
+        let listen_addr = self.config.listen_addr;
+
+        info!(
+            listen_addr = %listen_addr,
+            "Starting backend registration service"
+        );
+
+        tokio::spawn(async move {
+            // let registration_service = RegistrationService::new();
+
+            // if let Err(e) = registration_service.start(listen_addr).await {
+                error!(
+                    // error = %e,
+                    listen_addr = %listen_addr,
+                    "Backend registration service disabled due to compilation issues"
+                );
+            // }
         })
     }
 

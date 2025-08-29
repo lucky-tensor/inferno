@@ -25,6 +25,7 @@ clap = { workspace = true }
 hyper = { version = "1.0", features = ["full"] }
 hyper-util = { version = "0.1", features = ["full"] }
 http-body-util = "0.1"
+http = { workspace = true }
 
 [dev-dependencies]
 inferno-shared = { path = "../shared" }
