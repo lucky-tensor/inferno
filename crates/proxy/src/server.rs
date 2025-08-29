@@ -29,7 +29,7 @@
 //! - Resource cleanup and file descriptor closure
 
 use crate::ProxyConfig;
-use inferno_shared::{InfernoError, MetricsCollector, Result};
+use inferno_shared::{InfernoError, MetricsCollector, MetricsServer, Result};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -557,34 +557,45 @@ impl ProxyServer {
         }
     }
 
-    /// Starts the metrics collection task
+    /// Starts the HTTP metrics server
     ///
-    /// This method spawns a background task that periodically logs
-    /// metrics information. For external monitoring, metrics can be
-    /// accessed via the metrics() method.
+    /// This method spawns a background task that serves HTTP endpoints
+    /// for metrics data in NodeVitals JSON format. The server exposes:
+    /// - `/metrics` - NodeVitals JSON for service discovery
+    /// - `/health` - Simple health check endpoint
     ///
     /// # Returns
     ///
-    /// Returns a `tokio::task::JoinHandle` for the metrics task
+    /// Returns a `tokio::task::JoinHandle` for the metrics server task
     #[instrument(skip(self))]
     fn start_metrics_server(&self) -> tokio::task::JoinHandle<()> {
         let metrics = Arc::clone(&self.metrics);
+        let metrics_addr = self.config.metrics_addr;
+        let backend_count = self.config.effective_backends().len() as u32;
 
-        info!("Starting metrics collection task");
+        info!(
+            metrics_addr = %metrics_addr,
+            backend_count = backend_count,
+            "Starting HTTP metrics server"
+        );
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_secs(60));
+            let server = MetricsServer::with_service_info(
+                metrics,
+                metrics_addr,
+                "inferno-proxy".to_string(),
+                env!("CARGO_PKG_VERSION").to_string(),
+            );
 
-            loop {
-                interval.tick().await;
+            // Set the initial connected peers count to the number of configured backends
+            let peer_counter = server.connected_peers_handle();
+            peer_counter.store(backend_count, std::sync::atomic::Ordering::Relaxed);
 
-                let snapshot = metrics.snapshot();
-                info!(
-                    total_requests = snapshot.total_requests,
-                    active_requests = snapshot.active_requests,
-                    success_rate = snapshot.success_rate(),
-                    requests_per_second = snapshot.requests_per_second(),
-                    "Metrics snapshot"
+            if let Err(e) = server.start().await {
+                error!(
+                    error = %e,
+                    metrics_addr = %metrics_addr,
+                    "HTTP metrics server failed"
                 );
             }
         })

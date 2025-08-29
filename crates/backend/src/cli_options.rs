@@ -3,14 +3,16 @@
 //! This module defines the command-line interface options for the backend server,
 //! which can be used both standalone and integrated into the unified CLI.
 
+use crate::health::HealthService;
 use crate::BackendConfig;
 use clap::Parser;
 use inferno_shared::{
-    HealthCheckOptions, InfernoError, LoggingOptions, MetricsOptions, Result,
+    HealthCheckOptions, InfernoError, LoggingOptions, MetricsCollector, MetricsOptions, Result,
     ServiceDiscoveryOptions,
 };
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tracing::{info, warn};
 
 /// Inferno Backend - AI inference backend server
@@ -101,6 +103,28 @@ impl BackendCliOptions {
 
         info!("Backend server is running");
 
+        // Start HTTP metrics server if enabled
+        let metrics_task = if config.enable_metrics {
+            let metrics = Arc::new(MetricsCollector::new());
+            let health_service = HealthService::new(Arc::clone(&metrics), config.metrics_addr);
+            
+            info!(
+                metrics_addr = %config.metrics_addr,
+                "Starting HTTP metrics server"
+            );
+            
+            Some(tokio::spawn(async move {
+                if let Err(e) = health_service.start().await {
+                    warn!(
+                        error = %e,
+                        "HTTP metrics server failed"
+                    );
+                }
+            }))
+        } else {
+            None
+        };
+
         // Perform service registration if configured
         if let Some(registration_endpoint) = self.service_discovery.registration_endpoint.as_ref() {
             info!(
@@ -139,6 +163,13 @@ impl BackendCliOptions {
             })?;
 
         info!("Shutdown signal received, stopping backend server");
+        
+        // Clean up the metrics server task if it was started
+        if let Some(task) = metrics_task {
+            task.abort();
+            let _ = task.await;
+        }
+        
         Ok(())
     }
 
