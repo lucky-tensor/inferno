@@ -21,6 +21,7 @@ serde = { workspace = true }
 tracing = { workspace = true }
 async-trait = { workspace = true }
 clap = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 inferno-shared = { path = "../shared" }

@@ -434,10 +434,26 @@ impl ProxyServer {
 
         info!("Server loop running, waiting for connections...");
 
-        // For demo purposes, we'll just wait for shutdown
-        // The actual Pingora server would handle requests here
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        info!("Demo server loop completed");
+        // Keep running until shutdown signal is received
+        // In a real implementation, this would be the Pingora server loop
+        // For now, we'll wait indefinitely until interrupted
+        let ctrl_c = signal::ctrl_c();
+        tokio::pin!(ctrl_c);
+
+        loop {
+            tokio::select! {
+                _ = &mut ctrl_c => {
+                    info!("Interrupt signal received in server loop");
+                    break;
+                }
+                _ = tokio::time::sleep(Duration::from_secs(30)) => {
+                    // Periodic health check or maintenance could go here
+                    debug!("Server loop heartbeat");
+                }
+            }
+        }
+
+        info!("Server loop completed");
 
         // Clean up background tasks
         if let Some(health_task) = health_check_task {
