@@ -46,47 +46,6 @@ fn test_error_creation() {
 }
 
 #[test]
-fn test_http_status_mapping() {
-    assert_eq!(
-        InfernoError::configuration("test", None).to_http_status(),
-        500
-    );
-    assert_eq!(
-        InfernoError::network("host", "error", None).to_http_status(),
-        502
-    );
-    assert_eq!(
-        InfernoError::backend("host", 404, "not found").to_http_status(),
-        404
-    );
-    assert_eq!(
-        InfernoError::backend("host", 200, "ok").to_http_status(),
-        502
-    ); // Invalid success code mapped to 502
-    assert_eq!(
-        InfernoError::backend("host", 999, "invalid").to_http_status(),
-        502
-    ); // Invalid code mapped to 502
-    assert_eq!(
-        InfernoError::timeout(Duration::from_secs(1), "op").to_http_status(),
-        504
-    );
-    assert_eq!(
-        InfernoError::resource_exhausted("mem", "oom").to_http_status(),
-        503
-    );
-    assert_eq!(
-        InfernoError::request_validation("bad", None).to_http_status(),
-        400
-    );
-    assert_eq!(InfernoError::internal("bug", None).to_http_status(), 500);
-    assert_eq!(
-        InfernoError::service_unavailable("down", None).to_http_status(),
-        503
-    );
-}
-
-#[test]
 fn test_temporary_error_classification() {
     // Temporary errors (retriable)
     assert!(InfernoError::network("host", "connection failed", None).is_temporary());

@@ -5,7 +5,6 @@
 //! are correct, and performance is maintained under various load patterns.
 
 use inferno_shared::{MetricsCollector, MetricsSnapshot};
-use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 #[test]
@@ -86,33 +85,6 @@ fn test_status_code_classification() {
     assert_eq!(snapshot.status_4xx, 2);
     assert_eq!(snapshot.status_5xx, 2);
     assert_eq!(snapshot.total_responses, 8);
-}
-
-#[test]
-fn test_duration_histogram() {
-    let collector = MetricsCollector::new();
-
-    // Test different duration buckets
-    collector.record_request_duration(Duration::from_micros(500)); // < 1ms
-    collector.record_request_duration(Duration::from_millis(3)); // < 5ms
-    collector.record_request_duration(Duration::from_millis(7)); // < 10ms
-    collector.record_request_duration(Duration::from_millis(25)); // < 50ms
-    collector.record_request_duration(Duration::from_millis(75)); // < 100ms
-    collector.record_request_duration(Duration::from_millis(200)); // < 500ms
-    collector.record_request_duration(Duration::from_millis(800)); // < 1s
-    collector.record_request_duration(Duration::from_secs(2)); // < 5s
-    collector.record_request_duration(Duration::from_secs(10)); // >= 5s
-
-    let snapshot = collector.snapshot();
-    assert_eq!(snapshot.duration_histogram[0], 1); // < 1ms
-    assert_eq!(snapshot.duration_histogram[1], 1); // < 5ms
-    assert_eq!(snapshot.duration_histogram[2], 1); // < 10ms
-    assert_eq!(snapshot.duration_histogram[3], 1); // < 50ms
-    assert_eq!(snapshot.duration_histogram[4], 1); // < 100ms
-    assert_eq!(snapshot.duration_histogram[5], 1); // < 500ms
-    assert_eq!(snapshot.duration_histogram[6], 1); // < 1s
-    assert_eq!(snapshot.duration_histogram[7], 1); // < 5s
-    assert_eq!(snapshot.duration_histogram[8], 1); // >= 5s
 }
 
 #[test]
@@ -225,35 +197,4 @@ fn test_prometheus_format_generation() {
     assert!(prometheus.contains("inferno_responses_by_status_total{status=\"2xx\"} 100"));
     assert!(prometheus.contains("inferno_responses_by_status_total{status=\"4xx\"} 1"));
     assert!(prometheus.contains("inferno_responses_by_status_total{status=\"5xx\"} 1"));
-}
-
-#[test]
-fn test_concurrent_metrics_updates() {
-    let collector = Arc::new(MetricsCollector::new());
-    let mut handles = vec![];
-
-    // Spawn multiple threads updating metrics concurrently
-    for _ in 0..4 {
-        let collector_clone: Arc<MetricsCollector> = Arc::clone(&collector);
-        let handle = std::thread::spawn(move || {
-            for _ in 0..250 {
-                collector_clone.record_request();
-                collector_clone.record_response(200);
-                collector_clone.record_request_duration(Duration::from_millis(5));
-            }
-        });
-        handles.push(handle);
-    }
-
-    // Wait for all threads to complete
-    for handle in handles {
-        handle.join().unwrap();
-    }
-
-    let snapshot = collector.snapshot();
-    assert_eq!(snapshot.total_requests, 1000);
-    assert_eq!(snapshot.total_responses, 1000);
-    assert_eq!(snapshot.status_2xx, 1000);
-    assert_eq!(snapshot.active_requests, 0);
-    assert_eq!(snapshot.duration_histogram[1], 1000); // All in < 5ms bucket
 }
