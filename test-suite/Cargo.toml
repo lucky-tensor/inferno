@@ -10,7 +10,7 @@ publish = false
 
 [dependencies]
 inferno-proxy = { path = "../crates/proxy" }
-# inferno-backend = { path = "../crates/backend" }
+inferno-backend = { path = "../crates/backend" }
 inferno-shared = { path = "../crates/shared" }
 
 tokio = { workspace = true }
@@ -30,6 +30,15 @@ path = "tests/e2e/proxy_backend_e2e.rs"
 name = "proxy_integration"
 path = "tests/integration/proxy_integration.rs"
 
+
 [[test]]
-name = "proxy_module"
-path = "tests/module/proxy_module.rs"
+name = "service_discovery_integration"
+path = "tests/integration/service_discovery_integration.rs"
+
+[[test]]
+name = "service_discovery_e2e"
+path = "tests/e2e/service_discovery_e2e.rs"
+
+[[test]]
+name = "peer_manager_integration"
+path = "tests/integration/peer_manager_integration.rs"
