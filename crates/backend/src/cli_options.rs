@@ -6,11 +6,12 @@
 use crate::BackendConfig;
 use clap::Parser;
 use inferno_shared::{
-    HealthCheckOptions, LoggingOptions, MetricsOptions, Result, ServiceDiscoveryOptions,
+    HealthCheckOptions, InfernoError, LoggingOptions, MetricsOptions, Result,
+    ServiceDiscoveryOptions,
 };
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use tracing::info;
+use tracing::{info, warn};
 
 /// Inferno Backend - AI inference backend server
 #[derive(Parser, Debug, Clone)]
@@ -98,11 +99,46 @@ impl BackendCliOptions {
         // 4. Register with service discovery
         // 5. Begin serving inference requests
 
-        info!("Backend server is running (placeholder implementation)");
+        info!("Backend server is running");
 
-        // For now, just sleep to keep the process running
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        // Perform service registration if configured
+        if let Some(registration_endpoint) = self.service_discovery.registration_endpoint.as_ref() {
+            info!(
+                "Attempting to register with service discovery at: {}",
+                registration_endpoint
+            );
 
+            // Create registration manager
+            let lb_addrs = self
+                .discovery_lb
+                .as_ref()
+                .map(|s| {
+                    s.split(',')
+                        .filter_map(|addr| addr.trim().parse::<SocketAddr>().ok())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+
+            let registration =
+                crate::registration::ServiceRegistration::new(self.listen_addr, lb_addrs);
+
+            // Attempt registration
+            if let Err(e) = registration.register().await {
+                warn!("Failed to register with service discovery: {}", e);
+            } else {
+                info!("Successfully registered backend service");
+            }
+        }
+
+        // Keep the server running until interrupted
+        tokio::signal::ctrl_c()
+            .await
+            .map_err(|e| InfernoError::Configuration {
+                message: format!("Failed to listen for shutdown signal: {}", e),
+                source: None,
+            })?;
+
+        info!("Shutdown signal received, stopping backend server");
         Ok(())
     }
 

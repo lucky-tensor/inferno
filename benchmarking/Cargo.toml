@@ -13,6 +13,7 @@ inferno-proxy = { path = "../crates/proxy" }
 inferno-shared = { path = "../crates/shared" }
 criterion = { workspace = true }
 tokio = { workspace = true }
+serde_json = { workspace = true }
 
 [[bench]]
 name = "metrics"
@@ -40,4 +41,8 @@ harness = false
 
 [[bench]]
 name = "scalability"
+harness = false
+
+[[bench]]
+name = "service_discovery"
 harness = false

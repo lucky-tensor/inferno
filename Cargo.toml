@@ -6,7 +6,7 @@ members = [
     "crates/governator",
     "crates/cli",
     "benchmarking",
-    "tests",
+    "testsuite",
 ]
 resolver = "2"
 

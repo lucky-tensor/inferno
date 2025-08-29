@@ -71,6 +71,16 @@ impl Default for GovernatorConfig {
 }
 
 impl GovernatorConfig {
+    /// Load configuration from environment variables
+    ///
+    /// # Example
+    /// ```
+    /// use inferno_governator::GovernatorConfig;
+    ///
+    /// let config = GovernatorConfig::from_env().unwrap();
+    /// assert_eq!(config.listen_addr.port(), 4000);
+    /// assert!(config.enable_autoscaling);
+    /// ```
     pub fn from_env() -> Result<Self> {
         // TODO: Implement proper environment variable loading
         Ok(Self::default())

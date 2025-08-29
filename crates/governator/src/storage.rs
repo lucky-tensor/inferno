@@ -8,6 +8,14 @@ pub struct StorageManager {
 }
 
 impl StorageManager {
+    /// Create a new storage manager with the given database URL
+    ///
+    /// # Example
+    /// ```
+    /// use inferno_governator::storage::StorageManager;
+    ///
+    /// let manager = StorageManager::new("sqlite://test.db".to_string());
+    /// ```
     pub fn new(database_url: String) -> Self {
         Self { database_url }
     }

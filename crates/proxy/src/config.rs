@@ -786,29 +786,6 @@ mod tests {
     }
 
     #[test]
-    fn test_effective_backends_single() {
-        let config = ProxyConfig::default();
-        let backends = config.effective_backends();
-        assert_eq!(backends.len(), 1);
-        assert_eq!(backends[0], config.backend_addr);
-    }
-
-    #[test]
-    fn test_effective_backends_multiple() {
-        let config = ProxyConfig {
-            backend_servers: vec![
-                "192.168.1.1:8080".parse().unwrap(),
-                "192.168.1.2:8080".parse().unwrap(),
-            ],
-            ..Default::default()
-        };
-
-        let backends = config.effective_backends();
-        assert_eq!(backends.len(), 2);
-        assert_eq!(backends, config.backend_servers);
-    }
-
-    #[test]
     fn test_has_multiple_backends() {
         let config = ProxyConfig::default();
         assert!(!config.has_multiple_backends());

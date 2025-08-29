@@ -8,6 +8,14 @@ pub struct CostAnalyzer {
 }
 
 impl CostAnalyzer {
+    /// Create a new cost analyzer for the specified cloud providers
+    ///
+    /// # Example
+    /// ```
+    /// use inferno_governator::cost_analysis::CostAnalyzer;
+    ///
+    /// let analyzer = CostAnalyzer::new(vec!["aws".to_string(), "gcp".to_string()]);
+    /// ```
     pub fn new(providers: Vec<String>) -> Self {
         Self { providers }
     }
