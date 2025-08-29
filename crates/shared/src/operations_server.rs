@@ -14,14 +14,14 @@
 //! ## Performance Characteristics
 //!
 //! - Request latency: < 1ms for /metrics endpoint
-//! - Memory overhead: < 100KB for server infrastructure  
+//! - Memory overhead: < 100KB for server infrastructure
 //! - Throughput: > 10,000 requests/second on modern hardware
 //! - Concurrent connections: > 1,000 simultaneous requests
 //!
 //! ## Endpoints
 //!
 //! - `GET /metrics`: Returns NodeVitals JSON for service discovery
-//! - `GET /health`: Simple health check endpoint  
+//! - `GET /health`: Simple health check endpoint
 //! - `POST /registration`: Service discovery registration endpoint
 //!
 //! ## Usage Example
@@ -35,7 +35,7 @@
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     let metrics = Arc::new(MetricsCollector::new());
 //!     let addr: SocketAddr = "127.0.0.1:6100".parse()?;
-//!     
+//!
 //!     let server = OperationsServer::new(metrics, addr);
 //!     server.start().await?;
 //!     Ok(())
@@ -66,7 +66,7 @@ use tracing::{debug, error, info, instrument, warn};
 ///
 /// ## Architecture
 ///
-/// - Built on hyper for high performance HTTP handling  
+/// - Built on hyper for high performance HTTP handling
 /// - Async request processing with minimal blocking
 /// - Zero-copy JSON serialization where possible
 /// - Comprehensive error handling and logging
@@ -148,7 +148,7 @@ impl OperationsServer {
     /// # Arguments
     ///
     /// * `metrics` - Shared metrics collector for accessing performance data
-    /// * `bind_addr` - Socket address to bind the HTTP server  
+    /// * `bind_addr` - Socket address to bind the HTTP server
     /// * `service_name` - Name of the service for NodeVitals
     /// * `version` - Version string for NodeVitals
     ///
@@ -248,7 +248,7 @@ impl OperationsServer {
     /// # Error Conditions
     ///
     /// - Address already in use (port conflict)
-    /// - Permission denied for privileged ports  
+    /// - Permission denied for privileged ports
     /// - Network interface not available
     /// - System resource exhaustion
     ///
@@ -375,7 +375,7 @@ impl OperationsServer {
     ///     // Shutdown after some time
     ///     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     ///     // server.shutdown().await?; // Would need server handle
-    ///     
+    ///
     ///     server_task.await??;
     ///     Ok(())
     /// }
@@ -424,7 +424,7 @@ impl std::fmt::Debug for OperationsServer {
 /// * `req` - Incoming HTTP request
 /// * `metrics` - Shared metrics collector for data access
 /// * `service_name` - Service name for NodeVitals response
-/// * `version` - Version string for NodeVitals response  
+/// * `version` - Version string for NodeVitals response
 /// * `connected_peers` - Current connected peers count
 ///
 /// # Returns
