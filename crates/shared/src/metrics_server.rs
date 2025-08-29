@@ -152,7 +152,7 @@ impl MetricsServer {
     /// let metrics = Arc::new(MetricsCollector::new());
     /// let addr = "127.0.0.1:9090".parse().unwrap();
     /// let server = MetricsServer::with_service_info(
-    ///     metrics, 
+    ///     metrics,
     ///     addr,
     ///     "my-proxy".to_string(),
     ///     "1.0.0".to_string()
@@ -192,7 +192,7 @@ impl MetricsServer {
     /// let metrics = Arc::new(MetricsCollector::new());
     /// let addr = "127.0.0.1:9090".parse().unwrap();
     /// let server = MetricsServer::new(metrics, addr);
-    /// 
+    ///
     /// let peer_counter = server.connected_peers_handle();
     /// peer_counter.store(5, std::sync::atomic::Ordering::Relaxed);
     /// ```
@@ -344,9 +344,9 @@ impl MetricsServer {
         info!("Initiating metrics server shutdown");
 
         if let Some(shutdown_tx) = self.shutdown_tx.take() {
-            shutdown_tx.send(()).map_err(|_| {
-                InfernoError::internal("Failed to send shutdown signal", None)
-            })?;
+            shutdown_tx
+                .send(())
+                .map_err(|_| InfernoError::internal("Failed to send shutdown signal", None))?;
             Ok(())
         } else {
             Err(InfernoError::internal("Server is not running", None))
@@ -466,9 +466,9 @@ async fn handle_metrics_request(
     let node_vitals = NodeVitals {
         ready: true, // Service is ready if metrics server is responding
         requests_in_progress: snapshot.active_requests as u32,
-        cpu_usage: 0.0, // TODO: Implement actual CPU monitoring
-        memory_usage: 0.0, // TODO: Implement actual memory monitoring  
-        gpu_usage: 0.0, // TODO: Implement GPU monitoring if available
+        cpu_usage: 0.0,    // TODO: Implement actual CPU monitoring
+        memory_usage: 0.0, // TODO: Implement actual memory monitoring
+        gpu_usage: 0.0,    // TODO: Implement GPU monitoring if available
         failed_responses: snapshot.total_errors,
         connected_peers: connected_peers_count,
         backoff_requests: 0, // TODO: Track backoff requests if implemented
@@ -588,7 +588,7 @@ mod tests {
     #[tokio::test]
     async fn test_handle_health_request() {
         let response = handle_health_request().await;
-        
+
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
             response.headers().get("content-type").unwrap(),
@@ -603,7 +603,7 @@ mod tests {
     async fn test_handle_metrics_request() {
         let metrics = Arc::new(MetricsCollector::new());
         let connected_peers = Arc::new(AtomicU32::new(3));
-        
+
         // Record some test metrics
         metrics.record_request();
         metrics.record_response(200);
@@ -613,7 +613,8 @@ mod tests {
             "test-service".to_string(),
             "1.0.0".to_string(),
             connected_peers,
-        ).await;
+        )
+        .await;
 
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
@@ -647,7 +648,9 @@ mod tests {
             "test-service".to_string(),
             "1.0.0".to_string(),
             connected_peers,
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
 
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }

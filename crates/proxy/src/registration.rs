@@ -5,7 +5,6 @@
 //! manages them in the service discovery system.
 
 use http::{Method, StatusCode};
-use http_body_util::BodyExt;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server};
 use inferno_shared::service_discovery::{BackendRegistration, ServiceDiscovery};
@@ -25,15 +24,16 @@ impl RegistrationService {
     /// Creates a new registration service
     pub fn new() -> Self {
         let service_discovery = Arc::new(ServiceDiscovery::new());
-        Self {
-            service_discovery,
-        }
+        Self { service_discovery }
     }
 
     /// Starts the registration HTTP service
-    pub async fn start(&self, listen_addr: SocketAddr) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn start(
+        &self,
+        listen_addr: SocketAddr,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let service_discovery = Arc::clone(&self.service_discovery);
-        
+
         // Start health checking in the background
         let _health_check_handle = service_discovery.start_health_checking().await;
 
@@ -63,12 +63,8 @@ impl RegistrationService {
         req: Request<Body>,
     ) -> Result<Response<Body>, Infallible> {
         match (req.method(), req.uri().path()) {
-            (&Method::POST, "/register") => {
-                Self::handle_register(service_discovery, req).await
-            }
-            (&Method::GET, "/health") => {
-                Self::handle_health_check().await
-            }
+            (&Method::POST, "/register") => Self::handle_register(service_discovery, req).await,
+            (&Method::GET, "/health") => Self::handle_health_check().await,
             _ => {
                 let response = Response::builder()
                     .status(StatusCode::NOT_FOUND)
@@ -87,8 +83,8 @@ impl RegistrationService {
         debug!("Received registration request");
 
         // Read the request body
-        let body_bytes = match BodyExt::collect(req.into_body()).await {
-            Ok(collected) => collected.to_bytes(),
+        let body_bytes = match hyper::body::to_bytes(req.into_body()).await {
+            Ok(bytes) => bytes,
             Err(e) => {
                 warn!("Failed to read request body: {}", e);
                 let response = Response::builder()
@@ -120,7 +116,10 @@ impl RegistrationService {
         );
 
         // Register the backend
-        match service_discovery.register_backend(registration.clone()).await {
+        match service_discovery
+            .register_backend(registration.clone())
+            .await
+        {
             Ok(()) => {
                 info!(
                     backend_id = %registration.id,
@@ -130,7 +129,9 @@ impl RegistrationService {
                 let response = Response::builder()
                     .status(StatusCode::OK)
                     .header("Content-Type", "application/json")
-                    .body(Body::from(r#"{"status":"success","message":"Backend registered"}"#))
+                    .body(Body::from(
+                        r#"{"status":"success","message":"Backend registered"}"#,
+                    ))
                     .unwrap();
                 Ok(response)
             }
@@ -166,7 +167,7 @@ impl RegistrationService {
             .header("Content-Type", "application/json")
             .body(Body::from(health_response.to_string()))
             .unwrap();
-        
+
         Ok(response)
     }
 

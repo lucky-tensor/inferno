@@ -28,8 +28,7 @@
 //! - Metrics finalization and export
 //! - Resource cleanup and file descriptor closure
 
-use crate::ProxyConfig;
-// use crate::registration::RegistrationService; // Disabled due to compilation issues
+use crate::{registration::RegistrationService, ProxyConfig};
 use inferno_shared::{InfernoError, MetricsCollector, MetricsServer, Result};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -427,9 +426,8 @@ impl ProxyServer {
             None
         };
 
-        // Start registration service (disabled due to compilation issues)
-        // let registration_task = Some(self.start_registration_service());
-        let registration_task: Option<tokio::task::JoinHandle<()>> = None;
+        // Start registration service
+        let registration_task = Some(self.start_registration_service());
 
         // Simulate server operation
         // In a real implementation, this would be replaced with:
@@ -621,8 +619,6 @@ impl ProxyServer {
     /// # Returns
     ///
     /// Returns a `tokio::task::JoinHandle` for the registration service task
-    /// Currently disabled due to hyper compatibility issues
-    #[allow(dead_code)]
     #[instrument(skip(self))]
     fn start_registration_service(&self) -> tokio::task::JoinHandle<()> {
         let listen_addr = self.config.listen_addr;
@@ -633,15 +629,15 @@ impl ProxyServer {
         );
 
         tokio::spawn(async move {
-            // let registration_service = RegistrationService::new();
+            let registration_service = RegistrationService::new();
 
-            // if let Err(e) = registration_service.start(listen_addr).await {
+            if let Err(e) = registration_service.start(listen_addr).await {
                 error!(
-                    // error = %e,
+                    error = %e,
                     listen_addr = %listen_addr,
-                    "Backend registration service disabled due to compilation issues"
+                    "Backend registration service failed"
                 );
-            // }
+            }
         })
     }
 

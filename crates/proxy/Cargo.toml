@@ -22,9 +22,7 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 async-trait = { workspace = true }
 clap = { workspace = true }
-hyper = { version = "1.0", features = ["full"] }
-hyper-util = { version = "0.1", features = ["full"] }
-http-body-util = "0.1"
+hyper = { workspace = true }
 http = { workspace = true }
 
 [dev-dependencies]

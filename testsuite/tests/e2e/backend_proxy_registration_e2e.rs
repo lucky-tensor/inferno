@@ -110,29 +110,38 @@ async fn test_backend_registration_with_proxy() {
     println!("   - Backend metrics on port: {}", backend_metrics_port);
 
     let client = reqwest::Client::new();
-    
+
     // Try to get metrics from both services to verify they're actually running and connected
     let proxy_metrics_url = format!("http://127.0.0.1:{}/metrics", proxy_metrics_port);
     let backend_metrics_url = format!("http://127.0.0.1:{}/metrics", backend_metrics_port);
-    
+
     // Check if proxy metrics endpoint is accessible
     match client.get(&proxy_metrics_url).send().await {
         Ok(response) if response.status().is_success() => {
-            println!("✅ Proxy metrics endpoint accessible at {}", proxy_metrics_url);
+            println!(
+                "✅ Proxy metrics endpoint accessible at {}",
+                proxy_metrics_url
+            );
         }
         Ok(response) => {
-            println!("❌ Proxy metrics endpoint returned error: {}", response.status());
+            println!(
+                "❌ Proxy metrics endpoint returned error: {}",
+                response.status()
+            );
         }
         Err(e) => {
             println!("❌ Failed to connect to proxy metrics: {}", e);
         }
     }
 
-    // Check if backend metrics endpoint is accessible  
+    // Check if backend metrics endpoint is accessible
     match client.get(&backend_metrics_url).send().await {
         Ok(response) if response.status().is_success() => {
-            println!("✅ Backend metrics endpoint accessible at {}", backend_metrics_url);
-            
+            println!(
+                "✅ Backend metrics endpoint accessible at {}",
+                backend_metrics_url
+            );
+
             // Try to parse the metrics to check if backend reports it's connected to proxy
             if let Ok(text) = response.text().await {
                 if text.contains("connected_peers") {
@@ -143,7 +152,10 @@ async fn test_backend_registration_with_proxy() {
             }
         }
         Ok(response) => {
-            println!("❌ Backend metrics endpoint returned error: {}", response.status());
+            println!(
+                "❌ Backend metrics endpoint returned error: {}",
+                response.status()
+            );
         }
         Err(e) => {
             println!("❌ Failed to connect to backend metrics: {}", e);
@@ -175,7 +187,7 @@ async fn test_backend_registration_with_proxy() {
     println!("   - ❌ This test should FAIL until the /register endpoint is implemented");
     println!("   - ❌ Backend should show 'Connection refused' errors when trying to register");
     println!("   - The metrics endpoints should be accessible but won't show successful peer connections");
-    
+
     // TODO: Once /register endpoint is implemented, this test should verify:
     // 1. Backend successfully registers with proxy (no connection refused errors)
     // 2. Proxy /backends endpoint shows the registered backend

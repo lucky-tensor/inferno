@@ -70,26 +70,29 @@ async fn test_proxy_standalone_startup() {
     // Test 1: Verify proxy metrics endpoint is accessible
     let metrics_url = format!("http://127.0.0.1:{}/metrics", metrics_port);
     println!("🔍 Testing metrics endpoint at {}", metrics_url);
-    
+
     match client.get(&metrics_url).send().await {
         Ok(response) if response.status().is_success() => {
             println!("✅ Proxy metrics endpoint accessible");
-            
+
             // Verify the response contains expected NodeVitals fields
             match response.text().await {
                 Ok(metrics_text) => {
-                    println!("📊 Metrics response preview: {}", 
-                        &metrics_text.chars().take(200).collect::<String>());
-                    
+                    println!(
+                        "📊 Metrics response preview: {}",
+                        &metrics_text.chars().take(200).collect::<String>()
+                    );
+
                     // Verify NodeVitals structure
-                    if metrics_text.contains("ready") && 
-                       metrics_text.contains("connected_peers") &&
-                       metrics_text.contains("version") {
+                    if metrics_text.contains("ready")
+                        && metrics_text.contains("connected_peers")
+                        && metrics_text.contains("version")
+                    {
                         println!("✅ Metrics contain expected NodeVitals fields");
                     } else {
                         println!("⚠️  Metrics missing some expected NodeVitals fields");
                     }
-                    
+
                     // Try to parse as JSON to verify format
                     match serde_json::from_str::<serde_json::Value>(&metrics_text) {
                         Ok(_) => println!("✅ Metrics response is valid JSON"),
@@ -100,7 +103,10 @@ async fn test_proxy_standalone_startup() {
             }
         }
         Ok(response) => {
-            println!("❌ Proxy metrics endpoint returned error: {}", response.status());
+            println!(
+                "❌ Proxy metrics endpoint returned error: {}",
+                response.status()
+            );
         }
         Err(e) => {
             println!("❌ Failed to connect to proxy metrics: {}", e);
@@ -110,7 +116,7 @@ async fn test_proxy_standalone_startup() {
     // Test 2: Verify proxy health endpoint on metrics server
     let health_url = format!("http://127.0.0.1:{}/health", metrics_port);
     println!("🔍 Testing health endpoint at {}", health_url);
-    
+
     match client.get(&health_url).send().await {
         Ok(response) if response.status().is_success() => {
             println!("✅ Proxy health endpoint accessible");
@@ -119,7 +125,10 @@ async fn test_proxy_standalone_startup() {
             }
         }
         Ok(response) => {
-            println!("❌ Proxy health endpoint returned error: {}", response.status());
+            println!(
+                "❌ Proxy health endpoint returned error: {}",
+                response.status()
+            );
         }
         Err(e) => {
             println!("❌ Failed to connect to proxy health endpoint: {}", e);
@@ -131,11 +140,13 @@ async fn test_proxy_standalone_startup() {
     // but the proxy should be listening on the port
     let proxy_url = format!("http://127.0.0.1:{}/", proxy_port);
     println!("🔍 Testing main proxy service at {}", proxy_url);
-    
-    match tokio::time::timeout(Duration::from_millis(1000), 
-                               client.get(&proxy_url).send()).await {
+
+    match tokio::time::timeout(Duration::from_millis(1000), client.get(&proxy_url).send()).await {
         Ok(Ok(response)) => {
-            println!("✅ Proxy main service is listening (status: {})", response.status());
+            println!(
+                "✅ Proxy main service is listening (status: {})",
+                response.status()
+            );
         }
         Ok(Err(e)) => {
             // This might be expected if the proxy rejects the connection due to no backend
@@ -149,17 +160,20 @@ async fn test_proxy_standalone_startup() {
     // Test 4: Test the /register endpoint (this should work once implemented)
     let register_url = format!("http://127.0.0.1:{}/register", proxy_port);
     println!("🔍 Testing registration endpoint at {}", register_url);
-    
+
     // Create a mock registration payload
     let mock_registration = serde_json::json!({
         "id": "test-backend-1",
         "address": "127.0.0.1:9999",
         "metrics_port": 9090
     });
-    
-    match client.post(&register_url)
-            .json(&mock_registration)
-            .send().await {
+
+    match client
+        .post(&register_url)
+        .json(&mock_registration)
+        .send()
+        .await
+    {
         Ok(response) if response.status().is_success() => {
             println!("✅ Registration endpoint accessible and working");
             if let Ok(response_text) = response.text().await {
@@ -178,24 +192,26 @@ async fn test_proxy_standalone_startup() {
     println!("✅ Test completed - proxy started successfully");
     println!("✅ Metrics endpoint is accessible and serves NodeVitals JSON");
     println!("✅ Health endpoint is accessible");
-    println!("⚠️  Main proxy service behavior verified (may show connection issues without backend)");
+    println!(
+        "⚠️  Main proxy service behavior verified (may show connection issues without backend)"
+    );
     println!("❌ Registration endpoint needs implementation");
-    
+
     // Clean up: abort the background task
     proxy_task.abort();
-    
+
     // Give task time to clean up
     sleep(Duration::from_millis(100)).await;
 }
 
 /// Test proxy startup with different configurations
-#[tokio::test]  
+#[tokio::test]
 async fn test_proxy_startup_configurations() {
     // Initialize logging for the test
     let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
     println!("🚀 Testing proxy with minimal configuration...");
-    
+
     let proxy_port = get_random_port();
     let backend_port = get_random_port();
 
@@ -234,14 +250,17 @@ async fn test_proxy_startup_configurations() {
     sleep(Duration::from_millis(1000)).await;
 
     println!("✅ Proxy with minimal configuration started successfully");
-    
+
     // Since metrics are disabled, we should not be able to connect to metrics endpoints
     let client = Client::new();
     let metrics_url = format!("http://127.0.0.1:9090/metrics"); // Default metrics port
-    
+
     match client.get(&metrics_url).send().await {
         Ok(response) => {
-            println!("⚠️  Unexpected: metrics endpoint responded when disabled: {}", response.status());
+            println!(
+                "⚠️  Unexpected: metrics endpoint responded when disabled: {}",
+                response.status()
+            );
         }
         Err(_) => {
             println!("✅ Correctly: metrics endpoint not accessible when disabled");

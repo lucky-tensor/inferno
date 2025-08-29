@@ -77,7 +77,11 @@ async fn test_full_service_discovery_workflow() {
         },
         metrics: inferno_shared::MetricsOptions {
             enable_metrics: true,
-            metrics_addr: Some(format!("127.0.0.1:{}", backend_metrics_port).parse().unwrap()),
+            metrics_addr: Some(
+                format!("127.0.0.1:{}", backend_metrics_port)
+                    .parse()
+                    .unwrap(),
+            ),
         },
         logging: inferno_shared::LoggingOptions {
             log_level: "info".to_string(),
@@ -153,11 +157,11 @@ async fn test_full_service_discovery_workflow() {
     // Check backend metrics
     let backend_metrics_url = format!("http://127.0.0.1:{}/metrics", backend_metrics_port);
     let mut backend_connected_peers = 0u32;
-    
+
     match client.get(&backend_metrics_url).send().await {
         Ok(response) if response.status().is_success() => {
             println!("✅ Backend metrics accessible");
-            
+
             if let Ok(metrics_text) = response.text().await {
                 if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&metrics_text) {
                     if let Some(connected_peers) = json_value.get("connected_peers") {
@@ -183,12 +187,15 @@ async fn test_full_service_discovery_workflow() {
     match client.get(&proxy_metrics_url).send().await {
         Ok(response) if response.status().is_success() => {
             println!("✅ Proxy metrics accessible after registration");
-            
+
             if let Ok(metrics_text) = response.text().await {
                 if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&metrics_text) {
                     if let Some(connected_peers) = json_value.get("connected_peers") {
                         proxy_connected_peers = connected_peers.as_u64().unwrap_or(0) as u32;
-                        println!("📊 Proxy connected peers after registration: {}", connected_peers);
+                        println!(
+                            "📊 Proxy connected peers after registration: {}",
+                            connected_peers
+                        );
                     }
                 }
             }
@@ -203,17 +210,20 @@ async fn test_full_service_discovery_workflow() {
 
     // Phase 4: Test registration endpoint directly
     println!("\n🔄 Phase 4: Testing registration endpoint directly...");
-    
+
     let register_url = format!("http://127.0.0.1:{}/register", proxy_port);
     let mock_registration = serde_json::json!({
         "id": "test-direct-backend",
         "address": "127.0.0.1:9999",
         "metrics_port": 9090
     });
-    
-    match client.post(&register_url)
-            .json(&mock_registration)
-            .send().await {
+
+    match client
+        .post(&register_url)
+        .json(&mock_registration)
+        .send()
+        .await
+    {
         Ok(response) if response.status().is_success() => {
             println!("✅ Direct registration successful");
             if let Ok(response_text) = response.text().await {
@@ -221,7 +231,10 @@ async fn test_full_service_discovery_workflow() {
             }
         }
         Ok(response) => {
-            println!("❌ Direct registration failed: {} (expected until /register is implemented)", response.status());
+            println!(
+                "❌ Direct registration failed: {} (expected until /register is implemented)",
+                response.status()
+            );
         }
         Err(e) => {
             println!("❌ Failed to connect to registration endpoint: {} (expected until /register is implemented)", e);
@@ -270,15 +283,21 @@ async fn test_full_service_discovery_workflow() {
     println!("\n📊 Service Discovery E2E Test Results:");
     println!("✅ Proxy started successfully and served metrics");
     println!("✅ Backend started successfully and served metrics");
-    
+
     if backend_connected_peers > 0 {
-        println!("✅ Backend successfully connected to proxy (connected_peers: {})", backend_connected_peers);
+        println!(
+            "✅ Backend successfully connected to proxy (connected_peers: {})",
+            backend_connected_peers
+        );
     } else {
         println!("❌ Backend did not connect to proxy (expected until /register is implemented)");
     }
-    
+
     if proxy_connected_peers > 0 {
-        println!("✅ Proxy registered backend successfully (connected_peers: {})", proxy_connected_peers);
+        println!(
+            "✅ Proxy registered backend successfully (connected_peers: {})",
+            proxy_connected_peers
+        );
     } else {
         println!("❌ Proxy did not register backend (expected until /register is implemented)");
     }
@@ -304,7 +323,7 @@ async fn test_multiple_backend_registration() {
 
     let proxy_port = get_random_port();
     let proxy_metrics_port = get_random_port();
-    
+
     // Start proxy
     let proxy_opts = ProxyCliOptions {
         listen_addr: format!("127.0.0.1:{}", proxy_port).parse().unwrap(),
@@ -340,11 +359,11 @@ async fn test_multiple_backend_registration() {
     // Start multiple backends
     let num_backends = 3;
     let mut backend_tasks = Vec::new();
-    
+
     for i in 0..num_backends {
         let backend_port = get_random_port();
         let metrics_port = get_random_port();
-        
+
         let backend_opts = BackendCliOptions {
             listen_addr: format!("127.0.0.1:{}", backend_port).parse().unwrap(),
             model_path: format!("multi_backend_{}_model.bin", i).into(),
@@ -373,16 +392,16 @@ async fn test_multiple_backend_registration() {
         };
 
         println!("   - Starting backend {} on port {}", i, backend_port);
-        
+
         let task = tokio::spawn(async move {
             let result = backend_opts.run().await;
             if let Err(e) = result {
                 eprintln!("Multi-backend {} failed: {}", i, e);
             }
         });
-        
+
         backend_tasks.push(task);
-        
+
         // Stagger backend starts
         sleep(Duration::from_millis(1000)).await;
     }
@@ -392,20 +411,24 @@ async fn test_multiple_backend_registration() {
 
     let client = Client::new();
     let proxy_metrics_url = format!("http://127.0.0.1:{}/metrics", proxy_metrics_port);
-    
+
     match client.get(&proxy_metrics_url).send().await {
         Ok(response) if response.status().is_success() => {
             if let Ok(metrics_text) = response.text().await {
                 if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&metrics_text) {
                     if let Some(connected_peers) = json_value.get("connected_peers") {
-                        println!("📊 Proxy connected peers with {} backends: {}", num_backends, connected_peers);
-                        
+                        println!(
+                            "📊 Proxy connected peers with {} backends: {}",
+                            num_backends, connected_peers
+                        );
+
                         // This should be equal to num_backends once /register is implemented
-                        let expected_peers = if connected_peers.as_u64().unwrap_or(0) == num_backends as u64 {
-                            "✅"
-                        } else {
-                            "❌ (expected until /register is implemented)"
-                        };
+                        let expected_peers =
+                            if connected_peers.as_u64().unwrap_or(0) == num_backends as u64 {
+                                "✅"
+                            } else {
+                                "❌ (expected until /register is implemented)"
+                            };
                         println!("{} Multiple backend registration status", expected_peers);
                     }
                 }
@@ -421,6 +444,6 @@ async fn test_multiple_backend_registration() {
     for task in backend_tasks {
         task.abort();
     }
-    
+
     sleep(Duration::from_millis(100)).await;
 }

@@ -8,13 +8,23 @@ use std::net::SocketAddr;
 pub struct ServiceRegistration {
     backend_addr: SocketAddr,
     load_balancer_addrs: Vec<SocketAddr>,
+    metrics_port: u16,
+    backend_id: String,
 }
 
 impl ServiceRegistration {
-    pub fn new(backend_addr: SocketAddr, load_balancer_addrs: Vec<SocketAddr>) -> Self {
+    pub fn new(
+        backend_addr: SocketAddr,
+        load_balancer_addrs: Vec<SocketAddr>,
+        metrics_port: u16,
+        backend_id: Option<String>,
+    ) -> Self {
+        let backend_id = backend_id.unwrap_or_else(|| format!("backend-{}", backend_addr.port()));
         Self {
             backend_addr,
             load_balancer_addrs,
+            metrics_port,
+            backend_id,
         }
     }
 
@@ -27,13 +37,9 @@ impl ServiceRegistration {
 
         let client = reqwest::Client::new();
         let registration_payload = json!({
-            "service_type": "backend",
+            "id": self.backend_id,
             "address": self.backend_addr.to_string(),
-            "health_check_path": "/health",
-            "metadata": {
-                "capabilities": ["inference", "health_check"],
-                "version": env!("CARGO_PKG_VERSION")
-            }
+            "metrics_port": self.metrics_port
         });
 
         for lb_addr in &self.load_balancer_addrs {

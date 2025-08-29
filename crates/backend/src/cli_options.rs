@@ -107,12 +107,12 @@ impl BackendCliOptions {
         let metrics_task = if config.enable_metrics {
             let metrics = Arc::new(MetricsCollector::new());
             let health_service = HealthService::new(Arc::clone(&metrics), config.metrics_addr);
-            
+
             info!(
                 metrics_addr = %config.metrics_addr,
                 "Starting HTTP metrics server"
             );
-            
+
             Some(tokio::spawn(async move {
                 if let Err(e) = health_service.start().await {
                     warn!(
@@ -143,8 +143,12 @@ impl BackendCliOptions {
                 })
                 .unwrap_or_default();
 
-            let registration =
-                crate::registration::ServiceRegistration::new(self.listen_addr, lb_addrs);
+            let registration = crate::registration::ServiceRegistration::new(
+                self.listen_addr,
+                lb_addrs,
+                config.metrics_addr.port(),
+                self.service_discovery.service_name.clone(),
+            );
 
             // Attempt registration
             if let Err(e) = registration.register().await {
@@ -163,13 +167,13 @@ impl BackendCliOptions {
             })?;
 
         info!("Shutdown signal received, stopping backend server");
-        
+
         // Clean up the metrics server task if it was started
         if let Some(task) = metrics_task {
             task.abort();
             let _ = task.await;
         }
-        
+
         Ok(())
     }
 
