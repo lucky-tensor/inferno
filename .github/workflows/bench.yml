@@ -32,10 +32,8 @@ jobs:
             benchmark.json
       - name: Commit benchmark results to feature branch
         if: github.event_name == 'pull_request'
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git checkout -B ${{ github.head_ref }}
-          git add ./.prior_bench
-          git commit -m "Update benchmark results [skip ci]" || exit 0
-          git push
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: '.prior_bench'
+          message: 'Update benchmark results [skip ci]'
+          default_author: github_actions
