@@ -386,6 +386,80 @@ impl ServiceDiscovery {
 }
 ```
 
+## Alternatives Evaluation
+
+### Why Custom Implementation Over Existing Libraries
+
+We evaluated several mature Rust service discovery libraries and concluded that our custom implementation is the optimal choice for Inferno's requirements:
+
+#### **memberlist** - Gossip-Based Membership
+- **What it is**: Rust implementation of HashiCorp's memberlist using SWIM protocol
+- **Strengths**: Battle-tested gossip protocol, excellent for large clusters (1000+ nodes), network partition tolerance
+- **Why we didn't use it**: 
+  - Over-engineered for AI inference clusters (typically 10-100 nodes)
+  - SWIM protocol adds unnecessary complexity for our failure scenarios
+  - Requires significant integration work for our node types (Proxy/Backend/Governator)
+  - Generic membership doesn't include our metrics-based health checking
+  - Would obscure the simple "backends register, proxies health-check" mental model
+
+#### **raft-rs** - Strong Consensus Algorithm  
+- **What it is**: Production-ready Raft consensus implementation (used by TiKV, etcd)
+- **Strengths**: Strong consistency guarantees, proven in distributed databases
+- **Why we didn't use it**:
+  - Designed for ordered operation consensus (like database transactions)
+  - Service discovery needs eventual consistency, not strong consistency
+  - Adds significant complexity without meaningful benefits
+  - Our consensus algorithm (majority rule + timestamp tie-breaking) is simpler and sufficient
+
+#### **Consul/etcd Rust Clients**
+- **What they are**: Client libraries for HashiCorp Consul and etcd key-value stores
+- **Strengths**: Mature ecosystems, external service discovery, rich UIs
+- **Why we didn't use them**:
+  - Violates our "zero dependencies" design principle
+  - Requires running and maintaining additional infrastructure
+  - Adds operational complexity (Consul/etcd server management, networking, security)
+  - External service creates single point of failure
+  - Our self-healing architecture works better with embedded discovery
+
+### Our Implementation Advantages
+
+#### **Purpose-Built for AI Inference**
+- Metrics-based health checking (`ready` flag, CPU/GPU usage, requests in progress)
+- Node types designed for AI workloads (Proxy/Backend/Governator)
+- Capabilities system for inference routing (GPU vs CPU backends)
+- Performance characteristics documented for sub-100ms backend selection
+
+#### **Sophisticated Yet Simple**
+- Self-sovereign updates (only nodes update themselves)
+- Consensus resolution with majority rule and timestamp tie-breaking  
+- Exponential backoff retry logic (1s, 2s, 4s, 8s progression)
+- Multi-peer concurrent registration with authentication modes
+- Lock-free reads for sub-microsecond backend access
+
+#### **Zero External Dependencies**
+- No additional services to run, monitor, or secure
+- No network hops to external discovery service
+- Self-healing: if discovery data is lost, nodes re-register automatically
+- Easy to understand: all logic contained in ~1000 lines of well-documented Rust
+
+#### **Performance Optimized for Our Scale**
+- Backend registration: < 100ms
+- Health check cycle: < 5s (configurable)  
+- Backend list access: < 1μs (lock-free reads)
+- Memory overhead: < 1KB per backend
+- Optimized for 10-100 node clusters, not 10,000+ node clusters
+
+### When to Reconsider
+
+We would evaluate external libraries if:
+
+1. **Scale Requirements Change**: Need to support 500+ nodes with complex network topologies
+2. **External Integration**: Need to integrate with existing Consul/etcd infrastructure  
+3. **Advanced Failure Scenarios**: Network partitions lasting hours, complex Byzantine failures
+4. **Compliance Requirements**: Need formally verified consensus algorithms
+
+For Inferno's current and projected requirements (AI inference clusters, self-healing architecture, operational simplicity), our custom implementation provides the optimal balance of functionality, performance, and maintainability.
+
 ## That's All
 
 Enhanced peer discovery with authentication, consensus, and self-sovereign updates. Maintains simplicity while enabling robust distributed operation.

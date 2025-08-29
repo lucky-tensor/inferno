@@ -754,6 +754,73 @@ impl ServiceDiscovery {
     pub async fn process_retry_queue(&self) -> ServiceDiscoveryResult<usize> {
         self.retry_manager.process_retry_queue().await
     }
+
+    /// Legacy method: Gets all backends with vitals for backward compatibility
+    ///
+    /// Returns a list of all registered backends formatted for the proxy's peer manager.
+    /// This method is provided for backward compatibility with the existing proxy code.
+    ///
+    /// # Returns
+    ///
+    /// Returns a vector of tuples: (id, address, is_healthy, vitals)
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use inferno_shared::service_discovery::ServiceDiscovery;
+    ///
+    /// # async fn example() {
+    /// let discovery = ServiceDiscovery::new();
+    /// let backends = discovery.get_all_backends().await;
+    /// for (id, address, healthy, vitals) in backends {
+    ///     println!("Backend {}: {} (healthy: {})", id, address, healthy);
+    /// }
+    /// # }
+    /// ```
+    pub async fn get_all_backends(&self) -> Vec<(String, String, bool, Option<super::health::NodeVitals>)> {
+        let backends = self.backends.read().await;
+        let mut result = Vec::new();
+        
+        for node_info in backends.values() {
+            // For backward compatibility, we'll need to fetch vitals separately
+            // In a real implementation, you might want to cache vitals or integrate with health checker
+            let vitals = None; // TODO: Integrate with health checker if available
+            let is_healthy = true; // TODO: Determine health status
+            
+            result.push((
+                node_info.id.clone(),
+                node_info.address.clone(),
+                is_healthy,
+                vitals,
+            ));
+        }
+        
+        result
+    }
+
+    /// Legacy method: Gets the count of registered backends
+    ///
+    /// Returns the total number of backends registered in the service discovery.
+    ///
+    /// # Returns
+    ///
+    /// Returns the count of registered backends.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use inferno_shared::service_discovery::ServiceDiscovery;
+    ///
+    /// # async fn example() {
+    /// let discovery = ServiceDiscovery::new();
+    /// let count = discovery.backend_count().await;
+    /// println!("Total backends: {}", count);
+    /// # }
+    /// ```
+    pub async fn backend_count(&self) -> usize {
+        let backends = self.backends.read().await;
+        backends.len()
+    }
 }
 
 impl Default for ServiceDiscovery {

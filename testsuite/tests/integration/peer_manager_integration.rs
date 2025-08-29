@@ -24,15 +24,12 @@ fn create_test_vitals(
 ) -> NodeVitals {
     NodeVitals {
         ready,
-        requests_in_progress: requests,
-        cpu_usage: cpu,
-        memory_usage: memory,
-        gpu_usage: 0.0,
-        failed_responses: failures,
-        connected_peers: 10,
-        backoff_requests: 0,
-        uptime_seconds: 3600,
-        version: "1.0.0".to_string(),
+        cpu_usage: Some(cpu),
+        memory_usage: Some(memory),
+        active_requests: Some(requests as u64),
+        avg_response_time_ms: Some(100.0),
+        error_rate: Some(failures as f64),
+        status_message: Some("healthy".to_string()),
     }
 }
 

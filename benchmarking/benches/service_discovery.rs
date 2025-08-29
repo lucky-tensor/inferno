@@ -28,15 +28,12 @@ fn create_test_registration(id: &str, port: u16) -> BackendRegistration {
 fn create_test_vitals() -> NodeVitals {
     NodeVitals {
         ready: true,
-        requests_in_progress: 5,
-        cpu_usage: 45.0,
-        memory_usage: 55.0,
-        gpu_usage: 10.0,
-        failed_responses: 1,
-        connected_peers: 3,
-        backoff_requests: 0,
-        uptime_seconds: 3600,
-        version: "1.0.0".to_string(),
+        cpu_usage: Some(45.0),
+        memory_usage: Some(55.0),
+        active_requests: Some(5),
+        avg_response_time_ms: Some(100.0),
+        error_rate: Some(1.0),
+        status_message: Some("healthy".to_string()),
     }
 }
 
@@ -102,7 +99,8 @@ fn bench_backend_deregistration(c: &mut Criterion) {
                 let registration = create_test_registration("test-backend", 3000);
                 discovery.register_backend(registration).await.unwrap();
 
-                black_box(discovery.deregister_backend("test-backend").await.unwrap());
+                discovery.remove_backend("test-backend").await.unwrap();
+                black_box(());
             })
         });
     });
@@ -183,13 +181,13 @@ fn bench_scalability_under_load(c: &mut Criterion) {
                         black_box(discovery.get_healthy_backends().await);
                         black_box(discovery.get_all_backends().await);
                         black_box(discovery.backend_count().await);
-                        black_box(discovery.get_statistics());
+                        black_box(discovery.backend_count().await);
 
                         // Deregister some backends
                         for i in 0..(count / 4) {
                             black_box(
                                 discovery
-                                    .deregister_backend(&format!("backend-{}", i))
+                                    .remove_backend(&format!("backend-{}", i))
                                     .await
                                     .unwrap(),
                             );
@@ -217,6 +215,8 @@ fn bench_health_check_config(c: &mut Criterion) {
                     recovery_threshold: 2,
                     registration_timeout: Duration::from_secs(30),
                     enable_health_check_logging: false,
+                    auth_mode: inferno_shared::service_discovery::AuthMode::Open,
+                    shared_secret: None,
                 };
 
                 let discovery = ServiceDiscovery::with_config(config);
@@ -226,7 +226,7 @@ fn bench_health_check_config(c: &mut Criterion) {
                 discovery.register_backend(registration).await.unwrap();
                 black_box(());
 
-                black_box(discovery.get_statistics());
+                black_box(discovery.backend_count().await);
             });
         });
     });
