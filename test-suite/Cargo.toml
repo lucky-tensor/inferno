@@ -10,14 +10,12 @@ publish = false
 
 [dependencies]
 inferno-proxy = { path = "../crates/proxy" }
-inferno-backend = { path = "../crates/backend" }
 inferno-shared = { path = "../crates/shared" }
 
 tokio = { workspace = true }
 serde_json = { workspace = true }
 reqwest = { workspace = true }
 wiremock = { workspace = true }
-serial_test = { workspace = true }
 proptest = { workspace = true }
 tokio-test = { workspace = true }
 libc = "0.2"
