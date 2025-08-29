@@ -9,7 +9,7 @@ REGRESSION_THRESHOLD=10.0
 BENCHMARK_JSON="benchmark.json"
 
 echo "🚀 Running benchmarks with JSON output..."
-CRITERION_HOME=./.prior_bench cargo criterion --message-format=json --output-format=quiet > "$BENCHMARK_JSON"
+CRITERION_HOME=./.prior_bench cargo criterion config_from_env --message-format=json --output-format=quiet > "$BENCHMARK_JSON"
 
 echo "🔍 Checking for performance regressions (threshold: ${REGRESSION_THRESHOLD}%)..."
 

@@ -30,16 +30,6 @@ jobs:
           name: benchmark-report
           path: |
             benchmark.json
-      - name: Commit benchmark results
-        if: github.ref == 'refs/heads/main'
-        uses: EndBug/add-and-commit@v9
-        with:
-          add: |
-            ./.prior_bench
-          message: "Update benchmark results [skip ci]"
-          default_author: github_actions
-          new_branch: benchmark-updates-${{ github.run_id }}
-          push: origin HEAD:benchmark-updates-${{ github.run_id }}
       - name: Create Pull Request for benchmark updates
         if: github.ref == 'refs/heads/main'
         id: pr
@@ -48,6 +38,8 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           base: main
           branch: benchmark-updates-${{ github.run_id }}
+          add-paths: ./.prior_bench
+          commit-message: "Update benchmark results [skip ci]"
           title: "Update benchmark results"
           body: |
             Auto-generated benchmark results update
