@@ -109,7 +109,9 @@ pub struct ProxyServer {
     /// Optional shutdown signal channel
     shutdown_tx: Option<oneshot::Sender<()>>,
     /// Shutdown receiver to keep the channel alive
-    _shutdown_rx: Option<oneshot::Receiver<()>>,
+    #[allow(dead_code)]
+    // TODO: Implement shutdown handling
+    shutdown_rx: Option<oneshot::Receiver<()>>,
 }
 
 impl ProxyServer {
@@ -191,7 +193,7 @@ impl ProxyServer {
             metrics,
             local_addr,
             shutdown_tx: Some(shutdown_tx),
-            _shutdown_rx: Some(shutdown_rx),
+            shutdown_rx: Some(shutdown_rx),
         })
     }
 
