@@ -185,12 +185,11 @@ fn bench_scalability_under_load(c: &mut Criterion) {
 
                         // Deregister some backends
                         for i in 0..(count / 4) {
-                            black_box(
-                                discovery
-                                    .remove_backend(&format!("backend-{}", i))
-                                    .await
-                                    .unwrap(),
-                            );
+                            discovery
+                                .remove_backend(&format!("backend-{}", i))
+                                .await
+                                .unwrap();
+                            black_box(());
                         }
                     })
                 });
