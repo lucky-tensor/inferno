@@ -27,6 +27,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "1.0"
 async-trait = "0.1"
 clap = { version = "4.0", features = ["derive", "env"] }
+bytes = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
 
 # Pingora dependencies for proxy
 pingora-core = "0.6"

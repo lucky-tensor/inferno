@@ -24,6 +24,8 @@ async-trait = { workspace = true }
 clap = { workspace = true }
 hyper = { workspace = true }
 http = { workspace = true }
+bytes = { workspace = true }
+chrono = { workspace = true }
 
 [dev-dependencies]
 inferno-shared = { path = "../shared" }

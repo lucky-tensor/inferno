@@ -28,7 +28,7 @@
 //! - Metrics finalization and export
 //! - Resource cleanup and file descriptor closure
 
-use crate::{registration::RegistrationService, ProxyConfig};
+use crate::ProxyConfig;
 use inferno_shared::{InfernoError, MetricsCollector, MetricsServer, Result};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -428,8 +428,7 @@ impl ProxyServer {
             None
         };
 
-        // Start registration service
-        let registration_task = Some(self.start_registration_service());
+        // Registration service now handled directly by Pingora in ProxyService::request_filter
 
         // Simulate server operation
         // In a real implementation, this would be replaced with:
@@ -471,10 +470,7 @@ impl ProxyServer {
             let _ = metrics_task.await;
         }
 
-        if let Some(registration_task) = registration_task {
-            registration_task.abort();
-            let _ = registration_task.await;
-        }
+        // Registration service cleanup no longer needed - handled by Pingora
 
         Ok(())
     }
@@ -620,28 +616,6 @@ impl ProxyServer {
     ///
     /// # Returns
     ///
-    /// Returns a `tokio::task::JoinHandle` for the registration service task
-    #[instrument(skip(self))]
-    fn start_registration_service(&self) -> tokio::task::JoinHandle<()> {
-        let listen_addr = self.config.listen_addr;
-
-        info!(
-            listen_addr = %listen_addr,
-            "Starting backend registration service"
-        );
-
-        tokio::spawn(async move {
-            let registration_service = RegistrationService::new();
-
-            if let Err(e) = registration_service.start(listen_addr).await {
-                error!(
-                    error = %e,
-                    listen_addr = %listen_addr,
-                    "Backend registration service failed"
-                );
-            }
-        })
-    }
 
     /// Initiates graceful shutdown of the server
     ///
