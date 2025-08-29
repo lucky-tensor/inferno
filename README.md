@@ -19,23 +19,43 @@ Inferno Proxy is a self-healing cloud platform for AI inference, designed for hi
 
 ## Architecture
 
+The system uses a dual-server architecture with separate concerns:
+
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Client        │───▶│  Proxy Server   │───▶│  Backend        │
 │                 │    │                 │    │                 │
-│  HTTP Request   │    │  - Load Balance │    │  HTTP Service   │
-│                 │◀───│  - Health Check │◀───│                 │
-└─────────────────┘    │  - Metrics      │    └─────────────────┘
+│  HTTP Request   │    │  :8080 Pingora  │    │ :8080 Inference │
+│                 │◀───│  - Load Balance │◀───│  (Hyper)        │
+└─────────────────┘    │  - Forwarding   │    └─────────────────┘
                        └─────────────────┘
-                               │
-                               ▼
-                       ┌─────────────────┐
-                       │  Metrics Server │
-                       │                 │
-                       │  Prometheus     │
-                       │  Endpoint       │
-                       └─────────────────┘
+                               │                        │
+                               ▼                        ▼
+                       ┌─────────────────┐    ┌─────────────────┐
+                       │ Operations      │    │ Operations      │
+                       │ Server :6100    │    │ Server :6100    │
+                       │ (Hyper)         │    │ (Hyper)         │
+                       │                 │    │                 │
+                       │ - /metrics      │    │ - /metrics      │
+                       │ - /health       │    │ - /health       │
+                       │ - /registration │    │ - /registration │
+                       └─────────────────┘    └─────────────────┘
 ```
+
+### Component Architecture
+
+- **Proxy Server**: 
+  - **Port 8080**: Pingora-based HTTP proxy for request forwarding and load balancing
+  - **Port 6100**: Hyper-based operations server for monitoring and service discovery
+
+- **Backend Server**: 
+  - **Port 8080**: Hyper-based inference server for AI model requests
+  - **Port 6100**: Hyper-based operations server for monitoring and service discovery
+
+- **Operations Server**: Shared Hyper-based component providing:
+  - **`GET /metrics`**: Prometheus metrics endpoint
+  - **`GET /health`**: Health check endpoint  
+  - **`POST /registration`**: Service discovery registration endpoint
 
 ## Quick Start
 
@@ -74,11 +94,16 @@ python3 -m http.server 3000 &
 # Test proxy functionality
 curl http://localhost:8080/
 
-# View metrics
-curl http://localhost:9090/metrics
+# View proxy metrics (operations server)
+curl http://localhost:6100/metrics
 
-# Check health
-curl http://localhost:9090/health
+# Check proxy health (operations server)
+curl http://localhost:6100/health
+
+# Register a backend (operations server)
+curl -X POST http://localhost:6100/registration \
+  -H "Content-Type: application/json" \
+  -d '{"id":"test-backend","address":"127.0.0.1:3000","metrics_port":6100}'
 ```
 
 ## Configuration
@@ -97,7 +122,7 @@ The proxy can be configured through environment variables with the `PINGORA_` pr
 | `PINGORA_HEALTH_CHECK_PATH` | `/health` | Health check endpoint |
 | `PINGORA_LOG_LEVEL` | `info` | Logging level (error/warn/info/debug/trace) |
 | `PINGORA_ENABLE_METRICS` | `true` | Enable metrics collection |
-| `PINGORA_METRICS_ADDR` | `127.0.0.1:9090` | Metrics server address |
+| `INFERNO_OPERATIONS_ADDR` | `127.0.0.1:6100` | Operations server address |
 | `PINGORA_ENABLE_TLS` | `false` | Enable TLS/SSL |
 | `PINGORA_LOAD_BALANCING_ALGORITHM` | `round_robin` | Load balancing strategy |
 
@@ -208,9 +233,10 @@ proxy_backend_connection_errors_total
 
 ### Health Checks
 
-- **Proxy health**: `GET /health` on metrics port
-- **Backend health**: Automatic monitoring with configurable intervals
+- **Proxy health**: `GET /health` on operations server (port 6100)
+- **Backend health**: `GET /health` on operations server (port 6100) + automatic monitoring with configurable intervals
 - **Circuit breaker**: Automatic failover for unhealthy backends
+- **Service registration**: `POST /registration` on operations server (port 6100)
 
 ### Logging
 

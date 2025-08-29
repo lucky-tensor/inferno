@@ -30,8 +30,8 @@ pub struct BackendConfig {
     pub cache_ttl_seconds: u64,
     /// Enable metrics collection
     pub enable_metrics: bool,
-    /// Metrics server address
-    pub metrics_addr: SocketAddr,
+    /// Operations server address (metrics, health, registration)
+    pub operations_addr: SocketAddr,
     /// Health check endpoint path
     pub health_check_path: String,
     /// Registration endpoint for service discovery
@@ -55,7 +55,7 @@ impl Default for BackendConfig {
             enable_cache: true,
             cache_ttl_seconds: 3600,
             enable_metrics: true,
-            metrics_addr: "127.0.0.1:9091".parse().unwrap(),
+            operations_addr: "127.0.0.1:6100".parse().unwrap(),
             health_check_path: "/health".to_string(),
             registration_endpoint: None,
             service_name: "inferno-backend".to_string(),
