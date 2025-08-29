@@ -174,11 +174,8 @@ async fn test_multiple_backend_management() {
     let mut deregister_tasks = vec![];
     for i in 0..3 {
         let discovery = discovery.clone();
-        let task = tokio::spawn(async move {
-            discovery
-                .remove_backend(&format!("backend-{}", i))
-                .await
-        });
+        let task =
+            tokio::spawn(async move { discovery.remove_backend(&format!("backend-{}", i)).await });
         deregister_tasks.push(task);
     }
 
@@ -334,14 +331,14 @@ async fn test_backend_health_status_changes() {
 // #[tokio::test]
 // async fn test_service_discovery_statistics() {
 //     let discovery = ServiceDiscovery::new();
-// 
+//
 //     // Check initial statistics
 //     assert_eq!(reg, 0);
 //     assert_eq!(deregistrations, 0);
 //     assert_eq!(health_checks, 0);
 //     assert_eq!(failed_checks, 0);
 //     // uptime is always >= 0 since it's u64, so we don't need to test this
-// 
+//
 //     // Register some backends
 //     for i in 0..3 {
 //         let registration = create_test_registration(
@@ -350,16 +347,16 @@ async fn test_backend_health_status_changes() {
 //         );
 //         discovery.register_backend(registration).await.unwrap();
 //     }
-// 
+//
 //     // Deregister one
 //     discovery.remove_backend("backend-0").await.unwrap();
-// 
+//
 //     // Check updated statistics
 //     let (reg, deregistrations, _health_checks, _failed_checks, uptime_after) =
 //     assert_eq!(reg, 3, "Should have 3 registrations");
 //     assert_eq!(deregistrations, 1, "Should have 1 deregistration");
 //     assert!(uptime_after >= uptime, "Uptime should be non-decreasing");
-// 
+//
 //     assert_eq!(
 //         discovery.backend_count().await,
 //         2,
@@ -516,7 +513,9 @@ async fn test_backend_scoring_and_ranking() {
             vitals.as_ref().map(|v| {
                 // Simple scoring: lower is better
                 // Score = active_requests.unwrap_or(0) + cpu_usage + memory_usage
-                let score = v.active_requests.unwrap_or(0) as f64 + v.cpu_usage.unwrap_or(0.0) + v.memory_usage.unwrap_or(0.0);
+                let score = v.active_requests.unwrap_or(0) as f64
+                    + v.cpu_usage.unwrap_or(0.0)
+                    + v.memory_usage.unwrap_or(0.0);
                 (
                     id.clone(),
                     score,
