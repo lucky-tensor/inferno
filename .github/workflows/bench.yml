@@ -23,8 +23,7 @@ jobs:
       - name: Install cargo-criterion
         run: cargo install cargo-criterion
       - name: Run benchmarks and check for regressions
-        # run: ./benchmarking/check-performance.sh
-        run: cargo criterion string_allocations
+        run: ./benchmarking/check-performance.sh
       - name: Upload benchmark artifacts
         uses: actions/upload-artifact@v4
         with:
