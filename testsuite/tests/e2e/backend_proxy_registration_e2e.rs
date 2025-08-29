@@ -5,18 +5,15 @@
 
 use inferno_backend::BackendCliOptions;
 use inferno_proxy::ProxyCliOptions;
+use rand::Rng;
 use reqwest::Client;
-use std::net::TcpListener;
 use std::time::Duration;
 use tokio::time::{sleep, timeout};
 
-/// Get a random available port by binding to 0 and getting the assigned port
-fn get_available_port() -> u16 {
-    TcpListener::bind("127.0.0.1:0")
-        .expect("Failed to bind to a random port")
-        .local_addr()
-        .expect("Failed to get local address")
-        .port()
+/// Get a random port in the ephemeral port range (49152-65535)
+fn get_random_port() -> u16 {
+    let mut rng = rand::thread_rng();
+    rng.gen_range(49152..=65535)
 }
 
 /// Test that the backend can successfully register with the proxy
@@ -25,10 +22,10 @@ async fn test_backend_registration_with_proxy() {
     // Initialize logging for the test
     let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
-    // Get random available ports for this test
-    let proxy_port = get_available_port();
-    let backend_port = get_available_port();
-    let metrics_port = get_available_port();
+    // Get random ports for this test
+    let proxy_port = get_random_port();
+    let backend_port = get_random_port();
+    let metrics_port = get_random_port();
 
     // Configure the proxy CLI options
     let proxy_opts = ProxyCliOptions {

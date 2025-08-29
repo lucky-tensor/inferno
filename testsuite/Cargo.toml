@@ -20,6 +20,7 @@ wiremock = { workspace = true }
 proptest = { workspace = true }
 tokio-test = { workspace = true }
 tracing-subscriber = { workspace = true }
+rand = "0.8"
 libc = "0.2"
 
 [[test]]
