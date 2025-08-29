@@ -312,14 +312,25 @@ cargo test --test config_test
 ## 3. Integration Tests
 
 ### Purpose
-Verify that client-server connections work correctly for different endpoints without running full binaries.
+Test interactions between different crates and components in controlled environments without full binary execution.
+
+### Location
+`test-suite/tests/integration/` - Centralized cross-component testing
+
+### Current Implementation
+```
+test-suite/tests/integration/
+├── service_discovery_integration.rs    # 9 tests for service discovery protocols
+├── peer_manager_integration.rs         # 6 tests for load balancing and peer selection
+└── proxy_integration.rs                # Basic proxy functionality tests
+```
 
 ### Test Scenarios
-- HTTP client connections to proxy endpoints
-- Metrics endpoint responses (`/metrics`, `/telemetry`)
-- Service discovery registration endpoints
-- Load balancing algorithm behavior
-- Configuration loading and validation
+- **Service Discovery**: Backend registration, health checking with mock HTTP servers
+- **Peer Management**: Load balancing algorithms, backend scoring, failover logic  
+- **Configuration Integration**: Environment-driven configuration across components
+- **Metrics Collection**: Cross-component metrics aggregation and reporting
+- **Mock-based Testing**: Controlled HTTP backends using wiremock for predictable behavior
 
 ### Example Integration Test
 ```rust
@@ -734,20 +745,64 @@ impl PortPool {
 }
 ```
 
-## Running Tests
+## Test Summary by Type
 
-### Full Test Suite
+### Current Test Coverage
+```
+Doc Tests:      28 tests    # Documentation examples and private type testing
+Module Tests:   67 tests    # Standalone test files within crates
+Integration:    15 tests    # Cross-component testing in test-suite
+E2E Tests:      9 tests     # Real binary execution tests
+Total:         119 tests    # Comprehensive coverage across all levels
+```
+
+### Running Tests
+
+#### By Test Type
 ```bash
-# Run all tests
-cargo test
+# Doc tests only (fast)
+cargo test --doc
 
-# Run with output
-cargo test -- --nocapture
+# Module tests only (within crates)  
+cargo test --tests
 
-# Run specific test types
-cargo test --doc           # Unit tests
-cargo test --tests         # Module tests
-cargo test --test e2e_test # E2E tests
+# Integration tests (cross-component)
+cargo test -p inferno-tests --test service_discovery_integration
+cargo test -p inferno-tests --test peer_manager_integration
+
+# E2E tests (slow, real processes)
+cargo test -p inferno-tests --test proxy_backend_e2e
+cargo test -p inferno-tests --test service_discovery_e2e
+
+# All tests
+cargo test --workspace
+```
+
+#### By Component
+```bash
+# Shared crate tests (20 module + 28 doc tests)
+cargo test -p inferno-shared
+
+# Proxy crate tests (52 module + 11 doc tests)  
+cargo test -p inferno-proxy
+
+# Integration and E2E tests (24 tests)
+cargo test -p inferno-tests
+```
+
+#### Development Workflow
+```bash
+# Quick feedback loop (fast tests)
+cargo test --doc && cargo test --tests
+
+# Full validation before PR
+cargo test --workspace
+
+# Debug specific failing test
+cargo test test_name -- --nocapture
+
+# Run tests with logging
+RUST_LOG=debug cargo test -- --nocapture
 ```
 
 ### CI/CD Integration
