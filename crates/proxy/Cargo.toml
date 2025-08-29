@@ -18,14 +18,9 @@ pingora-http = { workspace = true }
 # Core dependencies
 tokio = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true }
 tracing = { workspace = true }
 async-trait = { workspace = true }
 clap = { workspace = true }
-hyper = { workspace = true }
-http = { workspace = true }
-bytes = { workspace = true }
-chrono = { workspace = true }
 
 [dev-dependencies]
 inferno-shared = { path = "../shared" }

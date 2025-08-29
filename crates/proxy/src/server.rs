@@ -616,7 +616,6 @@ impl ProxyServer {
     ///
     /// # Returns
     ///
-
     /// Initiates graceful shutdown of the server
     ///
     /// This method can be called from another thread or async task
