@@ -25,7 +25,7 @@
 //! use std::time::Duration;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! let retry_manager = RetryManager::new(Duration::from_secs(1), 4);
+//! let retry_manager = RetryManager::new();
 //!
 //! // Process pending retries
 //! retry_manager.process_retry_queue().await?;
