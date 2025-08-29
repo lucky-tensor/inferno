@@ -44,7 +44,7 @@
 
 use crate::error::{InfernoError, Result};
 use crate::metrics::MetricsCollector;
-use crate::service_discovery::NodeVitals;
+use crate::service_discovery::{BackendRegistration, NodeVitals, ServiceDiscovery};
 use http::{Method, StatusCode};
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server};
@@ -80,7 +80,6 @@ use tracing::{debug, error, info, instrument, warn};
 /// - Efficient JSON serialization with serde
 /// - Connection pooling and keep-alive support
 /// - Non-blocking I/O throughout the request pipeline
-#[derive(Debug)]
 pub struct OperationsServer {
     /// Shared metrics collector for data access
     metrics: Arc<MetricsCollector>,
@@ -92,6 +91,8 @@ pub struct OperationsServer {
     version: String,
     /// Number of connected peers (updated by caller)
     connected_peers: Arc<AtomicU32>,
+    /// Optional service discovery for backend registration (proxy only)
+    service_discovery: Option<Arc<ServiceDiscovery>>,
     /// Shutdown signal sender
     shutdown_tx: Option<oneshot::Sender<()>>,
 }
@@ -134,6 +135,7 @@ impl OperationsServer {
             service_name: "inferno-service".to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),
             connected_peers: Arc::new(AtomicU32::new(0)),
+            service_discovery: None,
             shutdown_tx: None,
         }
     }
@@ -174,6 +176,26 @@ impl OperationsServer {
             service_name,
             version,
             connected_peers: Arc::new(AtomicU32::new(0)),
+            service_discovery: None,
+            shutdown_tx: None,
+        }
+    }
+
+    /// Creates a metrics server with service discovery integration (proxy only)
+    pub fn with_service_discovery(
+        metrics: Arc<MetricsCollector>,
+        bind_addr: SocketAddr,
+        service_name: String,
+        version: String,
+        service_discovery: Arc<ServiceDiscovery>,
+    ) -> Self {
+        Self {
+            metrics,
+            bind_addr,
+            service_name,
+            version,
+            connected_peers: Arc::new(AtomicU32::new(0)),
+            service_discovery: Some(service_discovery),
             shutdown_tx: None,
         }
     }
@@ -260,6 +282,7 @@ impl OperationsServer {
         let service_name = self.service_name.clone();
         let version = self.version.clone();
         let connected_peers = Arc::clone(&self.connected_peers);
+        let service_discovery = self.service_discovery.clone();
 
         // Create the service handler
         let make_svc = make_service_fn(move |_conn| {
@@ -267,6 +290,7 @@ impl OperationsServer {
             let service_name = service_name.clone();
             let version = version.clone();
             let connected_peers = Arc::clone(&connected_peers);
+            let service_discovery = service_discovery.clone();
 
             async move {
                 Ok::<_, Infallible>(service_fn(move |req| {
@@ -276,6 +300,7 @@ impl OperationsServer {
                         service_name.clone(),
                         version.clone(),
                         Arc::clone(&connected_peers),
+                        service_discovery.clone(),
                     )
                 }))
             }
@@ -375,6 +400,17 @@ impl OperationsServer {
     }
 }
 
+impl std::fmt::Debug for OperationsServer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OperationsServer")
+            .field("bind_addr", &self.bind_addr)
+            .field("service_name", &self.service_name)
+            .field("version", &self.version)
+            .field("service_discovery", &self.service_discovery.is_some())
+            .finish_non_exhaustive()
+    }
+}
+
 /// Handles incoming HTTP requests for metrics endpoints
 ///
 /// This function processes all HTTP requests to the metrics server,
@@ -404,6 +440,7 @@ async fn handle_request(
     service_name: String,
     version: String,
     connected_peers: Arc<AtomicU32>,
+    service_discovery: Option<Arc<ServiceDiscovery>>,
 ) -> std::result::Result<Response<Body>, Infallible> {
     let method = req.method().clone();
     let path = req.uri().path().to_string();
@@ -419,7 +456,9 @@ async fn handle_request(
             handle_metrics_request(metrics, service_name, version, connected_peers).await
         }
         (&Method::GET, "/health") => handle_health_request().await,
-        (&Method::POST, "/registration") => handle_registration_request(req).await,
+        (&Method::POST, "/registration") => {
+            handle_registration_request(req, service_discovery).await
+        }
         _ => {
             warn!(
                 method = %method,
@@ -555,7 +594,10 @@ async fn handle_health_request() -> Response<Body> {
 }
 
 /// Handles service discovery registration requests
-async fn handle_registration_request(req: Request<Body>) -> Response<Body> {
+async fn handle_registration_request(
+    req: Request<Body>,
+    service_discovery: Option<Arc<ServiceDiscovery>>,
+) -> Response<Body> {
     debug!("Processing service registration request");
 
     // Read the request body
@@ -584,35 +626,73 @@ async fn handle_registration_request(req: Request<Body>) -> Response<Body> {
         }
     };
 
-    // Validate required fields
-    let id = registration_data.get("id").and_then(|v| v.as_str());
-    let address = registration_data.get("address").and_then(|v| v.as_str());
-    
-    if id.is_none() || address.is_none() {
-        warn!("Registration request missing required fields");
-        return Response::builder()
-            .status(StatusCode::BAD_REQUEST)
+    // Parse into BackendRegistration struct
+    let registration: BackendRegistration = match serde_json::from_value(registration_data) {
+        Ok(reg) => reg,
+        Err(e) => {
+            error!(error = %e, "Failed to parse registration data into BackendRegistration");
+            return Response::builder()
+                .status(StatusCode::BAD_REQUEST)
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    "{\"error\":\"Invalid registration data format\"}",
+                ))
+                .unwrap_or_else(|_| Response::new(Body::empty()));
+        }
+    };
+
+    // Check if service discovery is available (proxy only)
+    if let Some(service_discovery) = service_discovery {
+        // Actually register the backend with the proxy's service discovery
+        match service_discovery
+            .register_backend(registration.clone())
+            .await
+        {
+            Ok(()) => {
+                info!(
+                    backend_id = %registration.id,
+                    address = %registration.address,
+                    metrics_port = registration.metrics_port,
+                    "Backend successfully registered with service discovery"
+                );
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .header("content-type", "application/json")
+                    .body(Body::from("{\"status\":\"registered\"}"))
+                    .unwrap_or_else(|e| {
+                        error!(error = %e, "Failed to build registration response");
+                        Response::new(Body::empty())
+                    })
+            }
+            Err(e) => {
+                error!(error = %e, "Failed to register backend with service discovery");
+                Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .header("content-type", "application/json")
+                    .body(Body::from(format!(
+                        "{{\"error\":\"Registration failed: {}\"}}",
+                        e
+                    )))
+                    .unwrap_or_else(|_| Response::new(Body::empty()))
+            }
+        }
+    } else {
+        // No service discovery available (backend server)
+        info!(
+            backend_id = %registration.id,
+            address = %registration.address,
+            metrics_port = registration.metrics_port,
+            "Registration request received (no service discovery integration)"
+        );
+        Response::builder()
+            .status(StatusCode::OK)
             .header("content-type", "application/json")
-            .body(Body::from("{\"error\":\"Missing required fields: id, address\"}"))
-            .unwrap_or_else(|_| Response::new(Body::empty()));
+            .body(Body::from("{\"status\":\"received\"}"))
+            .unwrap_or_else(|e| {
+                error!(error = %e, "Failed to build registration response");
+                Response::new(Body::empty())
+            })
     }
-
-    // Log the registration
-    info!(
-        id = id.unwrap(),
-        address = address.unwrap(),
-        "Service registration received"
-    );
-
-    // Return success response
-    Response::builder()
-        .status(StatusCode::OK)
-        .header("content-type", "application/json")
-        .body(Body::from("{\"status\":\"registered\"}"))
-        .unwrap_or_else(|e| {
-            error!(error = %e, "Failed to build registration response");
-            Response::new(Body::empty())
-        })
 }
 
 #[cfg(test)]
@@ -720,6 +800,7 @@ mod tests {
             "test-service".to_string(),
             "1.0.0".to_string(),
             connected_peers,
+            None,
         )
         .await
         .unwrap();

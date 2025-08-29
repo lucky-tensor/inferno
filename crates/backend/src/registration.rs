@@ -57,7 +57,10 @@ impl ServiceRegistration {
             {
                 Ok(response) => {
                     if response.status().is_success() {
-                        tracing::info!("Successfully registered with proxy operations server: {}", operations_addr);
+                        tracing::info!(
+                            "Successfully registered with proxy operations server: {}",
+                            operations_addr
+                        );
                     } else {
                         tracing::warn!(
                             "Registration failed with status {}: {}",
@@ -67,7 +70,11 @@ impl ServiceRegistration {
                     }
                 }
                 Err(e) => {
-                    tracing::warn!("Failed to connect to proxy operations server {}: {}", operations_addr, e);
+                    tracing::warn!(
+                        "Failed to connect to proxy operations server {}: {}",
+                        operations_addr,
+                        e
+                    );
                     // Don't return error - continue trying other proxy operations servers
                 }
             }

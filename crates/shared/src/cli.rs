@@ -87,11 +87,13 @@ impl MetricsOptions {
     /// Get the operations server address with component-specific defaults (port 6100)
     pub fn get_operations_addr(&self, default_port: u16) -> SocketAddr {
         // Prefer operations_addr, fall back to metrics_addr for backward compatibility
-        self.operations_addr.or(self.metrics_addr).unwrap_or_else(|| {
-            format!("127.0.0.1:{}", default_port)
-                .parse()
-                .expect("Default operations address should be valid")
-        })
+        self.operations_addr
+            .or(self.metrics_addr)
+            .unwrap_or_else(|| {
+                format!("127.0.0.1:{}", default_port)
+                    .parse()
+                    .expect("Default operations address should be valid")
+            })
     }
 
     /// Get the metrics address with component-specific defaults (deprecated, use get_operations_addr)

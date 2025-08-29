@@ -220,7 +220,6 @@ impl ProxyService {
 
         Ok(())
     }
-
 }
 
 #[async_trait]
@@ -271,7 +270,11 @@ impl ProxyHttp for ProxyService {
         // All operational endpoints (/register, /metrics, /health) are now served
         // by the operations server on port 6100. The proxy only handles
         // forwarding regular application requests to backends.
-        debug!(method = method, path = path, "Forwarding request to upstream");
+        debug!(
+            method = method,
+            path = path,
+            "Forwarding request to upstream"
+        );
         Ok(false)
     }
 

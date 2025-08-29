@@ -29,6 +29,7 @@
 //! - Resource cleanup and file descriptor closure
 
 use crate::ProxyConfig;
+use inferno_shared::service_discovery::{ServiceDiscovery, ServiceDiscoveryConfig};
 use inferno_shared::{InfernoError, MetricsCollector, MetricsServer, Result};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -98,12 +99,13 @@ use tracing::{debug, error, info, instrument, warn};
 ///     Ok(())
 /// }
 /// ```
-#[derive(Debug)]
 pub struct ProxyServer {
     /// Validated proxy configuration
     config: Arc<ProxyConfig>,
     /// Shared metrics collector for observability
     metrics: Arc<MetricsCollector>,
+    /// Service discovery for backend registration and health monitoring
+    service_discovery: Arc<ServiceDiscovery>,
     /// Local address where server is listening
     local_addr: SocketAddr,
     /// Optional shutdown signal channel
@@ -174,6 +176,13 @@ impl ProxyServer {
         // Initialize metrics collector
         let metrics = Arc::new(MetricsCollector::new());
 
+        // Initialize service discovery with configuration-based settings
+        let service_discovery = Arc::new(ServiceDiscovery::with_config(ServiceDiscoveryConfig {
+            health_check_interval: config.health_check_interval,
+            health_check_timeout: config.health_check_timeout,
+            ..ServiceDiscoveryConfig::default()
+        }));
+
         // For now, we'll use the configured listen address as the local address
         // In a real implementation, this would be set after binding
         let local_addr = config.listen_addr;
@@ -182,6 +191,7 @@ impl ProxyServer {
             local_addr = %local_addr,
             backend_count = config.effective_backends().len(),
             max_connections = config.max_connections,
+            service_discovery_enabled = true,
             "Proxy server initialized successfully"
         );
 
@@ -191,6 +201,7 @@ impl ProxyServer {
         Ok(Self {
             config,
             metrics,
+            service_discovery,
             local_addr,
             shutdown_tx: Some(shutdown_tx),
             shutdown_rx: Some(shutdown_rx),
@@ -585,12 +596,15 @@ impl ProxyServer {
             "Starting HTTP operations server"
         );
 
+        let service_discovery = Arc::clone(&self.service_discovery);
+
         tokio::spawn(async move {
-            let server = MetricsServer::with_service_info(
+            let server = MetricsServer::with_service_discovery(
                 metrics,
                 operations_addr,
                 "inferno-proxy".to_string(),
                 env!("CARGO_PKG_VERSION").to_string(),
+                service_discovery,
             );
 
             // Set the initial connected peers count to the number of configured backends
@@ -737,6 +751,15 @@ impl ProxyServer {
         );
 
         Ok(())
+    }
+}
+
+impl std::fmt::Debug for ProxyServer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProxyServer")
+            .field("local_addr", &self.local_addr)
+            .field("service_discovery", &"<ServiceDiscovery>")
+            .finish_non_exhaustive()
     }
 }
 
