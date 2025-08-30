@@ -877,16 +877,19 @@ mod tests {
             ..Default::default()
         };
         assert!(ProxyConfig::new(config.clone()).is_ok());
-        
+
         config.service_discovery_auth_mode = "shared_secret".to_string();
         config.service_discovery_shared_secret = Some("secret123".to_string());
         assert!(ProxyConfig::new(config.clone()).is_ok());
-        
+
         // Invalid auth mode
         config.service_discovery_auth_mode = "invalid".to_string();
         let result = ProxyConfig::new(config);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("invalid service_discovery_auth_mode"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("invalid service_discovery_auth_mode"));
     }
 
     #[test]
@@ -899,8 +902,11 @@ mod tests {
         };
         let result = ProxyConfig::new(config);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("service_discovery_shared_secret is required"));
-        
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("service_discovery_shared_secret is required"));
+
         // Shared secret mode with empty secret should fail
         let config = ProxyConfig {
             service_discovery_auth_mode: "shared_secret".to_string(),
@@ -909,22 +915,28 @@ mod tests {
         };
         let result = ProxyConfig::new(config);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("service_discovery_shared_secret cannot be empty"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("service_discovery_shared_secret cannot be empty"));
     }
 
     #[test]
     fn test_service_discovery_env_vars() {
         use std::env;
-        
+
         // Set environment variables
         env::set_var("INFERNO_SERVICE_DISCOVERY_AUTH_MODE", "shared_secret");
         env::set_var("INFERNO_SERVICE_DISCOVERY_SHARED_SECRET", "test-secret-123");
-        
+
         let config = ProxyConfig::from_env().unwrap();
-        
+
         assert_eq!(config.service_discovery_auth_mode, "shared_secret");
-        assert_eq!(config.service_discovery_shared_secret, Some("test-secret-123".to_string()));
-        
+        assert_eq!(
+            config.service_discovery_shared_secret,
+            Some("test-secret-123".to_string())
+        );
+
         // Clean up environment variables
         env::remove_var("INFERNO_SERVICE_DISCOVERY_AUTH_MODE");
         env::remove_var("INFERNO_SERVICE_DISCOVERY_SHARED_SECRET");
@@ -933,7 +945,7 @@ mod tests {
     #[test]
     fn test_default_service_discovery_config() {
         let config = ProxyConfig::default();
-        
+
         assert_eq!(config.service_discovery_auth_mode, "open");
         assert_eq!(config.service_discovery_shared_secret, None);
     }

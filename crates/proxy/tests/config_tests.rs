@@ -350,10 +350,13 @@ async fn test_proxy_cli_run_method() {
 
     // Since run() starts a server and waits for connections, we need to test with a timeout
     let run_future = cli.run();
-    
+
     // Test that it starts correctly (within a timeout)
     let result = tokio::time::timeout(std::time::Duration::from_millis(100), run_future).await;
-    
+
     // The run should timeout (which means it started correctly and is waiting for connections)
-    assert!(result.is_err(), "Proxy run method should timeout while waiting for connections");
+    assert!(
+        result.is_err(),
+        "Proxy run method should timeout while waiting for connections"
+    );
 }

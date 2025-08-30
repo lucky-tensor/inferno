@@ -146,10 +146,13 @@ async fn test_backend_cli_run_method() {
 
     // Since run() waits for ctrl+c, we need to test it in a timeout
     let run_future = cli.run();
-    
+
     // Test that it starts correctly (within a timeout)
     let result = tokio::time::timeout(std::time::Duration::from_millis(100), run_future).await;
-    
+
     // The run should timeout (which means it started correctly and is waiting for shutdown)
-    assert!(result.is_err(), "Backend run method should timeout while waiting for shutdown signal");
+    assert!(
+        result.is_err(),
+        "Backend run method should timeout while waiting for shutdown signal"
+    );
 }

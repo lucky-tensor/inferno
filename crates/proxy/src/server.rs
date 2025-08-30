@@ -202,7 +202,10 @@ impl ProxyServer {
                     // Use open mode (default)
                 }
                 _ => {
-                    warn!("Unknown service discovery auth mode '{}', falling back to open mode", config.service_discovery_auth_mode);
+                    warn!(
+                        "Unknown service discovery auth mode '{}', falling back to open mode",
+                        config.service_discovery_auth_mode
+                    );
                 }
             }
 
@@ -578,7 +581,10 @@ impl ProxyServer {
 
                 for peer in &all_peers {
                     // Only check backend peers for health (proxies manage themselves)
-                    if matches!(peer.node_type, inferno_shared::service_discovery::NodeType::Backend) {
+                    if matches!(
+                        peer.node_type,
+                        inferno_shared::service_discovery::NodeType::Backend
+                    ) {
                         let peer_addr = match peer.address.parse::<std::net::SocketAddr>() {
                             Ok(addr) => addr,
                             Err(e) => {
@@ -646,18 +652,23 @@ impl ProxyServer {
     ///
     /// Returns `Ok(())` if peer is healthy, `Err(InfernoError)` otherwise
     async fn check_peer_health(
-        peer: &inferno_shared::service_discovery::PeerInfo, 
-        peer_addr: &SocketAddr, 
-        config: &ProxyConfig
+        peer: &inferno_shared::service_discovery::PeerInfo,
+        peer_addr: &SocketAddr,
+        config: &ProxyConfig,
     ) -> Result<()> {
         debug!(peer_id = %peer.id, metrics_port = peer.metrics_port, "Performing peer health check via metrics endpoint");
 
         // Check the peer's metrics endpoint for health status
         let metrics_addr = std::net::SocketAddr::new(peer_addr.ip(), peer.metrics_port);
-        
+
         // Perform basic TCP connection test to metrics port
         // In a full implementation, this would make HTTP requests to /metrics endpoint
-        match tokio::time::timeout(config.health_check_timeout, tokio::net::TcpStream::connect(metrics_addr)).await {
+        match tokio::time::timeout(
+            config.health_check_timeout,
+            tokio::net::TcpStream::connect(metrics_addr),
+        )
+        .await
+        {
             Ok(Ok(_stream)) => {
                 debug!(peer_id = %peer.id, metrics_addr = %metrics_addr, "Peer metrics endpoint accessible");
                 Ok(())
@@ -845,7 +856,9 @@ impl ProxyServer {
         );
 
         // Convert backend addresses to peer URLs for registration attempts
-        let peer_urls: Vec<String> = self.config.backend_servers
+        let peer_urls: Vec<String> = self
+            .config
+            .backend_servers
             .iter()
             .map(|addr| format!("http://{}/registration", addr))
             .collect();
@@ -859,14 +872,18 @@ impl ProxyServer {
         );
 
         // Attempt to register with peers (non-blocking, allow failures)
-        match self.service_discovery.register_with_peers(&proxy_node_info, peer_urls).await {
+        match self
+            .service_discovery
+            .register_with_peers(&proxy_node_info, peer_urls)
+            .await
+        {
             Ok((successful_responses, failed_peers)) => {
                 info!(
                     successful_registrations = successful_responses.len(),
                     failed_registrations = failed_peers.len(),
                     "Completed startup peer discovery"
                 );
-                
+
                 if !failed_peers.is_empty() {
                     warn!(failed_peers = ?failed_peers, "Some peer registrations failed during startup");
                 }

@@ -181,17 +181,17 @@ impl ServiceDiscovery {
     /// ```
     pub async fn remove_peer(&self, peer_id: &str) -> ServiceDiscoveryResult<()> {
         debug!(peer_id = %peer_id, "Removing peer from service discovery");
-        
+
         let mut backends = self.backends.write().await;
         let mut registration_times = self.registration_times.write().await;
-        
+
         if backends.remove(peer_id).is_some() {
             registration_times.remove(peer_id);
             info!(peer_id = %peer_id, "Successfully removed peer from service discovery");
         } else {
             debug!(peer_id = %peer_id, "Peer not found in service discovery (already removed or never existed)");
         }
-        
+
         Ok(())
     }
 
