@@ -200,6 +200,7 @@ impl ServiceDiscovery {
         Ok(())
     }
 
+
     /// Registers a backend with the service discovery
     ///
     /// # Arguments
@@ -1135,6 +1136,7 @@ impl ServiceDiscovery {
         let handle = self.health_check_handle.read().await;
         handle.is_some()
     }
+
 
     /// Legacy method: Gets all backends with vitals for backward compatibility
     ///
