@@ -29,37 +29,47 @@
 //! ## Modular Architecture
 //!
 //! The service discovery system is organized into focused modules:
-//! - `types`: Core data structures (NodeType, NodeInfo, PeerInfo)
-//! - `auth`: Authentication modes and validation
-//! - `config`: Configuration structures and validation
-//! - `errors`: Specialized error types and handling
-//! - `health`: Health checking and vitals monitoring
-//! - `registration`: Registration protocol implementation (future)
-//! - `consensus`: Consensus algorithms for peer resolution (future)
-//! - `client`: HTTP client for peer communication (future)
-//! - `server`: HTTP server endpoints and handlers (future)
+//! - `types`: Core data structures (NodeType, NodeInfo, PeerInfo, BackendRegistration)
+//! - `auth`: Authentication modes (Open, SharedSecret) with Bearer token support
+//! - `config`: Configuration structures with environment variable support
+//! - `errors`: Specialized error types and comprehensive error handling
+//! - `health`: Health checking, vitals monitoring, and status reporting
+//! - `registration`: Enhanced registration protocol with peer information sharing
+//! - `consensus`: Consensus algorithms for distributed peer resolution
+//! - `client`: HTTP client for peer-to-peer communication
+//! - `server`: HTTP server endpoints and request handlers
+//! - `updates`: Self-sovereign update propagation with retry logic
+//! - `retry`: Exponential backoff and retry management with persistence
+//! - `validation`: Input validation, sanitization, and security hardening
 //!
 //! ## Usage Example
 //!
 //! ```rust
 //! use inferno_shared::service_discovery::{
-//!     ServiceDiscoveryConfig, NodeInfo, NodeType, AuthMode
+//!     ServiceDiscoveryConfig, NodeInfo, NodeType, AuthMode,
+//!     validate_and_sanitize_node_info, validate_address
 //! };
 //! use std::time::Duration;
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! // Configuration with authentication
+//! // Configuration with authentication and security hardening
 //! let config = ServiceDiscoveryConfig::with_shared_secret("secret123".to_string());
 //!
-//! // Create node information
-//! let node = NodeInfo::new(
+//! // Create and validate node information with input sanitization
+//! let mut node = NodeInfo::new(
 //!     "backend-1".to_string(),
 //!     "10.0.1.5:3000".to_string(),
 //!     9090,
 //!     NodeType::Backend
 //! );
 //!
-//! println!("Node {} capabilities: {:?}", node.id, node.capabilities);
+//! // Validate and sanitize input data for security
+//! let sanitized_node = validate_and_sanitize_node_info(node)?;
+//! println!("Node {} capabilities: {:?}", sanitized_node.id, sanitized_node.capabilities);
+//!
+//! // Address validation example
+//! let valid = validate_address("192.168.1.100:8080").is_ok();
+//! println!("Address is valid: {}", valid);
 //! # Ok(())
 //! # }
 //! ```

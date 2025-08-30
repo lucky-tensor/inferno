@@ -118,8 +118,7 @@
 - [x] Update propagation and conflict resolution tests with concurrent updates
 - [x] Error handling and edge case tests including malformed requests
 - [x] Performance regression tests for all new functionality
-- [ ] Chaos engineering tests for distributed scenarios ❌ **NOT IMPLEMENTED**: Only benchmarks with "network_partition" name exist, no real chaos engineering
-- [ ] End-to-end tests with real network conditions and latency ❌ **NOT IMPLEMENTED**: No tests with real network simulation found
+
 
 ## Phase 6: Essential Security and Performance ✅ PARTIALLY COMPLETED
 
@@ -140,6 +139,10 @@
 - [ ] Update existing documentation for new features
 
 ---
+
+# FUTURE WORK
+- [ ] Chaos engineering tests for distributed scenarios ❌ **NOT IMPLEMENTED**: Only benchmarks with "network_partition" name exist, no real chaos engineering
+- [ ] End-to-end tests with real network conditions and latency ❌ **NOT IMPLEMENTED**: No tests with real network simulation found
 
 ## Status Summary
 
