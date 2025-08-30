@@ -219,7 +219,7 @@ fn bench_address_validation(c: &mut Criterion) {
 fn bench_port_validation(c: &mut Criterion) {
     let mut group = c.benchmark_group("validation_port");
 
-    let test_ports = vec![
+    let test_ports = [
         1024, 3000, 8080, 9090, 6100, 5432, 27017, 65535,
     ];
 

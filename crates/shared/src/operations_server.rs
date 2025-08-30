@@ -48,7 +48,7 @@ use crate::error::{InfernoError, Result};
 use crate::metrics::MetricsCollector;
 use crate::service_discovery::{
     validate_and_sanitize_node_info, BackendRegistration, NodeVitals, RegistrationAction, 
-    RegistrationHandler, RegistrationRequest, ServiceDiscovery, ValidationError,
+    RegistrationHandler, RegistrationRequest, ServiceDiscovery,
 };
 use http::{Method, StatusCode};
 use hyper::service::{make_service_fn, service_fn};
@@ -582,7 +582,7 @@ async fn handle_metrics_request(
     connected_peers: Arc<AtomicU32>,
 ) -> Response<Body> {
     use std::time::Instant;
-    let start_time = Instant::now();
+    let _start_time = Instant::now();
     let snapshot = metrics.snapshot();
     let connected_peers_count = connected_peers.load(Ordering::Relaxed);
 
@@ -698,7 +698,7 @@ async fn handle_registration_request(
     metrics: Arc<MetricsCollector>,
 ) -> Response<Body> {
     use std::time::Instant;
-    let start_time = Instant::now();
+    let _start_time = Instant::now();
     debug!("Processing enhanced service registration request");
 
     // Record that we're processing a service discovery registration request
@@ -1517,7 +1517,7 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
         let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
-        let body_str = String::from_utf8(body.to_vec()).unwrap();
+        let _body_str = String::from_utf8(body.to_vec()).unwrap();
         let response_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         
         // Check for various possible error message formats

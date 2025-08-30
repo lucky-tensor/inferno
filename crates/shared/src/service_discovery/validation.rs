@@ -18,7 +18,7 @@
 //! - Memory allocation: zero-copy where possible
 //! - Thread-safe: all functions are stateless and thread-safe
 
-use crate::service_discovery::{NodeInfo, NodeType, PeerInfo};
+use crate::service_discovery::{NodeInfo, PeerInfo};
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
 
@@ -241,7 +241,7 @@ pub fn validate_address(address: &str) -> ValidationResult<()> {
     }
     
     // Try parsing as socket address first (handles IPv4, IPv6, hostname:port)
-    if let Ok(_) = SocketAddr::from_str(trimmed) {
+    if SocketAddr::from_str(trimmed).is_ok() {
         return Ok(());
     }
     
@@ -355,7 +355,7 @@ fn validate_hostname(hostname: &str, original_address: &str) -> ValidationResult
 /// assert!(validate_port(0).is_err());  // Invalid port
 /// ```
 pub fn validate_port(port: u16) -> ValidationResult<()> {
-    if port < MIN_PORT || port > MAX_PORT {
+    if !(MIN_PORT..=MAX_PORT).contains(&port) {
         return Err(ValidationError::InvalidPort {
             port,
             min: MIN_PORT,
