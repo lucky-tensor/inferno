@@ -7,6 +7,7 @@ use super::auth::AuthMode;
 use crate::error::{InfernoError, Result};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use tracing::debug;
 
 /// Service discovery configuration
 ///
@@ -261,6 +262,168 @@ impl ServiceDiscoveryConfig {
     pub fn validate_auth(&self, auth_header: Option<&str>) -> bool {
         self.auth_mode
             .validate_auth(auth_header, self.shared_secret.as_deref())
+    }
+
+    /// Creates configuration from environment variables with fallback to defaults
+    ///
+    /// This method loads configuration from environment variables, falling back
+    /// to default values for any missing variables. It supports all major
+    /// configuration parameters with standard environment variable naming.
+    ///
+    /// # Supported Environment Variables
+    ///
+    /// - `INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_INTERVAL`: Health check interval in seconds (default: 5)
+    /// - `INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_TIMEOUT`: Health check timeout in seconds (default: 2)
+    /// - `INFERNO_SERVICE_DISCOVERY_FAILURE_THRESHOLD`: Failure threshold count (default: 3)
+    /// - `INFERNO_SERVICE_DISCOVERY_RECOVERY_THRESHOLD`: Recovery threshold count (default: 2)
+    /// - `INFERNO_SERVICE_DISCOVERY_REGISTRATION_TIMEOUT`: Registration timeout in seconds (default: 30)
+    /// - `INFERNO_SERVICE_DISCOVERY_ENABLE_LOGGING`: Enable health check logging (default: false)
+    /// - `INFERNO_SERVICE_DISCOVERY_AUTH_MODE`: Authentication mode ("open" or "shared_secret", default: "open")
+    /// - `INFERNO_SERVICE_DISCOVERY_SHARED_SECRET`: Shared secret for authentication (required if auth_mode is "shared_secret")
+    ///
+    /// # Returns
+    ///
+    /// Returns a new configuration loaded from environment variables with
+    /// defaults for any missing variables.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Environment variable values are invalid (non-numeric for numeric fields)
+    /// - SharedSecret mode is specified but no shared secret is provided
+    /// - Configuration validation fails after loading
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use inferno_shared::service_discovery::{ServiceDiscoveryConfig, AuthMode};
+    /// use std::env;
+    ///
+    /// // Set environment variables
+    /// env::set_var("INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_INTERVAL", "10");
+    /// env::set_var("INFERNO_SERVICE_DISCOVERY_AUTH_MODE", "shared_secret");
+    /// env::set_var("INFERNO_SERVICE_DISCOVERY_SHARED_SECRET", "my-secret-token");
+    ///
+    /// # fn test_config() -> Result<(), Box<dyn std::error::Error>> {
+    /// let config = ServiceDiscoveryConfig::from_env()?;
+    /// assert_eq!(config.health_check_interval.as_secs(), 10);
+    /// assert_eq!(config.auth_mode, AuthMode::SharedSecret);
+    /// assert_eq!(config.shared_secret, Some("my-secret-token".to_string()));
+    ///
+    /// // Clean up
+    /// env::remove_var("INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_INTERVAL");
+    /// env::remove_var("INFERNO_SERVICE_DISCOVERY_AUTH_MODE");
+    /// env::remove_var("INFERNO_SERVICE_DISCOVERY_SHARED_SECRET");
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn from_env() -> Result<Self> {
+        debug!("Loading service discovery configuration from environment variables");
+
+        let health_check_interval = Self::env_duration("INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_INTERVAL", 5)?;
+        let health_check_timeout = Self::env_duration("INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_TIMEOUT", 2)?;
+        let failure_threshold = Self::env_u32("INFERNO_SERVICE_DISCOVERY_FAILURE_THRESHOLD", 3)?;
+        let recovery_threshold = Self::env_u32("INFERNO_SERVICE_DISCOVERY_RECOVERY_THRESHOLD", 2)?;
+        let registration_timeout = Self::env_duration("INFERNO_SERVICE_DISCOVERY_REGISTRATION_TIMEOUT", 30)?;
+        let enable_health_check_logging = Self::env_bool("INFERNO_SERVICE_DISCOVERY_ENABLE_LOGGING", false)?;
+
+        let auth_mode_str = std::env::var("INFERNO_SERVICE_DISCOVERY_AUTH_MODE")
+            .unwrap_or_else(|_| "open".to_string())
+            .to_lowercase();
+
+        let auth_mode = match auth_mode_str.as_str() {
+            "open" => AuthMode::Open,
+            "shared_secret" => AuthMode::SharedSecret,
+            other => {
+                return Err(InfernoError::configuration(
+                    format!("Invalid auth mode '{}'. Must be 'open' or 'shared_secret'", other),
+                    None,
+                ));
+            }
+        };
+
+        let shared_secret = std::env::var("INFERNO_SERVICE_DISCOVERY_SHARED_SECRET")
+            .ok()
+            .filter(|s| !s.is_empty());
+
+        let has_shared_secret = shared_secret.is_some();
+
+        let config = Self {
+            health_check_interval,
+            health_check_timeout,
+            failure_threshold,
+            recovery_threshold,
+            registration_timeout,
+            enable_health_check_logging,
+            auth_mode,
+            shared_secret,
+        };
+
+        // Validate the loaded configuration
+        config.validate()?;
+
+        debug!(
+            health_check_interval_secs = health_check_interval.as_secs(),
+            health_check_timeout_secs = health_check_timeout.as_secs(),
+            failure_threshold = failure_threshold,
+            recovery_threshold = recovery_threshold,
+            registration_timeout_secs = registration_timeout.as_secs(),
+            enable_logging = enable_health_check_logging,
+            auth_mode = %auth_mode,
+            has_shared_secret = has_shared_secret,
+            "Service discovery configuration loaded from environment"
+        );
+
+        Ok(config)
+    }
+
+    /// Helper method to parse duration from environment variable
+    fn env_duration(var_name: &str, default_secs: u64) -> Result<Duration> {
+        match std::env::var(var_name) {
+            Ok(value) => {
+                let secs = value.parse::<u64>().map_err(|e| {
+                    InfernoError::configuration(
+                        format!("Invalid value for {}: '{}' (must be a positive integer): {}", var_name, value, e),
+                        None,
+                    )
+                })?;
+                Ok(Duration::from_secs(secs))
+            }
+            Err(_) => Ok(Duration::from_secs(default_secs)),
+        }
+    }
+
+    /// Helper method to parse u32 from environment variable
+    fn env_u32(var_name: &str, default: u32) -> Result<u32> {
+        match std::env::var(var_name) {
+            Ok(value) => {
+                value.parse::<u32>().map_err(|e| {
+                    InfernoError::configuration(
+                        format!("Invalid value for {}: '{}' (must be a positive integer): {}", var_name, value, e),
+                        None,
+                    )
+                })
+            }
+            Err(_) => Ok(default),
+        }
+    }
+
+    /// Helper method to parse boolean from environment variable
+    fn env_bool(var_name: &str, default: bool) -> Result<bool> {
+        match std::env::var(var_name) {
+            Ok(value) => {
+                let normalized = value.to_lowercase();
+                match normalized.as_str() {
+                    "true" | "1" | "yes" | "on" => Ok(true),
+                    "false" | "0" | "no" | "off" => Ok(false),
+                    _ => Err(InfernoError::configuration(
+                        format!("Invalid boolean value for {}: '{}' (must be true/false, 1/0, yes/no, or on/off)", var_name, value),
+                        None,
+                    )),
+                }
+            }
+            Err(_) => Ok(default),
+        }
     }
 }
 

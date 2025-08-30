@@ -521,6 +521,9 @@ async fn handle_request(
         (&Method::GET, "/metrics") => {
             handle_metrics_request(metrics, service_name, version, connected_peers).await
         }
+        (&Method::GET, "/telemetry") => {
+            handle_telemetry_request(metrics, service_name, version, connected_peers).await
+        }
         (&Method::GET, "/health") => handle_health_request().await,
         (&Method::POST, "/registration") => {
             handle_registration_request(req, service_discovery, Arc::clone(&metrics)).await
@@ -639,6 +642,94 @@ async fn handle_metrics_request(
                 .unwrap_or_else(|_| Response::new(Body::empty()))
         }
     }
+}
+
+/// Handles the /telemetry endpoint request
+///
+/// This function provides Prometheus-formatted metrics as specified in the
+/// service discovery specification. It returns the same underlying data as
+/// the /metrics endpoint but in Prometheus text format instead of JSON.
+///
+/// # Prometheus Format Specification
+///
+/// Returns metrics in Prometheus exposition format with proper HELP and TYPE
+/// metadata for monitoring system integration.
+async fn handle_telemetry_request(
+    metrics: Arc<MetricsCollector>,
+    _service_name: String,
+    _version: String,
+    connected_peers: Arc<AtomicU32>,
+) -> Response<Body> {
+    use std::time::Instant;
+    let _start_time = Instant::now();
+    let snapshot = metrics.snapshot();
+    let connected_peers_count = connected_peers.load(Ordering::Relaxed);
+
+    // Build Prometheus format metrics
+    let mut prometheus_output = String::new();
+
+    // Node ready status
+    prometheus_output.push_str("# HELP node_ready Whether the node is ready to receive requests\n");
+    prometheus_output.push_str("# TYPE node_ready gauge\n");
+    prometheus_output.push_str("node_ready 1\n\n");
+
+    // Active requests
+    prometheus_output.push_str("# HELP requests_in_progress Current number of requests being processed\n");
+    prometheus_output.push_str("# TYPE requests_in_progress gauge\n");
+    prometheus_output.push_str(&format!("requests_in_progress {}\n\n", snapshot.active_requests));
+
+    // CPU usage (placeholder until real CPU monitoring is implemented)
+    prometheus_output.push_str("# HELP cpu_usage_percent CPU usage percentage\n");
+    prometheus_output.push_str("# TYPE cpu_usage_percent gauge\n");
+    prometheus_output.push_str("cpu_usage_percent 0.0\n\n");
+
+    // Memory usage (placeholder until real memory monitoring is implemented)
+    prometheus_output.push_str("# HELP memory_usage_percent Memory usage percentage\n");
+    prometheus_output.push_str("# TYPE memory_usage_percent gauge\n");
+    prometheus_output.push_str("memory_usage_percent 0.0\n\n");
+
+    // Total requests (counter)
+    prometheus_output.push_str("# HELP http_requests_total Total number of HTTP requests processed\n");
+    prometheus_output.push_str("# TYPE http_requests_total counter\n");
+    prometheus_output.push_str(&format!("http_requests_total {}\n\n", snapshot.total_requests));
+
+    // Failed responses (counter)
+    prometheus_output.push_str("# HELP failed_responses_total Total number of failed responses\n");
+    prometheus_output.push_str("# TYPE failed_responses_total counter\n");
+    prometheus_output.push_str(&format!("failed_responses_total {}\n\n", snapshot.total_errors));
+
+    // Connected peers
+    prometheus_output.push_str("# HELP connected_peers Number of connected peers\n");
+    prometheus_output.push_str("# TYPE connected_peers gauge\n");
+    prometheus_output.push_str(&format!("connected_peers {}\n\n", connected_peers_count));
+
+    // Uptime in seconds
+    prometheus_output.push_str("# HELP uptime_seconds Uptime of the service in seconds\n");
+    prometheus_output.push_str("# TYPE uptime_seconds gauge\n");
+    prometheus_output.push_str(&format!("uptime_seconds {}\n\n", snapshot.uptime.as_secs()));
+
+    debug!(
+        active_requests = snapshot.active_requests,
+        total_requests = snapshot.total_requests,
+        total_errors = snapshot.total_errors,
+        connected_peers = connected_peers_count,
+        uptime_secs = snapshot.uptime.as_secs(),
+        "Returning Prometheus telemetry metrics"
+    );
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("content-type", "text/plain; version=0.0.4")
+        .header("cache-control", "no-cache, no-store, must-revalidate")
+        .header("expires", "0")
+        .body(Body::from(prometheus_output))
+        .unwrap_or_else(|e| {
+            error!(error = %e, "Failed to build telemetry response");
+            Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Body::empty())
+                .unwrap()
+        })
 }
 
 /// Handles the /health endpoint request
