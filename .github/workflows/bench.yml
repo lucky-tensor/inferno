@@ -20,6 +20,11 @@ jobs:
           cache-on-failure: true
       - name: Install cargo-criterion
         run: cargo install cargo-criterion
+      - name: Fetch baseline benchmark data from main
+        run: |
+          # Fetch the .prior_bench folder from origin/main to ensure clean baseline
+          git fetch origin main
+          git checkout origin/main -- .prior_bench || echo "No .prior_bench folder found on main branch"
       - name: Run benchmarks and check for regressions
         run: ./benchmarking/check-performance.sh
       - name: Upload benchmark artifacts
