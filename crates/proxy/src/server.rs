@@ -92,6 +92,8 @@ use tracing::{debug, error, info, instrument, warn};
 /// #       operations_addr: "127.0.0.1:6100".parse()?,
 /// #       load_balancing_algorithm: "round_robin".to_string(),
 /// #       backend_servers: Vec::new(),
+/// #       service_discovery_auth_mode: "open".to_string(),
+/// #       service_discovery_shared_secret: None,
 ///     };
 ///
 ///     let server = ProxyServer::new(config).await?;
@@ -196,8 +198,11 @@ impl ProxyServer {
                         warn!("Service discovery auth mode is shared_secret but no secret provided, falling back to open mode");
                     }
                 }
-                "open" | _ => {
+                "open" => {
                     // Use open mode (default)
+                }
+                _ => {
+                    warn!("Unknown service discovery auth mode '{}', falling back to open mode", config.service_discovery_auth_mode);
                 }
             }
 

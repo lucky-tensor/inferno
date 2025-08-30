@@ -871,10 +871,11 @@ mod tests {
 
     #[test]
     fn test_service_discovery_auth_mode_validation() {
-        let mut config = ProxyConfig::default();
-        
         // Valid auth modes
-        config.service_discovery_auth_mode = "open".to_string();
+        let mut config = ProxyConfig {
+            service_discovery_auth_mode: "open".to_string(),
+            ..Default::default()
+        };
         assert!(ProxyConfig::new(config.clone()).is_ok());
         
         config.service_discovery_auth_mode = "shared_secret".to_string();
@@ -890,19 +891,22 @@ mod tests {
 
     #[test]
     fn test_service_discovery_shared_secret_validation() {
-        let mut config = ProxyConfig::default();
-        
         // Shared secret mode without secret should fail
-        config.service_discovery_auth_mode = "shared_secret".to_string();
-        config.service_discovery_shared_secret = None;
+        let config = ProxyConfig {
+            service_discovery_auth_mode: "shared_secret".to_string(),
+            service_discovery_shared_secret: None,
+            ..Default::default()
+        };
         let result = ProxyConfig::new(config);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("service_discovery_shared_secret is required"));
         
         // Shared secret mode with empty secret should fail
-        let mut config = ProxyConfig::default();
-        config.service_discovery_auth_mode = "shared_secret".to_string();
-        config.service_discovery_shared_secret = Some("".to_string());
+        let config = ProxyConfig {
+            service_discovery_auth_mode: "shared_secret".to_string(),
+            service_discovery_shared_secret: Some("".to_string()),
+            ..Default::default()
+        };
         let result = ProxyConfig::new(config);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("service_discovery_shared_secret cannot be empty"));
