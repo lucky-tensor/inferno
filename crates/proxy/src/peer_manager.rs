@@ -70,11 +70,10 @@ impl BackendPeer {
         let resource_weight = 1.0;
         let failure_weight = 0.1;
 
-        (vitals.requests_in_progress as f64 * requests_weight)
-            + (vitals.backoff_requests as f64 * requests_weight)
-            + ((vitals.cpu_usage / 100.0) * resource_weight)
-            + ((vitals.memory_usage / 100.0) * resource_weight)
-            + (vitals.failed_responses as f64 * failure_weight)
+        (vitals.active_requests.unwrap_or(0) as f64 * requests_weight)
+            + ((vitals.cpu_usage.unwrap_or(0.0) / 100.0) * resource_weight)
+            + ((vitals.memory_usage.unwrap_or(0.0) / 100.0) * resource_weight)
+            + ((vitals.error_rate.unwrap_or(0.0) / 100.0) * failure_weight)
     }
 
     /// Returns true if this peer is available for traffic
@@ -86,7 +85,7 @@ impl BackendPeer {
     pub fn current_load(&self) -> u32 {
         self.vitals
             .as_ref()
-            .map_or(0, |v| v.requests_in_progress + v.backoff_requests)
+            .map_or(0, |v| v.active_requests.unwrap_or(0) as u32)
     }
 }
 
@@ -208,7 +207,7 @@ impl PeerManager {
             debug!(
                 selected_peer = %peer.address,
                 performance_score = ?peer.performance_score,
-                requests_in_progress = peer.vitals.as_ref().map(|v| v.requests_in_progress),
+                requests_in_progress = peer.vitals.as_ref().and_then(|v| v.active_requests).map(|r| r as u32),
                 cpu_usage = peer.vitals.as_ref().map(|v| v.cpu_usage),
                 "Selected peer with best performance score"
             );
@@ -260,29 +259,26 @@ mod tests {
     use super::*;
     use inferno_shared::service_discovery::NodeVitals;
 
-    fn create_test_vitals(requests: u32, cpu: f64, memory: f64, failed: u64) -> NodeVitals {
+    fn create_test_vitals(requests: u32, cpu: f64, memory: f64, error_rate: f64) -> NodeVitals {
         NodeVitals {
             ready: true,
-            requests_in_progress: requests,
-            cpu_usage: cpu,
-            memory_usage: memory,
-            gpu_usage: 0.0,
-            failed_responses: failed,
-            connected_peers: 10,
-            backoff_requests: 0,
-            uptime_seconds: 3600,
-            version: "1.0.0".to_string(),
+            cpu_usage: Some(cpu),
+            memory_usage: Some(memory),
+            active_requests: Some(requests as u64),
+            avg_response_time_ms: Some(100.0),
+            error_rate: Some(error_rate),
+            status_message: Some("healthy".to_string()),
         }
     }
 
     #[test]
     fn test_backend_peer_score_calculation() {
-        let vitals = create_test_vitals(5, 50.0, 60.0, 2);
+        let vitals = create_test_vitals(5, 50.0, 60.0, 2.0);
         let score = BackendPeer::calculate_score(&vitals);
 
-        // Expected: (5 * 2.0) + (0 * 2.0) + (0.5 * 1.0) + (0.6 * 1.0) + (2 * 0.1)
-        // = 10.0 + 0.0 + 0.5 + 0.6 + 0.2 = 11.3
-        assert!((score - 11.3).abs() < 0.01);
+        // Expected: (5 * 2.0) + (0.5 * 1.0) + (0.6 * 1.0) + (0.02 * 0.1)
+        // = 10.0 + 0.5 + 0.6 + 0.002 = 11.102
+        assert!((score - 11.102).abs() < 0.01);
     }
 
     #[test]
@@ -292,12 +288,12 @@ mod tests {
             "test1".to_string(),
             "127.0.0.1:3000".to_string(),
             true,
-            Some(create_test_vitals(5, 50.0, 60.0, 2)),
+            Some(create_test_vitals(5, 50.0, 60.0, 2.0)),
         );
         assert!(peer1.is_available());
 
         // Healthy but not ready
-        let mut vitals = create_test_vitals(5, 50.0, 60.0, 2);
+        let mut vitals = create_test_vitals(5, 50.0, 60.0, 2.0);
         vitals.ready = false;
         let peer2 = BackendPeer::new(
             "test2".to_string(),
@@ -312,7 +308,7 @@ mod tests {
             "test3".to_string(),
             "127.0.0.1:3002".to_string(),
             false,
-            Some(create_test_vitals(5, 50.0, 60.0, 2)),
+            Some(create_test_vitals(5, 50.0, 60.0, 2.0)),
         );
         assert!(!peer3.is_available());
     }
