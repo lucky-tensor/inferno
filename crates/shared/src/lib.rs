@@ -32,5 +32,7 @@ pub use operations_server::OperationsServer;
 // Backward compatibility alias
 pub use operations_server::OperationsServer as MetricsServer;
 pub use service_discovery::{
-    BackendRegistration, NodeVitals, ServiceDiscovery, ServiceDiscoveryConfig,
+    AuthMode, BackendRegistration, HealthCheckResult, HealthChecker, HttpHealthChecker, NodeInfo,
+    NodeType, NodeVitals, PeerInfo, ServiceDiscovery, ServiceDiscoveryConfig,
+    ServiceDiscoveryError, ServiceDiscoveryResult,
 };

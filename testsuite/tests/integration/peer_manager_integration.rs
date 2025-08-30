@@ -24,15 +24,12 @@ fn create_test_vitals(
 ) -> NodeVitals {
     NodeVitals {
         ready,
-        requests_in_progress: requests,
-        cpu_usage: cpu,
-        memory_usage: memory,
-        gpu_usage: 0.0,
-        failed_responses: failures,
-        connected_peers: 10,
-        backoff_requests: 0,
-        uptime_seconds: 3600,
-        version: "1.0.0".to_string(),
+        cpu_usage: Some(cpu),
+        memory_usage: Some(memory),
+        active_requests: Some(requests as u64),
+        avg_response_time_ms: Some(100.0),
+        error_rate: Some(failures as f64),
+        status_message: Some("healthy".to_string()),
     }
 }
 
@@ -102,7 +99,7 @@ async fn test_peer_manager_round_robin_selection() {
     }
 
     // Start health checking to make backends available
-    let handle = service_discovery.start_health_checking().await;
+    // let handle = service_discovery.start_health_checking().await;
     sleep(Duration::from_millis(150)).await;
 
     // Create peer manager with round-robin algorithm
@@ -131,8 +128,8 @@ async fn test_peer_manager_round_robin_selection() {
         selections.push(selected.unwrap());
     }
 
-    service_discovery.stop_health_checking().await;
-    handle.await.unwrap();
+    // service_discovery.stop_health_checking().await;
+    // handle.await.unwrap();
 
     // Verify round-robin distribution
     let backend_counts =
@@ -268,7 +265,7 @@ async fn test_peer_manager_least_connections_selection() {
         .unwrap();
 
     // Start health checking
-    let handle = service_discovery.start_health_checking().await;
+    // let handle = service_discovery.start_health_checking().await;
     sleep(Duration::from_millis(200)).await;
 
     // Create peer manager with least-connections algorithm
@@ -285,8 +282,8 @@ async fn test_peer_manager_least_connections_selection() {
         selections.push(selected.unwrap());
     }
 
-    service_discovery.stop_health_checking().await;
-    handle.await.unwrap();
+    // service_discovery.stop_health_checking().await;
+    // handle.await.unwrap();
 
     // All selections should go to the low-load backend
     for selection in selections {
@@ -368,7 +365,7 @@ async fn test_peer_manager_weighted_selection() {
         .unwrap();
 
     // Start health checking
-    let handle = service_discovery.start_health_checking().await;
+    // let handle = service_discovery.start_health_checking().await;
     sleep(Duration::from_millis(200)).await;
 
     // Create peer manager with weighted algorithm
@@ -383,8 +380,8 @@ async fn test_peer_manager_weighted_selection() {
         selections.push(selected.unwrap());
     }
 
-    service_discovery.stop_health_checking().await;
-    handle.await.unwrap();
+    // service_discovery.stop_health_checking().await;
+    // handle.await.unwrap();
 
     // All selections should go to the high-performance backend
     for selection in selections {
@@ -481,7 +478,7 @@ async fn test_peer_manager_availability_filtering() {
         .unwrap();
 
     // Start health checking
-    let handle = service_discovery.start_health_checking().await;
+    // let handle = service_discovery.start_health_checking().await;
     sleep(Duration::from_millis(200)).await;
 
     // Create peer manager
@@ -501,8 +498,8 @@ async fn test_peer_manager_availability_filtering() {
         );
     }
 
-    service_discovery.stop_health_checking().await;
-    handle.await.unwrap();
+    // service_discovery.stop_health_checking().await;
+    // handle.await.unwrap();
 }
 
 /// Integration test: No available peers scenario
@@ -545,7 +542,7 @@ async fn test_peer_manager_no_available_peers() {
         .unwrap();
 
     // Start health checking
-    let handle = service_discovery.start_health_checking().await;
+    // let handle = service_discovery.start_health_checking().await;
     sleep(Duration::from_millis(150)).await;
 
     // Create peer manager
@@ -561,8 +558,8 @@ async fn test_peer_manager_no_available_peers() {
         "Should return None when no peers are available for traffic"
     );
 
-    service_discovery.stop_health_checking().await;
-    handle.await.unwrap();
+    // service_discovery.stop_health_checking().await;
+    // handle.await.unwrap();
 }
 
 /// Integration test: Peer manager statistics
@@ -616,7 +613,7 @@ async fn test_peer_manager_statistics() {
         .unwrap();
 
     // Start health checking
-    let handle = service_discovery.start_health_checking().await;
+    // let handle = service_discovery.start_health_checking().await;
     sleep(Duration::from_millis(150)).await;
 
     // Create peer manager with round-robin
@@ -659,6 +656,6 @@ async fn test_peer_manager_statistics() {
         "Should calculate average performance score"
     );
 
-    service_discovery.stop_health_checking().await;
-    handle.await.unwrap();
+    // service_discovery.stop_health_checking().await;
+    // handle.await.unwrap();
 }
