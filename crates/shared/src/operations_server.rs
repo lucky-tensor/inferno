@@ -905,4 +905,45 @@ mod tests {
         let result = server.start().await;
         assert!(result.is_err()); // Server start should fail due to permission denied
     }
+
+    #[tokio::test]
+    async fn test_with_service_discovery() {
+        let metrics = Arc::new(MetricsCollector::new());
+        let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
+        let service_discovery = Arc::new(crate::service_discovery::ServiceDiscovery::new());
+        
+        let server = MetricsServer::with_service_discovery(
+            metrics,
+            addr,
+            "test-service".to_string(),
+            "1.0.0".to_string(),
+            service_discovery,
+        );
+
+        assert_eq!(server.service_name, "test-service");
+        assert_eq!(server.version, "1.0.0");
+        assert_eq!(server.bind_addr, addr);
+        assert!(server.service_discovery.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_bind_addr_accessor() {
+        let metrics = Arc::new(MetricsCollector::new());
+        let addr: SocketAddr = "127.0.0.1:9999".parse().unwrap();
+        let server = MetricsServer::new(metrics, addr);
+
+        assert_eq!(server.bind_addr(), addr);
+    }
+
+    #[tokio::test]
+    async fn test_server_shutdown() {
+        let metrics = Arc::new(MetricsCollector::new());
+        let addr: SocketAddr = "127.0.0.1:0".parse().unwrap(); // Use port 0 for auto-assign
+        let mut server = MetricsServer::new(metrics, addr);
+
+        // Test shutdown without starting - should return an error indicating server is not running
+        let result = server.shutdown().await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Server is not running"));
+    }
 }

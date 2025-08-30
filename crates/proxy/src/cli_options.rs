@@ -112,7 +112,7 @@ impl ProxyCliOptions {
     }
 
     /// Convert CLI options to ProxyConfig
-    fn to_config(&self) -> Result<ProxyConfig> {
+    pub fn to_config(&self) -> Result<ProxyConfig> {
         // Parse backend servers if provided
         let backend_servers = self
             .backend_servers
