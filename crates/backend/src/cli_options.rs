@@ -207,6 +207,8 @@ impl BackendCliOptions {
             health_check_path: self.health_check.health_check_path.clone(),
             registration_endpoint,
             service_name: self.service_discovery.get_service_name("inferno-backend"),
+            service_discovery_auth_mode: "open".to_string(),
+            service_discovery_shared_secret: None,
         })
     }
 }

@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tracing::{debug, instrument, warn};
+use tracing::{debug, info, instrument, warn};
 
 /// Main service discovery implementation
 ///
@@ -130,6 +130,69 @@ impl ServiceDiscovery {
             update_propagator: UpdatePropagator::new(),
             retry_manager: RetryManager::new(),
         }
+    }
+
+    /// Returns a reference to the service discovery configuration
+    ///
+    /// # Returns
+    ///
+    /// Returns the current service discovery configuration including authentication settings.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use inferno_shared::service_discovery::{ServiceDiscovery, AuthMode};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let discovery = ServiceDiscovery::new();
+    /// let config = discovery.get_config().await;
+    /// assert_eq!(config.auth_mode, AuthMode::Open);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn get_config(&self) -> &ServiceDiscoveryConfig {
+        &self.config
+    }
+
+    /// Removes a peer from service discovery by ID
+    ///
+    /// This method removes a peer from the known peers list, typically called
+    /// when a peer is determined to be unhealthy or no longer reachable.
+    ///
+    /// # Arguments
+    ///
+    /// * `peer_id` - The ID of the peer to remove
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if the peer was successfully removed or didn't exist,
+    /// or an error if the removal failed.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use inferno_shared::service_discovery::ServiceDiscovery;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let discovery = ServiceDiscovery::new();
+    /// discovery.remove_peer("unhealthy-backend-1").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn remove_peer(&self, peer_id: &str) -> ServiceDiscoveryResult<()> {
+        debug!(peer_id = %peer_id, "Removing peer from service discovery");
+        
+        let mut backends = self.backends.write().await;
+        let mut registration_times = self.registration_times.write().await;
+        
+        if backends.remove(peer_id).is_some() {
+            registration_times.remove(peer_id);
+            info!(peer_id = %peer_id, "Successfully removed peer from service discovery");
+        } else {
+            debug!(peer_id = %peer_id, "Peer not found in service discovery (already removed or never existed)");
+        }
+        
+        Ok(())
     }
 
     /// Registers a backend with the service discovery

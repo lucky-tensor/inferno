@@ -22,7 +22,9 @@
 //!
 //! - `GET /metrics`: Returns NodeVitals JSON for service discovery
 //! - `GET /health`: Simple health check endpoint
-//! - `POST /registration`: Service discovery registration endpoint
+//! - `POST /registration`: Service discovery registration endpoint (with authentication)
+//! - `GET /peers`: Returns JSON array of all known peers (debugging/monitoring)
+//! - `GET /service-discovery/status`: Returns service discovery system status and configuration
 //!
 //! ## Usage Example
 //!
@@ -96,6 +98,8 @@ pub struct OperationsServer {
     connected_peers: Arc<AtomicU32>,
     /// Optional service discovery for backend registration (proxy only)
     service_discovery: Option<Arc<ServiceDiscovery>>,
+    /// Node type for clustering (None means no clustering)
+    node_type: Option<crate::service_discovery::NodeType>,
     /// Shutdown signal sender
     shutdown_tx: Option<oneshot::Sender<()>>,
 }
@@ -139,6 +143,7 @@ impl OperationsServer {
             version: env!("CARGO_PKG_VERSION").to_string(),
             connected_peers: Arc::new(AtomicU32::new(0)),
             service_discovery: None,
+            node_type: None,
             shutdown_tx: None,
         }
     }
@@ -180,6 +185,7 @@ impl OperationsServer {
             version,
             connected_peers: Arc::new(AtomicU32::new(0)),
             service_discovery: None,
+            node_type: None,
             shutdown_tx: None,
         }
     }
@@ -199,6 +205,31 @@ impl OperationsServer {
             version,
             connected_peers: Arc::new(AtomicU32::new(0)),
             service_discovery: Some(service_discovery),
+            node_type: None,
+            shutdown_tx: None,
+        }
+    }
+
+    /// Creates a metrics server with clustering support
+    ///
+    /// This creates an operations server that can participate in a cluster
+    /// by registering itself with service discovery and discovering other nodes.
+    pub fn with_clustering(
+        metrics: Arc<MetricsCollector>,
+        bind_addr: SocketAddr,
+        service_name: String,
+        version: String,
+        service_discovery: Arc<ServiceDiscovery>,
+        node_type: crate::service_discovery::NodeType,
+    ) -> Self {
+        Self {
+            metrics,
+            bind_addr,
+            service_name,
+            version,
+            connected_peers: Arc::new(AtomicU32::new(0)),
+            service_discovery: Some(service_discovery),
+            node_type: Some(node_type),
             shutdown_tx: None,
         }
     }
@@ -279,6 +310,31 @@ impl OperationsServer {
         // Create shutdown channel
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
         self.shutdown_tx = Some(shutdown_tx);
+
+        // Perform self-registration if clustering is enabled
+        if let (Some(service_discovery), Some(node_type)) = (&self.service_discovery, &self.node_type) {
+            info!(
+                bind_addr = %self.bind_addr,
+                node_type = %node_type,
+                "Registering operations server for clustering"
+            );
+
+            // Create node info for this operations server
+            let node_info = crate::service_discovery::NodeInfo::new(
+                format!("{}-operations-{}", self.service_name, self.bind_addr.port()),
+                self.bind_addr.to_string(),
+                self.bind_addr.port(),  // Operations server uses same port for metrics
+                *node_type,
+            );
+
+            // Register ourselves with the service discovery system
+            let registration = crate::service_discovery::BackendRegistration::from_node_info(&node_info);
+            if let Err(e) = service_discovery.register_backend(registration).await {
+                warn!(error = %e, "Failed to self-register operations server with service discovery");
+            } else {
+                info!("Successfully registered operations server with service discovery");
+            }
+        }
 
         // Clone data for the service closure
         let metrics = Arc::clone(&self.metrics);
@@ -410,6 +466,7 @@ impl std::fmt::Debug for OperationsServer {
             .field("service_name", &self.service_name)
             .field("version", &self.version)
             .field("service_discovery", &self.service_discovery.is_some())
+            .field("node_type", &self.node_type)
             .finish_non_exhaustive()
     }
 }
@@ -435,6 +492,9 @@ impl std::fmt::Debug for OperationsServer {
 ///
 /// - `GET /metrics` - Returns NodeVitals JSON
 /// - `GET /health` - Returns simple health check
+/// - `POST /registration` - Service discovery registration (with authentication)
+/// - `GET /peers` - Returns peer information for debugging
+/// - `GET /service-discovery/status` - Returns service discovery status
 /// - Other paths return 404 Not Found
 #[instrument(skip_all, fields(method = ?req.method(), path = req.uri().path()))]
 async fn handle_request(
@@ -461,6 +521,12 @@ async fn handle_request(
         (&Method::GET, "/health") => handle_health_request().await,
         (&Method::POST, "/registration") => {
             handle_registration_request(req, service_discovery).await
+        }
+        (&Method::GET, "/peers") => {
+            handle_peers_request(service_discovery).await
+        }
+        (&Method::GET, "/service-discovery/status") => {
+            handle_service_discovery_status_request(service_discovery).await
         }
         _ => {
             warn!(
@@ -601,15 +667,41 @@ async fn handle_health_request() -> Response<Body> {
         })
 }
 
-/// Handles enhanced service discovery registration requests
+/// Handles enhanced service discovery registration requests with authentication
 ///
 /// Supports both legacy BackendRegistration format and enhanced RegistrationRequest format
-/// with peer information sharing in responses.
+/// with peer information sharing in responses. Includes authentication middleware when
+/// service discovery is configured.
 async fn handle_registration_request(
     req: Request<Body>,
     service_discovery: Option<Arc<ServiceDiscovery>>,
 ) -> Response<Body> {
     debug!("Processing enhanced service registration request");
+
+    // Extract Authorization header for authentication if service discovery is configured
+    let auth_header = req
+        .headers()
+        .get("authorization")
+        .and_then(|h| h.to_str().ok());
+
+    // If service discovery is configured, validate authentication
+    if let Some(ref discovery) = service_discovery {
+        let config = discovery.get_config().await;
+        if !config.validate_auth(auth_header) {
+            warn!(
+                auth_mode = %config.auth_mode,
+                has_auth_header = auth_header.is_some(),
+                "Registration request failed authentication"
+            );
+            return Response::builder()
+                .status(StatusCode::UNAUTHORIZED)
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    "{\"error\":\"Authentication required\",\"auth_mode\":\"shared_secret\"}"
+                ))
+                .unwrap_or_else(|_| Response::new(Body::empty()));
+        }
+    }
 
     // Read the request body
     let body_bytes = match hyper::body::to_bytes(req.into_body()).await {
@@ -778,6 +870,161 @@ async fn handle_registration_request(
     }
 }
 
+/// Handles the /peers endpoint request for peer information debugging
+///
+/// This endpoint returns a JSON array of all known peers in the service discovery system.
+/// It's primarily intended for debugging and monitoring purposes.
+///
+/// # Returns
+///
+/// Returns an HTTP 200 response with a JSON array of peer information,
+/// or HTTP 503 if service discovery is not available.
+#[instrument(skip_all)]
+async fn handle_peers_request(
+    service_discovery: Option<Arc<ServiceDiscovery>>,
+) -> Response<Body> {
+    debug!("Processing peers information request");
+
+    if let Some(service_discovery) = service_discovery {
+        let all_peers = service_discovery.get_all_peers().await;
+        
+        match serde_json::to_string(&all_peers) {
+            Ok(json) => {
+                debug!(
+                    peer_count = all_peers.len(),
+                    "Returning peer information"
+                );
+
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .header("content-type", "application/json")
+                    .header("cache-control", "no-cache, no-store, must-revalidate")
+                    .body(Body::from(json))
+                    .unwrap_or_else(|e| {
+                        error!(error = %e, "Failed to build peers response");
+                        Response::builder()
+                            .status(StatusCode::INTERNAL_SERVER_ERROR)
+                            .body(Body::empty())
+                            .unwrap()
+                    })
+            }
+            Err(e) => {
+                error!(error = %e, "Failed to serialize peer information to JSON");
+                Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .header("content-type", "application/json")
+                    .body(Body::from("{\"error\":\"Failed to serialize peer information\"}"))
+                    .unwrap_or_else(|_| Response::new(Body::empty()))
+            }
+        }
+    } else {
+        warn!("Peers request received but service discovery is not available");
+        Response::builder()
+            .status(StatusCode::SERVICE_UNAVAILABLE)
+            .header("content-type", "application/json")
+            .body(Body::from("{\"error\":\"Service discovery not available\",\"peers\":[]}"))
+            .unwrap_or_else(|_| Response::new(Body::empty()))
+    }
+}
+
+/// Handles the /service-discovery/status endpoint request
+///
+/// This endpoint returns comprehensive status information about the service discovery
+/// system including configuration, peer counts, and operational status.
+///
+/// # Returns
+///
+/// Returns an HTTP 200 response with service discovery status information,
+/// or HTTP 503 if service discovery is not available.
+#[instrument(skip_all)]
+async fn handle_service_discovery_status_request(
+    service_discovery: Option<Arc<ServiceDiscovery>>,
+) -> Response<Body> {
+    debug!("Processing service discovery status request");
+
+    if let Some(service_discovery) = service_discovery {
+        let config = service_discovery.get_config().await;
+        let all_peers = service_discovery.get_all_peers().await;
+        let backend_count = all_peers.iter()
+            .filter(|p| matches!(p.node_type, crate::service_discovery::NodeType::Backend))
+            .count();
+        let proxy_count = all_peers.iter()
+            .filter(|p| matches!(p.node_type, crate::service_discovery::NodeType::Proxy))
+            .count();
+
+        let status_info = serde_json::json!({
+            "status": "available",
+            "auth_mode": config.auth_mode.to_string(),
+            "requires_authentication": config.auth_mode.requires_auth(),
+            "health_check_interval_seconds": config.health_check_interval.as_secs(),
+            "health_check_timeout_seconds": config.health_check_timeout.as_secs(),
+            "total_peers": all_peers.len(),
+            "backend_peers": backend_count,
+            "proxy_peers": proxy_count,
+            "failure_threshold": config.failure_threshold,
+            "recovery_threshold": config.recovery_threshold,
+            "enable_health_check_logging": config.enable_health_check_logging
+        });
+
+        match serde_json::to_string(&status_info) {
+            Ok(json) => {
+                debug!(
+                    total_peers = all_peers.len(),
+                    auth_mode = %config.auth_mode,
+                    "Returning service discovery status"
+                );
+
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .header("content-type", "application/json")
+                    .header("cache-control", "no-cache, no-store, must-revalidate")
+                    .body(Body::from(json))
+                    .unwrap_or_else(|e| {
+                        error!(error = %e, "Failed to build service discovery status response");
+                        Response::builder()
+                            .status(StatusCode::INTERNAL_SERVER_ERROR)
+                            .body(Body::empty())
+                            .unwrap()
+                    })
+            }
+            Err(e) => {
+                error!(error = %e, "Failed to serialize service discovery status to JSON");
+                Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .header("content-type", "application/json")
+                    .body(Body::from("{\"error\":\"Failed to serialize status information\"}"))
+                    .unwrap_or_else(|_| Response::new(Body::empty()))
+            }
+        }
+    } else {
+        warn!("Service discovery status request received but service discovery is not available");
+        let status_info = serde_json::json!({
+            "status": "unavailable",
+            "message": "Service discovery is not configured for this instance",
+            "total_peers": 0,
+            "backend_peers": 0,
+            "proxy_peers": 0
+        });
+
+        match serde_json::to_string(&status_info) {
+            Ok(json) => {
+                Response::builder()
+                    .status(StatusCode::SERVICE_UNAVAILABLE)
+                    .header("content-type", "application/json")
+                    .body(Body::from(json))
+                    .unwrap_or_else(|_| Response::new(Body::empty()))
+            }
+            Err(_) => {
+                Response::builder()
+                    .status(StatusCode::SERVICE_UNAVAILABLE)
+                    .header("content-type", "application/json")
+                    .body(Body::from("{\"status\":\"unavailable\"}"))
+                    .unwrap_or_else(|_| Response::new(Body::empty()))
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -933,6 +1180,119 @@ mod tests {
         let server = MetricsServer::new(metrics, addr);
 
         assert_eq!(server.bind_addr(), addr);
+    }
+
+    #[tokio::test]
+    async fn test_operations_server_with_clustering() {
+        let metrics = Arc::new(MetricsCollector::new());
+        let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
+        let service_discovery = Arc::new(crate::service_discovery::ServiceDiscovery::new());
+        
+        let server = OperationsServer::with_clustering(
+            metrics,
+            addr,
+            "test-service".to_string(),
+            "1.0.0".to_string(),
+            service_discovery,
+            crate::service_discovery::NodeType::Proxy,
+        );
+
+        assert_eq!(server.service_name, "test-service");
+        assert_eq!(server.version, "1.0.0");
+        assert_eq!(server.bind_addr, addr);
+        assert!(server.service_discovery.is_some());
+        assert!(server.node_type.is_some());
+        assert_eq!(server.node_type.unwrap(), crate::service_discovery::NodeType::Proxy);
+    }
+
+    #[tokio::test]
+    async fn test_handle_peers_request_with_service_discovery() {
+        let service_discovery = Arc::new(crate::service_discovery::ServiceDiscovery::new());
+        
+        // Register a test peer
+        let backend_registration = crate::service_discovery::BackendRegistration {
+            id: "test-backend-1".to_string(),
+            address: "127.0.0.1:3000".to_string(),
+            metrics_port: 9090,
+        };
+        
+        service_discovery.register_backend(backend_registration).await.unwrap();
+        
+        let response = handle_peers_request(Some(service_discovery)).await;
+        
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get("content-type").unwrap(),
+            "application/json"
+        );
+        
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let peers: Vec<crate::service_discovery::PeerInfo> = 
+            serde_json::from_slice(&body).unwrap();
+        
+        assert_eq!(peers.len(), 1);
+        assert_eq!(peers[0].id, "test-backend-1");
+        assert_eq!(peers[0].address, "127.0.0.1:3000");
+        assert_eq!(peers[0].metrics_port, 9090);
+    }
+
+    #[tokio::test]
+    async fn test_handle_peers_request_without_service_discovery() {
+        let response = handle_peers_request(None).await;
+        
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers().get("content-type").unwrap(),
+            "application/json"
+        );
+        
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let response_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        
+        assert_eq!(response_json["error"], "Service discovery not available");
+        assert_eq!(response_json["peers"], serde_json::Value::Array(vec![]));
+    }
+
+    #[tokio::test]
+    async fn test_handle_service_discovery_status_request_with_service_discovery() {
+        let service_discovery = Arc::new(crate::service_discovery::ServiceDiscovery::new());
+        
+        let response = handle_service_discovery_status_request(Some(service_discovery)).await;
+        
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers().get("content-type").unwrap(),
+            "application/json"
+        );
+        
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let status_info: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        
+        assert_eq!(status_info["status"], "available");
+        assert_eq!(status_info["auth_mode"], "open");
+        assert_eq!(status_info["requires_authentication"], false);
+        assert!(status_info["total_peers"].is_number());
+        assert!(status_info["backend_peers"].is_number());
+        assert!(status_info["proxy_peers"].is_number());
+    }
+
+    #[tokio::test]
+    async fn test_handle_service_discovery_status_request_without_service_discovery() {
+        let response = handle_service_discovery_status_request(None).await;
+        
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers().get("content-type").unwrap(),
+            "application/json"
+        );
+        
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        let status_info: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        
+        assert_eq!(status_info["status"], "unavailable");
+        assert_eq!(status_info["total_peers"], 0);
+        assert_eq!(status_info["backend_peers"], 0);
+        assert_eq!(status_info["proxy_peers"], 0);
     }
 
     #[tokio::test]
