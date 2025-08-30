@@ -77,6 +77,7 @@ pub mod server;
 pub mod service;
 pub mod types;
 pub mod updates;
+pub mod validation;
 
 #[cfg(test)]
 pub mod tests;
@@ -96,6 +97,10 @@ pub use server::ServiceDiscoveryServer;
 pub use service::ServiceDiscovery;
 pub use types::{BackendRegistration, NodeInfo, NodeType, PeerInfo};
 pub use updates::{NodeUpdate, UpdatePropagator, UpdateResult};
+pub use validation::{
+    validate_address, validate_and_sanitize_node_info, validate_and_sanitize_peer_info,
+    validate_capabilities, validate_node_id, validate_port, ValidationError, ValidationResult,
+};
 
 // Legacy compatibility - re-export old structure names
 pub use health::NodeVitals as BackendVitals;
@@ -164,114 +169,3 @@ pub mod content_types {
     pub const JSON: &str = "application/json";
 }
 
-/// Validation functions for service discovery data
-pub mod validation {
-    use super::{MAX_CAPABILITY_LENGTH, MAX_NODE_ID_LENGTH};
-
-    /// Validates a node ID
-    ///
-    /// # Arguments
-    ///
-    /// * `node_id` - The node ID to validate
-    ///
-    /// # Returns
-    ///
-    /// Returns `true` if the node ID is valid, `false` otherwise.
-    ///
-    /// # Validation Rules
-    ///
-    /// - Must not be empty
-    /// - Must not exceed MAX_NODE_ID_LENGTH characters
-    /// - Must contain only alphanumeric characters, hyphens, and underscores
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use inferno_shared::service_discovery::validation;
-    ///
-    /// assert!(validation::is_valid_node_id("backend-1"));
-    /// assert!(validation::is_valid_node_id("proxy_01"));
-    /// assert!(!validation::is_valid_node_id(""));
-    /// assert!(!validation::is_valid_node_id("invalid space"));
-    /// ```
-    pub fn is_valid_node_id(node_id: &str) -> bool {
-        if node_id.is_empty() || node_id.len() > MAX_NODE_ID_LENGTH {
-            return false;
-        }
-
-        node_id
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-    }
-
-    /// Validates a capability string
-    ///
-    /// # Arguments
-    ///
-    /// * `capability` - The capability to validate
-    ///
-    /// # Returns
-    ///
-    /// Returns `true` if the capability is valid, `false` otherwise.
-    ///
-    /// # Validation Rules
-    ///
-    /// - Must not be empty
-    /// - Must not exceed MAX_CAPABILITY_LENGTH characters
-    /// - Must contain only alphanumeric characters and underscores
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use inferno_shared::service_discovery::validation;
-    ///
-    /// assert!(validation::is_valid_capability("inference"));
-    /// assert!(validation::is_valid_capability("gpu_v100"));
-    /// assert!(!validation::is_valid_capability(""));
-    /// assert!(!validation::is_valid_capability("invalid-capability"));
-    /// ```
-    pub fn is_valid_capability(capability: &str) -> bool {
-        if capability.is_empty() || capability.len() > MAX_CAPABILITY_LENGTH {
-            return false;
-        }
-
-        capability
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_')
-    }
-
-    /// Validates a network address
-    ///
-    /// # Arguments
-    ///
-    /// * `address` - The address to validate in "host:port" format
-    ///
-    /// # Returns
-    ///
-    /// Returns `true` if the address is valid, `false` otherwise.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use inferno_shared::service_discovery::validation;
-    ///
-    /// assert!(validation::is_valid_address("localhost:8080"));
-    /// assert!(validation::is_valid_address("192.168.1.1:3000"));
-    /// assert!(!validation::is_valid_address("invalid"));
-    /// assert!(!validation::is_valid_address("host:notanumber"));
-    /// ```
-    pub fn is_valid_address(address: &str) -> bool {
-        if let Some((host, port_str)) = address.rsplit_once(':') {
-            if host.is_empty() {
-                return false;
-            }
-
-            match port_str.parse::<u16>() {
-                Ok(port) => port > 0,
-                Err(_) => false,
-            }
-        } else {
-            false
-        }
-    }
-}

@@ -117,6 +117,43 @@ pub struct MetricsCollector {
     /// Number of upstream peer selections performed
     upstream_selections: AtomicU64,
 
+    // Service Discovery metrics
+    /// Total service discovery registration requests
+    service_discovery_registrations: AtomicU64,
+
+    /// Failed service discovery registration requests
+    service_discovery_registration_failures: AtomicU64,
+
+    /// Total consensus operations performed
+    consensus_operations: AtomicU64,
+
+    /// Time spent in consensus operations (microseconds)
+    consensus_operation_time_us: AtomicU64,
+
+    /// Total peer discovery operations
+    peer_discovery_operations: AtomicU64,
+
+    /// Time spent in peer discovery (microseconds)
+    peer_discovery_time_us: AtomicU64,
+
+    /// Total health check operations
+    health_check_operations: AtomicU64,
+
+    /// Failed health check operations
+    health_check_failures: AtomicU64,
+
+    /// Time spent in health checks (microseconds)
+    health_check_time_us: AtomicU64,
+
+    /// Number of validation failures
+    validation_failures: AtomicU64,
+
+    /// Number of authentication failures
+    authentication_failures: AtomicU64,
+
+    /// Payload size limit violations
+    payload_size_violations: AtomicU64,
+
     // System metrics
     /// Timestamp when metrics collection started
     start_time: SystemTime,
@@ -174,6 +211,18 @@ impl MetricsCollector {
             active_backend_connections: AtomicUsize::new(0),
             upstream_selection_time_us: AtomicU64::new(0),
             upstream_selections: AtomicU64::new(0),
+            service_discovery_registrations: AtomicU64::new(0),
+            service_discovery_registration_failures: AtomicU64::new(0),
+            consensus_operations: AtomicU64::new(0),
+            consensus_operation_time_us: AtomicU64::new(0),
+            peer_discovery_operations: AtomicU64::new(0),
+            peer_discovery_time_us: AtomicU64::new(0),
+            health_check_operations: AtomicU64::new(0),
+            health_check_failures: AtomicU64::new(0),
+            health_check_time_us: AtomicU64::new(0),
+            validation_failures: AtomicU64::new(0),
+            authentication_failures: AtomicU64::new(0),
+            payload_size_violations: AtomicU64::new(0),
             start_time: SystemTime::now(),
             last_reset: AtomicU64::new(
                 SystemTime::now()
@@ -460,6 +509,111 @@ impl MetricsCollector {
             .fetch_sub(1, Ordering::Relaxed);
     }
 
+    /// Records a service discovery registration request
+    ///
+    /// This method should be called when processing any service
+    /// discovery registration request, successful or not.
+    ///
+    /// # Performance Notes
+    ///
+    /// - Target latency: < 5ns
+    /// - Used for monitoring service discovery activity
+    /// - Thread-safe and lock-free
+    #[inline]
+    pub fn record_service_discovery_registration(&self) {
+        self.service_discovery_registrations
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Records a failed service discovery registration
+    ///
+    /// This method should be called when a registration request
+    /// fails due to validation, authentication, or other errors.
+    #[inline]
+    pub fn record_service_discovery_registration_failure(&self) {
+        self.service_discovery_registration_failures
+            .fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Records a consensus operation with timing
+    ///
+    /// This method tracks consensus algorithm performance for
+    /// monitoring and optimization.
+    ///
+    /// # Arguments
+    ///
+    /// * `duration` - Time spent in consensus operation
+    #[inline]
+    pub fn record_consensus_operation(&self, duration: Duration) {
+        let duration_us = duration.as_micros() as u64;
+        self.consensus_operations.fetch_add(1, Ordering::Relaxed);
+        self.consensus_operation_time_us
+            .fetch_add(duration_us, Ordering::Relaxed);
+    }
+
+    /// Records a peer discovery operation with timing
+    ///
+    /// This method tracks peer discovery performance for
+    /// monitoring distributed system behavior.
+    ///
+    /// # Arguments
+    ///
+    /// * `duration` - Time spent in peer discovery
+    #[inline]
+    pub fn record_peer_discovery_operation(&self, duration: Duration) {
+        let duration_us = duration.as_micros() as u64;
+        self.peer_discovery_operations
+            .fetch_add(1, Ordering::Relaxed);
+        self.peer_discovery_time_us
+            .fetch_add(duration_us, Ordering::Relaxed);
+    }
+
+    /// Records a health check operation with timing
+    ///
+    /// This method tracks health check performance and success rates.
+    ///
+    /// # Arguments
+    ///
+    /// * `duration` - Time spent in health check
+    /// * `success` - Whether the health check succeeded
+    #[inline]
+    pub fn record_health_check_operation(&self, duration: Duration, success: bool) {
+        let duration_us = duration.as_micros() as u64;
+        self.health_check_operations.fetch_add(1, Ordering::Relaxed);
+        self.health_check_time_us
+            .fetch_add(duration_us, Ordering::Relaxed);
+        
+        if !success {
+            self.health_check_failures.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    /// Records an input validation failure
+    ///
+    /// This method tracks security-related validation failures
+    /// for monitoring potential attacks or configuration issues.
+    #[inline]
+    pub fn record_validation_failure(&self) {
+        self.validation_failures.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Records an authentication failure
+    ///
+    /// This method tracks authentication failures for security monitoring.
+    #[inline]
+    pub fn record_authentication_failure(&self) {
+        self.authentication_failures.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Records a payload size limit violation
+    ///
+    /// This method tracks DoS prevention metrics when requests
+    /// exceed configured size limits.
+    #[inline]
+    pub fn record_payload_size_violation(&self) {
+        self.payload_size_violations.fetch_add(1, Ordering::Relaxed);
+    }
+
     /// Creates a consistent snapshot of all current metrics
     ///
     /// This method collects all metrics atomically to provide
@@ -521,6 +675,31 @@ impl MetricsCollector {
             0
         };
 
+        // Service discovery averages
+        let consensus_operations = self.consensus_operations.load(Ordering::Relaxed);
+        let consensus_time_us = self.consensus_operation_time_us.load(Ordering::Relaxed);
+        let average_consensus_operation_time_us = if consensus_operations > 0 {
+            consensus_time_us / consensus_operations
+        } else {
+            0
+        };
+
+        let peer_discovery_operations = self.peer_discovery_operations.load(Ordering::Relaxed);
+        let peer_discovery_time_us = self.peer_discovery_time_us.load(Ordering::Relaxed);
+        let average_peer_discovery_time_us = if peer_discovery_operations > 0 {
+            peer_discovery_time_us / peer_discovery_operations
+        } else {
+            0
+        };
+
+        let health_check_operations = self.health_check_operations.load(Ordering::Relaxed);
+        let health_check_time_us = self.health_check_time_us.load(Ordering::Relaxed);
+        let average_health_check_time_us = if health_check_operations > 0 {
+            health_check_time_us / health_check_operations
+        } else {
+            0
+        };
+
         let uptime = self.start_time.elapsed().unwrap_or_default();
 
         MetricsSnapshot {
@@ -537,6 +716,18 @@ impl MetricsCollector {
             active_backend_connections: self.active_backend_connections.load(Ordering::Relaxed),
             duration_histogram,
             average_upstream_selection_time_us,
+            service_discovery_registrations: self.service_discovery_registrations.load(Ordering::Relaxed),
+            service_discovery_registration_failures: self.service_discovery_registration_failures.load(Ordering::Relaxed),
+            consensus_operations,
+            average_consensus_operation_time_us,
+            peer_discovery_operations,
+            average_peer_discovery_time_us,
+            health_check_operations,
+            health_check_failures: self.health_check_failures.load(Ordering::Relaxed),
+            average_health_check_time_us,
+            validation_failures: self.validation_failures.load(Ordering::Relaxed),
+            authentication_failures: self.authentication_failures.load(Ordering::Relaxed),
+            payload_size_violations: self.payload_size_violations.load(Ordering::Relaxed),
             uptime,
             timestamp: SystemTime::now(),
         }
@@ -573,6 +764,18 @@ impl MetricsCollector {
         self.backend_connection_errors.store(0, Ordering::Relaxed);
         self.upstream_selection_time_us.store(0, Ordering::Relaxed);
         self.upstream_selections.store(0, Ordering::Relaxed);
+        self.service_discovery_registrations.store(0, Ordering::Relaxed);
+        self.service_discovery_registration_failures.store(0, Ordering::Relaxed);
+        self.consensus_operations.store(0, Ordering::Relaxed);
+        self.consensus_operation_time_us.store(0, Ordering::Relaxed);
+        self.peer_discovery_operations.store(0, Ordering::Relaxed);
+        self.peer_discovery_time_us.store(0, Ordering::Relaxed);
+        self.health_check_operations.store(0, Ordering::Relaxed);
+        self.health_check_failures.store(0, Ordering::Relaxed);
+        self.health_check_time_us.store(0, Ordering::Relaxed);
+        self.validation_failures.store(0, Ordering::Relaxed);
+        self.authentication_failures.store(0, Ordering::Relaxed);
+        self.payload_size_violations.store(0, Ordering::Relaxed);
 
         for bucket in &self.duration_buckets {
             bucket.store(0, Ordering::Relaxed);
@@ -647,6 +850,20 @@ pub struct MetricsSnapshot {
 
     /// Average upstream peer selection time in microseconds
     pub average_upstream_selection_time_us: u64,
+
+    /// Service discovery metrics
+    pub service_discovery_registrations: u64,
+    pub service_discovery_registration_failures: u64,
+    pub consensus_operations: u64,
+    pub average_consensus_operation_time_us: u64,
+    pub peer_discovery_operations: u64,
+    pub average_peer_discovery_time_us: u64,
+    pub health_check_operations: u64,
+    pub health_check_failures: u64,
+    pub average_health_check_time_us: u64,
+    pub validation_failures: u64,
+    pub authentication_failures: u64,
+    pub payload_size_violations: u64,
 
     /// Time since service startup
     pub uptime: Duration,
