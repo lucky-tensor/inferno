@@ -5,4 +5,6 @@
 //! and peer communication.
 
 pub mod consensus_tests;
+pub mod integration_tests;
+pub mod performance_validation;
 pub mod update_tests;

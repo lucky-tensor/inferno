@@ -161,3 +161,39 @@ fn test_invalid_socket_addr_handling() {
     assert!(config.metrics_endpoint.is_none());
     assert!(config.alert_webhook.is_none());
 }
+
+#[tokio::test]
+async fn test_cli_run_method() {
+    let cli = GovernatorCliOptions {
+        listen_addr: "127.0.0.1:4000".parse().unwrap(),
+        database_url: "sqlite://test.db".to_string(),
+        providers: "aws,gcp".to_string(),
+        cost_alert_threshold: 1000.0,
+        optimization_interval: 300,
+        max_instances_per_region: 100,
+        enable_autoscaling: true,
+        min_instances: 1,
+        max_instances: 100,
+        scale_up_threshold: 80.0,
+        scale_down_threshold: 20.0,
+        metrics_endpoint: "prometheus:9090".to_string(),
+        alert_webhook: None,
+        logging: LoggingOptions {
+            log_level: "info".to_string(),
+        },
+        metrics: MetricsOptions {
+            enable_metrics: true,
+            operations_addr: None,
+            metrics_addr: None,
+        },
+        health_check: HealthCheckOptions {
+            health_check_path: "/health".to_string(),
+        },
+        budget_mode: "warn".to_string(),
+        monthly_budget: 10000.0,
+    };
+
+    // Test that run method executes successfully (placeholder implementation)
+    let result = cli.run().await;
+    assert!(result.is_ok());
+}

@@ -4,7 +4,8 @@
 //! These tests verify that configuration loading, validation, and
 //! environment variable handling work correctly under various scenarios.
 
-use inferno_proxy::ProxyConfig;
+use inferno_proxy::{ProxyCliOptions, ProxyConfig};
+use inferno_shared::{HealthCheckOptions, LoggingOptions, MetricsOptions};
 use serial_test::serial;
 use std::time::Duration;
 
@@ -237,4 +238,125 @@ fn test_configuration_from_env_invalid_values() {
         .contains("Invalid INFERNO_LISTEN_ADDR"));
 
     std::env::remove_var("INFERNO_LISTEN_ADDR");
+}
+
+#[test]
+fn test_proxy_cli_to_config_conversion() {
+    let cli = ProxyCliOptions {
+        listen_addr: "127.0.0.1:9090".parse().unwrap(),
+        backend_addr: Some("127.0.0.1:4000".parse().unwrap()),
+        backend_servers: Some("192.168.1.1:8080,192.168.1.2:8080".to_string()),
+        max_connections: 5000,
+        timeout_seconds: 60,
+        enable_health_check: false,
+        health_check_interval: 60,
+        health_check: HealthCheckOptions {
+            health_check_path: "/status".to_string(),
+        },
+        logging: LoggingOptions {
+            log_level: "debug".to_string(),
+        },
+        metrics: MetricsOptions {
+            enable_metrics: true,
+            operations_addr: Some("127.0.0.1:6101".parse().unwrap()),
+            metrics_addr: None,
+        },
+        enable_tls: true,
+        load_balancing_algorithm: "least_connections".to_string(),
+    };
+
+    let config = cli.to_config().unwrap();
+
+    assert_eq!(config.listen_addr, "127.0.0.1:9090".parse().unwrap());
+    assert_eq!(config.backend_addr, "127.0.0.1:4000".parse().unwrap());
+    assert_eq!(config.backend_servers.len(), 2);
+    assert_eq!(config.max_connections, 5000);
+    assert_eq!(config.timeout, Duration::from_secs(60));
+    assert!(!config.enable_health_check);
+    assert_eq!(config.health_check_interval, Duration::from_secs(60));
+    assert_eq!(config.health_check_path, "/status");
+    assert_eq!(config.log_level, "debug");
+    assert!(config.enable_metrics);
+    assert_eq!(config.operations_addr, "127.0.0.1:6101".parse().unwrap());
+    assert!(config.enable_tls);
+    assert_eq!(config.load_balancing_algorithm, "least_connections");
+}
+
+#[test]
+fn test_proxy_cli_to_config_with_defaults() {
+    let cli = ProxyCliOptions {
+        listen_addr: "127.0.0.1:8080".parse().unwrap(),
+        backend_addr: None,
+        backend_servers: None,
+        max_connections: 10000,
+        timeout_seconds: 30,
+        enable_health_check: true,
+        health_check_interval: 30,
+        health_check: HealthCheckOptions {
+            health_check_path: "/health".to_string(),
+        },
+        logging: LoggingOptions {
+            log_level: "info".to_string(),
+        },
+        metrics: MetricsOptions {
+            enable_metrics: true,
+            operations_addr: None,
+            metrics_addr: None,
+        },
+        enable_tls: false,
+        load_balancing_algorithm: "round_robin".to_string(),
+    };
+
+    let config = cli.to_config().unwrap();
+
+    assert_eq!(config.listen_addr, "127.0.0.1:8080".parse().unwrap());
+    assert_eq!(config.backend_addr, "127.0.0.1:3000".parse().unwrap()); // Default
+    assert!(config.backend_servers.is_empty());
+    assert_eq!(config.max_connections, 10000);
+    assert_eq!(config.timeout, Duration::from_secs(30));
+    assert!(config.enable_health_check);
+    assert_eq!(config.health_check_interval, Duration::from_secs(30));
+    assert_eq!(config.health_check_path, "/health");
+    assert_eq!(config.log_level, "info");
+    assert!(config.enable_metrics);
+    assert!(!config.enable_tls);
+    assert_eq!(config.load_balancing_algorithm, "round_robin");
+}
+
+#[tokio::test]
+async fn test_proxy_cli_run_method() {
+    let cli = ProxyCliOptions {
+        listen_addr: "127.0.0.1:8081".parse().unwrap(), // Different port to avoid conflicts
+        backend_addr: Some("127.0.0.1:3001".parse().unwrap()),
+        backend_servers: None,
+        max_connections: 1000,
+        timeout_seconds: 30,
+        enable_health_check: true,
+        health_check_interval: 30,
+        health_check: HealthCheckOptions {
+            health_check_path: "/health".to_string(),
+        },
+        logging: LoggingOptions {
+            log_level: "info".to_string(),
+        },
+        metrics: MetricsOptions {
+            enable_metrics: false, // Disable to avoid port conflicts
+            operations_addr: None,
+            metrics_addr: None,
+        },
+        enable_tls: false,
+        load_balancing_algorithm: "round_robin".to_string(),
+    };
+
+    // Since run() starts a server and waits for connections, we need to test with a timeout
+    let run_future = cli.run();
+
+    // Test that it starts correctly (within a timeout)
+    let result = tokio::time::timeout(std::time::Duration::from_millis(100), run_future).await;
+
+    // The run should timeout (which means it started correctly and is waiting for connections)
+    assert!(
+        result.is_err(),
+        "Proxy run method should timeout while waiting for connections"
+    );
 }

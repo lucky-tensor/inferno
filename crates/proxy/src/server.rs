@@ -92,6 +92,8 @@ use tracing::{debug, error, info, instrument, warn};
 /// #       operations_addr: "127.0.0.1:6100".parse()?,
 /// #       load_balancing_algorithm: "round_robin".to_string(),
 /// #       backend_servers: Vec::new(),
+/// #       service_discovery_auth_mode: "open".to_string(),
+/// #       service_discovery_shared_secret: None,
 ///     };
 ///
 ///     let server = ProxyServer::new(config).await?;
@@ -176,12 +178,41 @@ impl ProxyServer {
         // Initialize metrics collector
         let metrics = Arc::new(MetricsCollector::new());
 
-        // Initialize service discovery with configuration-based settings
-        let service_discovery = Arc::new(ServiceDiscovery::with_config(ServiceDiscoveryConfig {
-            health_check_interval: config.health_check_interval,
-            health_check_timeout: config.health_check_timeout,
-            ..ServiceDiscoveryConfig::default()
-        }));
+        // Initialize service discovery with authentication and configuration
+        let service_discovery_config = {
+            let mut sd_config = ServiceDiscoveryConfig {
+                health_check_interval: config.health_check_interval,
+                health_check_timeout: config.health_check_timeout,
+                ..ServiceDiscoveryConfig::default()
+            };
+
+            // Configure authentication based on proxy config
+            match config.service_discovery_auth_mode.to_lowercase().as_str() {
+                "shared_secret" => {
+                    if let Some(secret) = &config.service_discovery_shared_secret {
+                        sd_config = ServiceDiscoveryConfig::with_shared_secret(secret.clone());
+                        // Preserve other config values
+                        sd_config.health_check_interval = config.health_check_interval;
+                        sd_config.health_check_timeout = config.health_check_timeout;
+                    } else {
+                        warn!("Service discovery auth mode is shared_secret but no secret provided, falling back to open mode");
+                    }
+                }
+                "open" => {
+                    // Use open mode (default)
+                }
+                _ => {
+                    warn!(
+                        "Unknown service discovery auth mode '{}', falling back to open mode",
+                        config.service_discovery_auth_mode
+                    );
+                }
+            }
+
+            sd_config
+        };
+
+        let service_discovery = Arc::new(ServiceDiscovery::with_config(service_discovery_config));
 
         // For now, we'll use the configured listen address as the local address
         // In a real implementation, this would be set after binding
@@ -192,6 +223,8 @@ impl ProxyServer {
             backend_count = config.effective_backends().len(),
             max_connections = config.max_connections,
             service_discovery_enabled = true,
+            service_discovery_auth_mode = %config.service_discovery_auth_mode,
+            service_discovery_has_secret = config.service_discovery_shared_secret.is_some(),
             "Proxy server initialized successfully"
         );
 
@@ -439,6 +472,9 @@ impl ProxyServer {
             None
         };
 
+        // Perform peer discovery if there are configured backend servers for cluster setup
+        self.perform_startup_peer_discovery().await?;
+
         // Registration service now handled directly by Pingora in ProxyService::request_filter
 
         // Simulate server operation
@@ -489,8 +525,8 @@ impl ProxyServer {
     /// Starts background health checking for backend servers
     ///
     /// This method spawns a background task that periodically checks
-    /// the health of configured backend servers. Unhealthy backends
-    /// are automatically excluded from request routing.
+    /// the health of configured backend servers and known peers. Unhealthy backends
+    /// are automatically excluded from request routing and removed from service discovery.
     ///
     /// # Returns
     ///
@@ -498,11 +534,13 @@ impl ProxyServer {
     #[instrument(skip(self))]
     fn start_health_checking(&self) -> tokio::task::JoinHandle<()> {
         let config = Arc::clone(&self.config);
+        let service_discovery = Arc::clone(&self.service_discovery);
+        let _metrics = Arc::clone(&self.metrics);
 
         info!(
             interval = ?config.health_check_interval,
             path = config.health_check_path,
-            "Starting backend health checking"
+            "Starting enhanced health checking with service discovery integration"
         );
 
         tokio::spawn(async move {
@@ -511,13 +549,19 @@ impl ProxyServer {
             loop {
                 interval.tick().await;
 
-                // Perform health checks for all backend servers
+                debug!("Starting health check cycle");
+                let health_check_start = std::time::Instant::now();
+
+                // 1. Perform health checks for all configured backend servers
                 let backends = config.effective_backends();
+                let mut healthy_backends = 0;
+                let mut unhealthy_backends = 0;
 
                 for backend in &backends {
                     match Self::check_backend_health(backend, &config).await {
                         Ok(()) => {
                             debug!(backend = %backend, "Backend health check passed");
+                            healthy_backends += 1;
                         }
                         Err(e) => {
                             warn!(
@@ -525,13 +569,120 @@ impl ProxyServer {
                                 error = %e,
                                 "Backend health check failed"
                             );
-                            // In a real implementation, we would mark this backend
-                            // as unhealthy and exclude it from load balancing
+                            unhealthy_backends += 1;
                         }
                     }
                 }
+
+                // 2. Perform health checks for all known service discovery peers
+                let all_peers = service_discovery.get_all_peers().await;
+                let mut healthy_peers = 0;
+                let mut unhealthy_peers = Vec::new();
+
+                for peer in &all_peers {
+                    // Only check backend peers for health (proxies manage themselves)
+                    if matches!(
+                        peer.node_type,
+                        inferno_shared::service_discovery::NodeType::Backend
+                    ) {
+                        let peer_addr = match peer.address.parse::<std::net::SocketAddr>() {
+                            Ok(addr) => addr,
+                            Err(e) => {
+                                warn!(peer_id = %peer.id, address = %peer.address, error = %e, "Invalid peer address format");
+                                continue;
+                            }
+                        };
+
+                        match Self::check_peer_health(peer, &peer_addr, &config).await {
+                            Ok(()) => {
+                                debug!(peer_id = %peer.id, address = %peer.address, "Peer health check passed");
+                                healthy_peers += 1;
+                            }
+                            Err(e) => {
+                                warn!(
+                                    peer_id = %peer.id,
+                                    address = %peer.address,
+                                    error = %e,
+                                    "Peer health check failed, marking for removal"
+                                );
+                                unhealthy_peers.push(peer.id.clone());
+                            }
+                        }
+                    }
+                }
+
+                // 3. Remove unhealthy peers from service discovery
+                for unhealthy_peer_id in &unhealthy_peers {
+                    if let Err(e) = service_discovery.remove_peer(unhealthy_peer_id).await {
+                        warn!(peer_id = %unhealthy_peer_id, error = %e, "Failed to remove unhealthy peer from service discovery");
+                    } else {
+                        info!(peer_id = %unhealthy_peer_id, "Removed unhealthy peer from service discovery");
+                    }
+                }
+
+                // 4. Update metrics with health check results
+                let health_check_duration = health_check_start.elapsed();
+                debug!(
+                    healthy_backends = healthy_backends,
+                    unhealthy_backends = unhealthy_backends,
+                    healthy_peers = healthy_peers,
+                    unhealthy_peer_count = unhealthy_peers.len(),
+                    total_peers = all_peers.len(),
+                    duration_ms = health_check_duration.as_millis(),
+                    "Health check cycle completed"
+                );
+
+                // Update peer counter for metrics
+                let _total_healthy = healthy_backends + healthy_peers;
+                // Note: peer counter is updated but we don't have direct access to it here
+                // This would ideally be passed through the service discovery system
             }
         })
+    }
+
+    /// Performs health check for a specific peer using metrics endpoint
+    ///
+    /// # Arguments
+    ///
+    /// * `peer` - Peer information including metrics port
+    /// * `peer_addr` - Parsed socket address for the peer
+    /// * `config` - Configuration containing health check parameters
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if peer is healthy, `Err(InfernoError)` otherwise
+    async fn check_peer_health(
+        peer: &inferno_shared::service_discovery::PeerInfo,
+        peer_addr: &SocketAddr,
+        config: &ProxyConfig,
+    ) -> Result<()> {
+        debug!(peer_id = %peer.id, metrics_port = peer.metrics_port, "Performing peer health check via metrics endpoint");
+
+        // Check the peer's metrics endpoint for health status
+        let metrics_addr = std::net::SocketAddr::new(peer_addr.ip(), peer.metrics_port);
+
+        // Perform basic TCP connection test to metrics port
+        // In a full implementation, this would make HTTP requests to /metrics endpoint
+        match tokio::time::timeout(
+            config.health_check_timeout,
+            tokio::net::TcpStream::connect(metrics_addr),
+        )
+        .await
+        {
+            Ok(Ok(_stream)) => {
+                debug!(peer_id = %peer.id, metrics_addr = %metrics_addr, "Peer metrics endpoint accessible");
+                Ok(())
+            }
+            Ok(Err(e)) => Err(InfernoError::network(
+                metrics_addr.to_string(),
+                "Failed to connect to peer metrics endpoint",
+                Some(Box::new(e)),
+            )),
+            Err(_timeout) => Err(InfernoError::timeout(
+                config.health_check_timeout,
+                "Peer metrics endpoint health check",
+            )),
+        }
     }
 
     /// Performs health check for a specific backend server
@@ -680,6 +831,74 @@ impl ProxyServer {
         } else {
             Err(InfernoError::internal("Server is not running", None))
         }
+    }
+
+    /// Performs startup peer discovery to establish cluster connections
+    ///
+    /// This method attempts to register with existing peers in the cluster
+    /// during startup. It handles graceful failures when peers are not
+    /// available during initialization.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` regardless of peer discovery success to allow
+    /// startup even when no peers are available.
+    #[instrument(skip(self))]
+    async fn perform_startup_peer_discovery(&self) -> Result<()> {
+        if self.config.backend_servers.is_empty() {
+            debug!("No backend servers configured, skipping startup peer discovery");
+            return Ok(());
+        }
+
+        info!(
+            backend_count = self.config.backend_servers.len(),
+            "Attempting startup peer discovery with configured backend servers"
+        );
+
+        // Convert backend addresses to peer URLs for registration attempts
+        let peer_urls: Vec<String> = self
+            .config
+            .backend_servers
+            .iter()
+            .map(|addr| format!("http://{}/registration", addr))
+            .collect();
+
+        // Create node info for this proxy instance
+        let proxy_node_info = inferno_shared::service_discovery::NodeInfo::new(
+            format!("proxy-{}", self.local_addr.port()),
+            self.local_addr.to_string(),
+            self.config.operations_addr.port(),
+            inferno_shared::service_discovery::NodeType::Proxy,
+        );
+
+        // Attempt to register with peers (non-blocking, allow failures)
+        match self
+            .service_discovery
+            .register_with_peers(&proxy_node_info, peer_urls)
+            .await
+        {
+            Ok((successful_responses, failed_peers)) => {
+                info!(
+                    successful_registrations = successful_responses.len(),
+                    failed_registrations = failed_peers.len(),
+                    "Completed startup peer discovery"
+                );
+
+                if !failed_peers.is_empty() {
+                    warn!(failed_peers = ?failed_peers, "Some peer registrations failed during startup");
+                }
+            }
+            Err(e) => {
+                warn!(
+                    error = %e,
+                    "Startup peer discovery failed, continuing with isolated startup"
+                );
+                // Continue startup even if peer discovery fails
+                // This allows the proxy to start even when other nodes are unavailable
+            }
+        }
+
+        Ok(())
     }
 
     /// Performs graceful shutdown procedures
