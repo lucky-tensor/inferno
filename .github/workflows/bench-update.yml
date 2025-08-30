@@ -26,6 +26,7 @@ jobs:
         run: cargo install cargo-criterion
       - name: Run benchmarks to generate new baselines
         run: ./benchmarking/check-performance.sh
+        continue-on-error: true
       - name: Create or update pull request
         uses: peter-evans/create-pull-request@v5
         with:
