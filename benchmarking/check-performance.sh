@@ -21,7 +21,7 @@ if [[ -n "$regressions" ]]; then
     echo "❌ Performance regressions detected:"
     echo "$regressions"
     echo ""
-    echo "::error::Performance regression detected! Benchmarks are >5% slower than previous run."
+    echo "::error::Performance regression detected! Benchmarks are ${REGRESSION_THRESHOLD}% slower than previous run."
     exit 1
 else
     echo ""
