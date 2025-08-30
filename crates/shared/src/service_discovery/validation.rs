@@ -44,10 +44,12 @@ pub const MIN_PORT: u16 = 1024;
 pub const MAX_PORT: u16 = 65535;
 
 /// Valid characters for node IDs (alphanumeric, hyphen, underscore, dot)
-const VALID_NODE_ID_CHARS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.";
+const VALID_NODE_ID_CHARS: &str =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.";
 
 /// Valid characters for capability names (alphanumeric, underscore)
-const VALID_CAPABILITY_CHARS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
+const VALID_CAPABILITY_CHARS: &str =
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
 
 /// Validation error types
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -70,44 +72,59 @@ pub enum ValidationError {
         invalid_chars: Vec<char>,
     },
     /// Network address is invalid
-    InvalidAddress {
-        address: String,
-        reason: String,
-    },
+    InvalidAddress { address: String, reason: String },
     /// Port number is out of valid range
-    InvalidPort {
-        port: u16,
-        min: u16,
-        max: u16,
-    },
+    InvalidPort { port: u16, min: u16, max: u16 },
     /// Too many capabilities specified
-    TooManyCapabilities {
-        count: usize,
-        max: usize,
-    },
+    TooManyCapabilities { count: usize, max: usize },
     /// Field is empty but required
-    Empty {
-        field: String,
-    },
+    Empty { field: String },
 }
 
 impl std::fmt::Display for ValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ValidationError::TooLong { field, max_length, actual_length } => {
-                write!(f, "Field '{}' is too long: {} characters (max: {})", field, actual_length, max_length)
+            ValidationError::TooLong {
+                field,
+                max_length,
+                actual_length,
+            } => {
+                write!(
+                    f,
+                    "Field '{}' is too long: {} characters (max: {})",
+                    field, actual_length, max_length
+                )
             }
-            ValidationError::TooShort { field, min_length, actual_length } => {
-                write!(f, "Field '{}' is too short: {} characters (min: {})", field, actual_length, min_length)
+            ValidationError::TooShort {
+                field,
+                min_length,
+                actual_length,
+            } => {
+                write!(
+                    f,
+                    "Field '{}' is too short: {} characters (min: {})",
+                    field, actual_length, min_length
+                )
             }
-            ValidationError::InvalidCharacters { field, invalid_chars } => {
-                write!(f, "Field '{}' contains invalid characters: {:?}", field, invalid_chars)
+            ValidationError::InvalidCharacters {
+                field,
+                invalid_chars,
+            } => {
+                write!(
+                    f,
+                    "Field '{}' contains invalid characters: {:?}",
+                    field, invalid_chars
+                )
             }
             ValidationError::InvalidAddress { address, reason } => {
                 write!(f, "Invalid address '{}': {}", address, reason)
             }
             ValidationError::InvalidPort { port, min, max } => {
-                write!(f, "Invalid port {}: must be between {} and {}", port, min, max)
+                write!(
+                    f,
+                    "Invalid port {}: must be between {} and {}",
+                    port, min, max
+                )
             }
             ValidationError::TooManyCapabilities { count, max } => {
                 write!(f, "Too many capabilities: {} (max: {})", count, max)
@@ -147,20 +164,20 @@ pub type ValidationResult<T> = Result<T, ValidationError>;
 /// assert!(validate_node_id("backend-1").is_ok());
 /// assert!(validate_node_id("proxy_001").is_ok());
 /// assert!(validate_node_id("test.node.123").is_ok());
-/// 
+///
 /// assert!(validate_node_id("").is_err());
 /// assert!(validate_node_id("a".repeat(200).as_str()).is_err());
 /// assert!(validate_node_id("invalid@char").is_err());
 /// ```
 pub fn validate_node_id(id: &str) -> ValidationResult<()> {
     let trimmed = id.trim();
-    
+
     if trimmed.is_empty() {
         return Err(ValidationError::Empty {
             field: "id".to_string(),
         });
     }
-    
+
     if trimmed.len() < MIN_NODE_ID_LENGTH {
         return Err(ValidationError::TooShort {
             field: "id".to_string(),
@@ -168,7 +185,7 @@ pub fn validate_node_id(id: &str) -> ValidationResult<()> {
             actual_length: trimmed.len(),
         });
     }
-    
+
     if trimmed.len() > MAX_NODE_ID_LENGTH {
         return Err(ValidationError::TooLong {
             field: "id".to_string(),
@@ -176,19 +193,19 @@ pub fn validate_node_id(id: &str) -> ValidationResult<()> {
             actual_length: trimmed.len(),
         });
     }
-    
+
     let invalid_chars: Vec<char> = trimmed
         .chars()
         .filter(|c| !VALID_NODE_ID_CHARS.contains(*c))
         .collect();
-    
+
     if !invalid_chars.is_empty() {
         return Err(ValidationError::InvalidCharacters {
             field: "id".to_string(),
             invalid_chars,
         });
     }
-    
+
     Ok(())
 }
 
@@ -218,20 +235,20 @@ pub fn validate_node_id(id: &str) -> ValidationResult<()> {
 /// assert!(validate_address("localhost:3000").is_ok());
 /// assert!(validate_address("[::1]:8080").is_ok());
 /// assert!(validate_address("service.local:9090").is_ok());
-/// 
+///
 /// assert!(validate_address("invalid-format").is_err());
 /// assert!(validate_address("").is_err());
 /// assert!(validate_address("host:99999").is_err());
 /// ```
 pub fn validate_address(address: &str) -> ValidationResult<()> {
     let trimmed = address.trim();
-    
+
     if trimmed.is_empty() {
         return Err(ValidationError::Empty {
             field: "address".to_string(),
         });
     }
-    
+
     if trimmed.len() > MAX_ADDRESS_LENGTH {
         return Err(ValidationError::TooLong {
             field: "address".to_string(),
@@ -239,12 +256,12 @@ pub fn validate_address(address: &str) -> ValidationResult<()> {
             actual_length: trimmed.len(),
         });
     }
-    
+
     // Try parsing as socket address first (handles IPv4, IPv6, hostname:port)
     if SocketAddr::from_str(trimmed).is_ok() {
         return Ok(());
     }
-    
+
     // Manual parsing for more detailed error reporting
     let parts: Vec<&str> = trimmed.rsplitn(2, ':').collect();
     if parts.len() != 2 {
@@ -253,10 +270,10 @@ pub fn validate_address(address: &str) -> ValidationResult<()> {
             reason: "Address must be in format 'host:port'".to_string(),
         });
     }
-    
+
     let port_str = parts[0];
     let host = parts[1];
-    
+
     // Validate port
     match port_str.parse::<u16>() {
         Ok(port) => validate_port(port)?,
@@ -267,7 +284,7 @@ pub fn validate_address(address: &str) -> ValidationResult<()> {
             });
         }
     }
-    
+
     // Validate host (try as IP first, then as hostname)
     if host.is_empty() {
         return Err(ValidationError::InvalidAddress {
@@ -275,15 +292,15 @@ pub fn validate_address(address: &str) -> ValidationResult<()> {
             reason: "Host cannot be empty".to_string(),
         });
     }
-    
+
     // Try parsing as IP address
     if IpAddr::from_str(host).is_ok() {
         return Ok(());
     }
-    
+
     // Validate as hostname (basic DNS name validation)
     validate_hostname(host, trimmed)?;
-    
+
     Ok(())
 }
 
@@ -295,7 +312,7 @@ fn validate_hostname(hostname: &str, original_address: &str) -> ValidationResult
             reason: "Hostname must be 1-253 characters".to_string(),
         });
     }
-    
+
     // Check each label in the hostname
     for label in hostname.split('.') {
         if label.is_empty() || label.len() > 63 {
@@ -304,16 +321,17 @@ fn validate_hostname(hostname: &str, original_address: &str) -> ValidationResult
                 reason: "Each hostname label must be 1-63 characters".to_string(),
             });
         }
-        
+
         // Labels must start and end with alphanumeric
         let chars: Vec<char> = label.chars().collect();
         if !chars[0].is_ascii_alphanumeric() || !chars[chars.len() - 1].is_ascii_alphanumeric() {
             return Err(ValidationError::InvalidAddress {
                 address: original_address.to_string(),
-                reason: "Hostname labels must start and end with alphanumeric characters".to_string(),
+                reason: "Hostname labels must start and end with alphanumeric characters"
+                    .to_string(),
             });
         }
-        
+
         // Check for valid characters (alphanumeric and hyphen)
         for ch in chars {
             if !ch.is_ascii_alphanumeric() && ch != '-' {
@@ -324,7 +342,7 @@ fn validate_hostname(hostname: &str, original_address: &str) -> ValidationResult
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -350,7 +368,7 @@ fn validate_hostname(hostname: &str, original_address: &str) -> ValidationResult
 /// assert!(validate_port(8080).is_ok());
 /// assert!(validate_port(3000).is_ok());
 /// assert!(validate_port(65535).is_ok());
-/// 
+///
 /// assert!(validate_port(80).is_err()); // Well-known port
 /// assert!(validate_port(0).is_err());  // Invalid port
 /// ```
@@ -389,10 +407,10 @@ pub fn validate_port(port: u16) -> ValidationResult<()> {
 ///
 /// let valid_caps = vec!["inference".to_string(), "gpu_support".to_string()];
 /// assert!(validate_capabilities(&valid_caps).is_ok());
-/// 
+///
 /// let invalid_caps = vec!["invalid-char".to_string()];
 /// assert!(validate_capabilities(&invalid_caps).is_err());
-/// 
+///
 /// let too_many = (0..50).map(|i| format!("cap{}", i)).collect::<Vec<_>>();
 /// assert!(validate_capabilities(&too_many).is_err());
 /// ```
@@ -403,18 +421,18 @@ pub fn validate_capabilities(capabilities: &[String]) -> ValidationResult<()> {
             max: MAX_CAPABILITIES_COUNT,
         });
     }
-    
+
     let mut seen = std::collections::HashSet::new();
-    
+
     for capability in capabilities {
         let trimmed = capability.trim();
-        
+
         if trimmed.is_empty() {
             return Err(ValidationError::Empty {
                 field: "capability".to_string(),
             });
         }
-        
+
         if trimmed.len() > MAX_CAPABILITY_LENGTH {
             return Err(ValidationError::TooLong {
                 field: "capability".to_string(),
@@ -422,19 +440,19 @@ pub fn validate_capabilities(capabilities: &[String]) -> ValidationResult<()> {
                 actual_length: trimmed.len(),
             });
         }
-        
+
         let invalid_chars: Vec<char> = trimmed
             .chars()
             .filter(|c| !VALID_CAPABILITY_CHARS.contains(*c))
             .collect();
-        
+
         if !invalid_chars.is_empty() {
             return Err(ValidationError::InvalidCharacters {
                 field: "capability".to_string(),
                 invalid_chars,
             });
         }
-        
+
         // Check for duplicates
         if !seen.insert(trimmed.to_string()) {
             return Err(ValidationError::InvalidCharacters {
@@ -443,7 +461,7 @@ pub fn validate_capabilities(capabilities: &[String]) -> ValidationResult<()> {
             });
         }
     }
-    
+
     Ok(())
 }
 
@@ -491,15 +509,16 @@ pub fn validate_and_sanitize_node_info(mut node_info: NodeInfo) -> ValidationRes
     if trimmed_id != node_info.id {
         node_info.id = trimmed_id.to_string();
     }
-    
+
     let trimmed_address = node_info.address.trim();
     if trimmed_address != node_info.address {
         node_info.address = trimmed_address.to_string();
     }
-    
+
     // Optimize capability trimming - only allocate if changes needed
     let mut capabilities_changed = false;
-    let trimmed_capabilities: Vec<String> = node_info.capabilities
+    let trimmed_capabilities: Vec<String> = node_info
+        .capabilities
         .into_iter()
         .map(|cap| {
             let trimmed = cap.trim();
@@ -509,19 +528,19 @@ pub fn validate_and_sanitize_node_info(mut node_info: NodeInfo) -> ValidationRes
             if capabilities_changed {
                 trimmed.to_string()
             } else {
-                cap  // Reuse original string if no changes needed
+                cap // Reuse original string if no changes needed
             }
         })
         .collect();
-    
+
     node_info.capabilities = trimmed_capabilities;
-    
+
     // Validate individual fields
     validate_node_id(&node_info.id)?;
     validate_address(&node_info.address)?;
     validate_port(node_info.metrics_port)?;
     validate_capabilities(&node_info.capabilities)?;
-    
+
     // Validate consistency
     if node_info.is_load_balancer && !node_info.node_type.can_load_balance() {
         return Err(ValidationError::InvalidCharacters {
@@ -529,7 +548,7 @@ pub fn validate_and_sanitize_node_info(mut node_info: NodeInfo) -> ValidationRes
             invalid_chars: vec![], // Reusing this error type for consistency issues
         });
     }
-    
+
     Ok(node_info)
 }
 
@@ -546,12 +565,12 @@ pub fn validate_and_sanitize_peer_info(mut peer_info: PeerInfo) -> ValidationRes
     // Sanitize strings by trimming whitespace
     peer_info.id = peer_info.id.trim().to_string();
     peer_info.address = peer_info.address.trim().to_string();
-    
+
     // Validate individual fields
     validate_node_id(&peer_info.id)?;
     validate_address(&peer_info.address)?;
     validate_port(peer_info.metrics_port)?;
-    
+
     // Validate consistency
     if peer_info.is_load_balancer && !peer_info.node_type.can_load_balance() {
         return Err(ValidationError::InvalidCharacters {
@@ -559,7 +578,7 @@ pub fn validate_and_sanitize_peer_info(mut peer_info: PeerInfo) -> ValidationRes
             invalid_chars: vec![], // Reusing this error type for consistency issues
         });
     }
-    
+
     Ok(peer_info)
 }
 
@@ -667,7 +686,7 @@ mod tests {
         assert!(validate_node_id("proxy_001").is_ok());
         assert!(validate_node_id("test.node.123").is_ok());
         assert!(validate_node_id("a").is_ok());
-        
+
         // Invalid IDs
         assert!(validate_node_id("").is_err());
         assert!(validate_node_id("   ").is_err());
@@ -685,7 +704,7 @@ mod tests {
         assert!(validate_address("[::1]:8080").is_ok());
         assert!(validate_address("service.local:9090").is_ok());
         assert!(validate_address("192.168.1.100:5000").is_ok());
-        
+
         // Invalid addresses
         assert!(validate_address("").is_err());
         assert!(validate_address("invalid-format").is_err());
@@ -702,10 +721,10 @@ mod tests {
         assert!(validate_port(1024).is_ok());
         assert!(validate_port(8080).is_ok());
         assert!(validate_port(65535).is_ok());
-        
+
         // Invalid ports
         assert!(validate_port(0).is_err());
-        assert!(validate_port(80).is_err());  // Well-known port
+        assert!(validate_port(80).is_err()); // Well-known port
         assert!(validate_port(443).is_err()); // Well-known port
         assert!(validate_port(1023).is_err()); // Below minimum
     }
@@ -715,20 +734,20 @@ mod tests {
         // Valid capabilities
         let valid_caps = vec!["inference".to_string(), "gpu_support".to_string()];
         assert!(validate_capabilities(&valid_caps).is_ok());
-        
+
         let empty_caps: Vec<String> = vec![];
         assert!(validate_capabilities(&empty_caps).is_ok());
-        
+
         // Invalid capabilities
         let invalid_chars = vec!["invalid-char".to_string()];
         assert!(validate_capabilities(&invalid_chars).is_err());
-        
+
         let empty_cap = vec!["".to_string()];
         assert!(validate_capabilities(&empty_cap).is_err());
-        
+
         let too_long = vec!["a".repeat(100)];
         assert!(validate_capabilities(&too_long).is_err());
-        
+
         let too_many: Vec<String> = (0..50).map(|i| format!("cap{}", i)).collect();
         assert!(validate_capabilities(&too_many).is_err());
     }
@@ -736,10 +755,10 @@ mod tests {
     #[test]
     fn test_validate_and_sanitize_node_info() {
         let node = NodeInfo::new(
-            "  backend-1  ".to_string(), // With whitespace
+            "  backend-1  ".to_string(),    // With whitespace
             " 127.0.0.1:3000 ".to_string(), // With whitespace
             9090,
-            NodeType::Backend
+            NodeType::Backend,
         );
 
         let sanitized = validate_and_sanitize_node_info(node).unwrap();
@@ -753,12 +772,12 @@ mod tests {
             "backend-1".to_string(),
             "127.0.0.1:3000".to_string(),
             9090,
-            NodeType::Backend
+            NodeType::Backend,
         );
-        
+
         // This should be invalid: Backend marked as load balancer
         node.is_load_balancer = true;
-        
+
         assert!(validate_and_sanitize_node_info(node).is_err());
     }
 
@@ -769,7 +788,7 @@ mod tests {
             max_length: 100,
             actual_length: 200,
         };
-        
+
         let display = format!("{}", error);
         assert!(display.contains("id"));
         assert!(display.contains("too long"));
@@ -784,8 +803,8 @@ mod tests {
         assert!(validate_address("sub.example.com:3000").is_ok());
         assert!(validate_address("localhost:9090").is_ok());
         assert!(validate_address("a.b.c.d:5000").is_ok());
-        
-        // Invalid hostnames  
+
+        // Invalid hostnames
         assert!(validate_address("-invalid.com:8080").is_err());
         assert!(validate_address("invalid-.com:8080").is_err());
         assert!(validate_address("invalid..com:8080").is_err());

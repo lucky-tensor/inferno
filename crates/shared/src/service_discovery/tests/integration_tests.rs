@@ -4,8 +4,8 @@
 //! including health checking, peer registration, consensus, and configuration loading.
 
 use crate::service_discovery::{
-    ServiceDiscovery, ServiceDiscoveryConfig, NodeInfo, NodeType, 
-    HealthChecker, HttpHealthChecker, AuthMode, BackendRegistration
+    AuthMode, BackendRegistration, HealthChecker, HttpHealthChecker, NodeInfo, NodeType,
+    ServiceDiscovery, ServiceDiscoveryConfig,
 };
 use std::time::Duration;
 use tokio::time::sleep;
@@ -43,7 +43,7 @@ async fn test_complete_service_discovery_workflow() {
 
     // 3. Test health check doesn't crash (run for short time)
     sleep(Duration::from_millis(100)).await;
-    
+
     // 4. Test graceful shutdown
     discovery.stop_health_check_loop().await.unwrap();
     assert!(!discovery.is_health_check_running().await);
@@ -56,12 +56,12 @@ async fn test_complete_service_discovery_workflow() {
 #[tokio::test]
 async fn test_multi_peer_registration_with_consensus() {
     let discovery = ServiceDiscovery::new();
-    
+
     let node = NodeInfo::new(
         "test-node".to_string(),
         "10.0.1.7:3000".to_string(),
         9090,
-        NodeType::Backend
+        NodeType::Backend,
     );
 
     // Test with empty peer URLs (should succeed with empty results)
@@ -76,7 +76,7 @@ async fn test_multi_peer_registration_with_consensus() {
     // This tests the consensus algorithm without network timeouts
     use crate::service_discovery::{PeerInfo, RegistrationResponse};
     use std::time::SystemTime;
-    
+
     let peer_info = PeerInfo {
         id: "consensus-test-node".to_string(),
         address: "10.0.1.100:3000".to_string(),
@@ -86,13 +86,11 @@ async fn test_multi_peer_registration_with_consensus() {
         last_updated: SystemTime::now(),
     };
 
-    let mock_responses = vec![
-        RegistrationResponse {
-            status: "registered".to_string(),
-            message: Some("Success".to_string()),
-            peers: vec![peer_info.clone()],
-        }
-    ];
+    let mock_responses = vec![RegistrationResponse {
+        status: "registered".to_string(),
+        message: Some("Success".to_string()),
+        peers: vec![peer_info.clone()],
+    }];
 
     let result = discovery.resolve_consensus(mock_responses).await;
     assert!(result.is_ok());
@@ -101,15 +99,15 @@ async fn test_multi_peer_registration_with_consensus() {
     assert_eq!(consensus_metrics.peer_count, 1);
 }
 
-#[tokio::test] 
+#[tokio::test]
 async fn test_self_sovereign_updates() {
     let discovery = ServiceDiscovery::new();
-    
+
     let node = NodeInfo::new(
         "updating-node".to_string(),
         "10.0.1.8:3000".to_string(),
         9090,
-        NodeType::Backend
+        NodeType::Backend,
     );
 
     // Test self-sovereign update with empty peer list
@@ -127,7 +125,7 @@ async fn test_self_sovereign_updates() {
 #[tokio::test]
 async fn test_configuration_from_environment() {
     use std::env;
-    
+
     // Set test environment variables
     env::set_var("INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_INTERVAL", "10");
     env::set_var("INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_TIMEOUT", "3");
@@ -136,7 +134,7 @@ async fn test_configuration_from_environment() {
     env::set_var("INFERNO_SERVICE_DISCOVERY_SHARED_SECRET", "test-secret-123");
 
     let config = ServiceDiscoveryConfig::from_env().unwrap();
-    
+
     assert_eq!(config.health_check_interval, Duration::from_secs(10));
     assert_eq!(config.health_check_timeout, Duration::from_secs(3));
     assert_eq!(config.failure_threshold, 5);
@@ -159,18 +157,18 @@ async fn test_configuration_from_environment() {
 #[tokio::test]
 async fn test_configuration_validation_errors() {
     use std::env;
-    
+
     // Test invalid auth mode
     env::set_var("INFERNO_SERVICE_DISCOVERY_AUTH_MODE", "invalid_mode");
     let result = ServiceDiscoveryConfig::from_env();
     assert!(result.is_err());
-    
+
     // Test shared secret mode without secret
     env::set_var("INFERNO_SERVICE_DISCOVERY_AUTH_MODE", "shared_secret");
     env::remove_var("INFERNO_SERVICE_DISCOVERY_SHARED_SECRET");
     let result = ServiceDiscoveryConfig::from_env();
     assert!(result.is_err());
-    
+
     // Test invalid numeric values
     env::set_var("INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_INTERVAL", "invalid");
     let result = ServiceDiscoveryConfig::from_env();
@@ -190,18 +188,18 @@ async fn test_configuration_validation_errors() {
 #[tokio::test]
 async fn test_health_checker_functionality() {
     let health_checker = HttpHealthChecker::new(Duration::from_secs(1));
-    
+
     let node = NodeInfo::new(
         "test-node".to_string(),
         "127.0.0.1:9999".to_string(), // Use a port that's likely not running
         9090,
-        NodeType::Backend
+        NodeType::Backend,
     );
 
     // Test health check against non-existent endpoint (should fail)
     let result = health_checker.check_health(&node).await;
     assert!(result.is_ok()); // The method should return Ok(HealthCheckResult)
-    
+
     let health_result = result.unwrap();
     assert!(!health_result.is_healthy()); // But the result should indicate unhealthy
     assert!(health_result.error_message().is_some());
@@ -210,11 +208,11 @@ async fn test_health_checker_functionality() {
 #[tokio::test]
 async fn test_peer_discovery_and_consensus() {
     let discovery = ServiceDiscovery::new();
-    
+
     // Create mock peer responses for consensus testing
     use crate::service_discovery::{PeerInfo, RegistrationResponse};
     use std::time::SystemTime;
-    
+
     let peer1 = PeerInfo {
         id: "backend-1".to_string(),
         address: "10.0.1.5:3000".to_string(),
@@ -249,7 +247,7 @@ async fn test_peer_discovery_and_consensus() {
     let result = discovery.resolve_consensus(responses).await;
     assert!(result.is_ok());
     let (consensus_peers, metrics) = result.unwrap();
-    
+
     assert_eq!(consensus_peers.len(), 2);
     assert_eq!(metrics.peer_count, 2);
     assert_eq!(metrics.conflicts_detected, 0); // No conflicts since peers agree
@@ -258,7 +256,7 @@ async fn test_peer_discovery_and_consensus() {
 #[tokio::test]
 async fn test_backend_removal_and_recovery() {
     let discovery = ServiceDiscovery::new();
-    
+
     let backend = BackendRegistration {
         id: "test-backend".to_string(),
         address: "10.0.1.10:3000".to_string(),
@@ -280,7 +278,7 @@ async fn test_backend_removal_and_recovery() {
 #[test]
 fn test_configuration_default_values() {
     let config = ServiceDiscoveryConfig::default();
-    
+
     assert_eq!(config.health_check_interval, Duration::from_secs(5));
     assert_eq!(config.health_check_timeout, Duration::from_secs(2));
     assert_eq!(config.failure_threshold, 3);

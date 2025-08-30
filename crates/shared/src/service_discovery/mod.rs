@@ -178,4 +178,3 @@ pub mod content_types {
     /// JSON content type for all service discovery messages
     pub const JSON: &str = "application/json";
 }
-

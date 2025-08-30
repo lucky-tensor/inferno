@@ -47,7 +47,7 @@
 use crate::error::{InfernoError, Result};
 use crate::metrics::MetricsCollector;
 use crate::service_discovery::{
-    validate_and_sanitize_node_info, BackendRegistration, NodeVitals, RegistrationAction, 
+    validate_and_sanitize_node_info, BackendRegistration, NodeVitals, RegistrationAction,
     RegistrationHandler, RegistrationRequest, ServiceDiscovery,
 };
 use http::{Method, StatusCode};
@@ -674,9 +674,13 @@ async fn handle_telemetry_request(
     prometheus_output.push_str("node_ready 1\n\n");
 
     // Active requests
-    prometheus_output.push_str("# HELP requests_in_progress Current number of requests being processed\n");
+    prometheus_output
+        .push_str("# HELP requests_in_progress Current number of requests being processed\n");
     prometheus_output.push_str("# TYPE requests_in_progress gauge\n");
-    prometheus_output.push_str(&format!("requests_in_progress {}\n\n", snapshot.active_requests));
+    prometheus_output.push_str(&format!(
+        "requests_in_progress {}\n\n",
+        snapshot.active_requests
+    ));
 
     // CPU usage (placeholder until real CPU monitoring is implemented)
     prometheus_output.push_str("# HELP cpu_usage_percent CPU usage percentage\n");
@@ -689,14 +693,21 @@ async fn handle_telemetry_request(
     prometheus_output.push_str("memory_usage_percent 0.0\n\n");
 
     // Total requests (counter)
-    prometheus_output.push_str("# HELP http_requests_total Total number of HTTP requests processed\n");
+    prometheus_output
+        .push_str("# HELP http_requests_total Total number of HTTP requests processed\n");
     prometheus_output.push_str("# TYPE http_requests_total counter\n");
-    prometheus_output.push_str(&format!("http_requests_total {}\n\n", snapshot.total_requests));
+    prometheus_output.push_str(&format!(
+        "http_requests_total {}\n\n",
+        snapshot.total_requests
+    ));
 
     // Failed responses (counter)
     prometheus_output.push_str("# HELP failed_responses_total Total number of failed responses\n");
     prometheus_output.push_str("# TYPE failed_responses_total counter\n");
-    prometheus_output.push_str(&format!("failed_responses_total {}\n\n", snapshot.total_errors));
+    prometheus_output.push_str(&format!(
+        "failed_responses_total {}\n\n",
+        snapshot.total_errors
+    ));
 
     // Connected peers
     prometheus_output.push_str("# HELP connected_peers Number of connected peers\n");
@@ -1528,7 +1539,10 @@ mod tests {
         let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
         let response_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert_eq!(response_json["error"], "Payload too large");
-        assert_eq!(response_json["max_size_bytes"], MAX_REGISTRATION_PAYLOAD_SIZE);
+        assert_eq!(
+            response_json["max_size_bytes"],
+            MAX_REGISTRATION_PAYLOAD_SIZE
+        );
     }
 
     #[tokio::test]
@@ -1610,15 +1624,16 @@ mod tests {
         let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
         let _body_str = String::from_utf8(body.to_vec()).unwrap();
         let response_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        
+
         // Check for various possible error message formats
         let error_msg = response_json["error"].as_str().unwrap();
         assert!(
-            error_msg.contains("Input validation failed") 
-            || error_msg.contains("Validation failed")
-            || error_msg.contains("validation")
-            || error_msg.contains("Invalid registration data format"),
-            "Unexpected error message: {}", error_msg
+            error_msg.contains("Input validation failed")
+                || error_msg.contains("Validation failed")
+                || error_msg.contains("validation")
+                || error_msg.contains("Invalid registration data format"),
+            "Unexpected error message: {}",
+            error_msg
         );
     }
 
@@ -1652,7 +1667,10 @@ mod tests {
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
         let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
         let response_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert!(response_json["error"].as_str().unwrap().contains("Input validation failed"));
+        assert!(response_json["error"]
+            .as_str()
+            .unwrap()
+            .contains("Input validation failed"));
     }
 
     #[tokio::test]
@@ -1685,7 +1703,10 @@ mod tests {
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
         let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
         let response_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert!(response_json["error"].as_str().unwrap().contains("Input validation failed"));
+        assert!(response_json["error"]
+            .as_str()
+            .unwrap()
+            .contains("Input validation failed"));
     }
 
     #[tokio::test]

@@ -320,12 +320,16 @@ impl ServiceDiscoveryConfig {
     pub fn from_env() -> Result<Self> {
         debug!("Loading service discovery configuration from environment variables");
 
-        let health_check_interval = Self::env_duration("INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_INTERVAL", 5)?;
-        let health_check_timeout = Self::env_duration("INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_TIMEOUT", 2)?;
+        let health_check_interval =
+            Self::env_duration("INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_INTERVAL", 5)?;
+        let health_check_timeout =
+            Self::env_duration("INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_TIMEOUT", 2)?;
         let failure_threshold = Self::env_u32("INFERNO_SERVICE_DISCOVERY_FAILURE_THRESHOLD", 3)?;
         let recovery_threshold = Self::env_u32("INFERNO_SERVICE_DISCOVERY_RECOVERY_THRESHOLD", 2)?;
-        let registration_timeout = Self::env_duration("INFERNO_SERVICE_DISCOVERY_REGISTRATION_TIMEOUT", 30)?;
-        let enable_health_check_logging = Self::env_bool("INFERNO_SERVICE_DISCOVERY_ENABLE_LOGGING", false)?;
+        let registration_timeout =
+            Self::env_duration("INFERNO_SERVICE_DISCOVERY_REGISTRATION_TIMEOUT", 30)?;
+        let enable_health_check_logging =
+            Self::env_bool("INFERNO_SERVICE_DISCOVERY_ENABLE_LOGGING", false)?;
 
         let auth_mode_str = std::env::var("INFERNO_SERVICE_DISCOVERY_AUTH_MODE")
             .unwrap_or_else(|_| "open".to_string())
@@ -336,7 +340,10 @@ impl ServiceDiscoveryConfig {
             "shared_secret" => AuthMode::SharedSecret,
             other => {
                 return Err(InfernoError::configuration(
-                    format!("Invalid auth mode '{}'. Must be 'open' or 'shared_secret'", other),
+                    format!(
+                        "Invalid auth mode '{}'. Must be 'open' or 'shared_secret'",
+                        other
+                    ),
                     None,
                 ));
             }
@@ -383,7 +390,10 @@ impl ServiceDiscoveryConfig {
             Ok(value) => {
                 let secs = value.parse::<u64>().map_err(|e| {
                     InfernoError::configuration(
-                        format!("Invalid value for {}: '{}' (must be a positive integer): {}", var_name, value, e),
+                        format!(
+                            "Invalid value for {}: '{}' (must be a positive integer): {}",
+                            var_name, value, e
+                        ),
                         None,
                     )
                 })?;
@@ -396,14 +406,15 @@ impl ServiceDiscoveryConfig {
     /// Helper method to parse u32 from environment variable
     fn env_u32(var_name: &str, default: u32) -> Result<u32> {
         match std::env::var(var_name) {
-            Ok(value) => {
-                value.parse::<u32>().map_err(|e| {
-                    InfernoError::configuration(
-                        format!("Invalid value for {}: '{}' (must be a positive integer): {}", var_name, value, e),
-                        None,
-                    )
-                })
-            }
+            Ok(value) => value.parse::<u32>().map_err(|e| {
+                InfernoError::configuration(
+                    format!(
+                        "Invalid value for {}: '{}' (must be a positive integer): {}",
+                        var_name, value, e
+                    ),
+                    None,
+                )
+            }),
             Err(_) => Ok(default),
         }
     }

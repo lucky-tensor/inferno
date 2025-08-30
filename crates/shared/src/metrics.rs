@@ -582,7 +582,7 @@ impl MetricsCollector {
         self.health_check_operations.fetch_add(1, Ordering::Relaxed);
         self.health_check_time_us
             .fetch_add(duration_us, Ordering::Relaxed);
-        
+
         if !success {
             self.health_check_failures.fetch_add(1, Ordering::Relaxed);
         }
@@ -716,8 +716,12 @@ impl MetricsCollector {
             active_backend_connections: self.active_backend_connections.load(Ordering::Relaxed),
             duration_histogram,
             average_upstream_selection_time_us,
-            service_discovery_registrations: self.service_discovery_registrations.load(Ordering::Relaxed),
-            service_discovery_registration_failures: self.service_discovery_registration_failures.load(Ordering::Relaxed),
+            service_discovery_registrations: self
+                .service_discovery_registrations
+                .load(Ordering::Relaxed),
+            service_discovery_registration_failures: self
+                .service_discovery_registration_failures
+                .load(Ordering::Relaxed),
             consensus_operations,
             average_consensus_operation_time_us,
             peer_discovery_operations,
@@ -764,8 +768,10 @@ impl MetricsCollector {
         self.backend_connection_errors.store(0, Ordering::Relaxed);
         self.upstream_selection_time_us.store(0, Ordering::Relaxed);
         self.upstream_selections.store(0, Ordering::Relaxed);
-        self.service_discovery_registrations.store(0, Ordering::Relaxed);
-        self.service_discovery_registration_failures.store(0, Ordering::Relaxed);
+        self.service_discovery_registrations
+            .store(0, Ordering::Relaxed);
+        self.service_discovery_registration_failures
+            .store(0, Ordering::Relaxed);
         self.consensus_operations.store(0, Ordering::Relaxed);
         self.consensus_operation_time_us.store(0, Ordering::Relaxed);
         self.peer_discovery_operations.store(0, Ordering::Relaxed);

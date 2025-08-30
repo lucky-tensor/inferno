@@ -16,14 +16,20 @@ fn generate_node_ids() -> Vec<(String, String)> {
     vec![
         ("short".to_string(), "node1".to_string()),
         ("medium".to_string(), "backend-service-001".to_string()),
-        ("long".to_string(), format!("{}-{}", "a".repeat(50), "backend")),
+        (
+            "long".to_string(),
+            format!("{}-{}", "a".repeat(50), "backend"),
+        ),
         ("max_length".to_string(), "b".repeat(128)),
         (
             "with_whitespace".to_string(),
             "  node-with-spaces  ".to_string(),
         ),
         ("unicode".to_string(), "node-测试-123".to_string()),
-        ("special_chars".to_string(), "node_test.123-final".to_string()),
+        (
+            "special_chars".to_string(),
+            "node_test.123-final".to_string(),
+        ),
     ]
 }
 
@@ -31,7 +37,10 @@ fn generate_node_ids() -> Vec<(String, String)> {
 fn generate_addresses() -> Vec<(String, String)> {
     vec![
         ("ipv4_simple".to_string(), "127.0.0.1:8080".to_string()),
-        ("ipv4_standard".to_string(), "192.168.1.100:3000".to_string()),
+        (
+            "ipv4_standard".to_string(),
+            "192.168.1.100:3000".to_string(),
+        ),
         ("ipv6_simple".to_string(), "[::1]:8080".to_string()),
         (
             "ipv6_full".to_string(),
@@ -149,10 +158,7 @@ fn generate_node_infos() -> Vec<(String, NodeInfo)> {
                 metrics_port: 9090,
                 node_type: NodeType::Backend,
                 is_load_balancer: false,
-                capabilities: vec![
-                    " inference ".to_string(),
-                    "  gpu_support  ".to_string(),
-                ],
+                capabilities: vec![" inference ".to_string(), "  gpu_support  ".to_string()],
                 last_updated: std::time::SystemTime::now(),
             },
         ),
@@ -179,15 +185,11 @@ fn bench_node_id_validation(c: &mut Criterion) {
 
     for (name, node_id) in test_ids.iter() {
         group.throughput(Throughput::Bytes(node_id.len() as u64));
-        group.bench_with_input(
-            BenchmarkId::new("validate", name),
-            node_id,
-            |b, id| {
-                b.iter(|| {
-                    let _ = validate_node_id(id);
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("validate", name), node_id, |b, id| {
+            b.iter(|| {
+                let _ = validate_node_id(id);
+            });
+        });
     }
 
     group.finish();
@@ -201,15 +203,11 @@ fn bench_address_validation(c: &mut Criterion) {
 
     for (name, address) in test_addresses.iter() {
         group.throughput(Throughput::Bytes(address.len() as u64));
-        group.bench_with_input(
-            BenchmarkId::new("validate", name),
-            address,
-            |b, addr| {
-                b.iter(|| {
-                    let _ = validate_address(addr);
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("validate", name), address, |b, addr| {
+            b.iter(|| {
+                let _ = validate_address(addr);
+            });
+        });
     }
 
     group.finish();
@@ -219,20 +217,14 @@ fn bench_address_validation(c: &mut Criterion) {
 fn bench_port_validation(c: &mut Criterion) {
     let mut group = c.benchmark_group("validation_port");
 
-    let test_ports = [
-        1024, 3000, 8080, 9090, 6100, 5432, 27017, 65535,
-    ];
+    let test_ports = [1024, 3000, 8080, 9090, 6100, 5432, 27017, 65535];
 
     for port in test_ports.iter() {
-        group.bench_with_input(
-            BenchmarkId::new("validate", port),
-            port,
-            |b, &port| {
-                b.iter(|| {
-                    let _ = validate_port(port);
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("validate", port), port, |b, &port| {
+            b.iter(|| {
+                let _ = validate_port(port);
+            });
+        });
     }
 
     group.finish();
@@ -271,8 +263,12 @@ fn bench_node_info_validation(c: &mut Criterion) {
         // Estimate size for throughput calculation
         let size = node_info.id.len()
             + node_info.address.len()
-            + node_info.capabilities.iter().map(|c| c.len()).sum::<usize>();
-        
+            + node_info
+                .capabilities
+                .iter()
+                .map(|c| c.len())
+                .sum::<usize>();
+
         group.throughput(Throughput::Bytes(size as u64));
         group.bench_with_input(
             BenchmarkId::new("validate_and_sanitize", name),
@@ -295,7 +291,7 @@ fn bench_validation_error_cases(c: &mut Criterion) {
     // Test various error conditions to ensure error paths are performant
     let too_long_node_id = "x".repeat(200);
     let too_long_address = format!("{}:8080", "x".repeat(300));
-    
+
     let error_cases = vec![
         ("empty_node_id", ""),
         ("too_long_node_id", too_long_node_id.as_str()),
@@ -344,10 +340,7 @@ fn bench_batch_validation(c: &mut Criterion) {
                     _ => NodeType::Governator,
                 },
                 is_load_balancer: i % 3 == 1,
-                capabilities: vec![
-                    "capability_a".to_string(),
-                    format!("capability_{}", i),
-                ],
+                capabilities: vec!["capability_a".to_string(), format!("capability_{}", i)],
                 last_updated: std::time::SystemTime::now(),
             })
             .collect();
