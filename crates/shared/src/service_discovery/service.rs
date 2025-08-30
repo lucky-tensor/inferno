@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tracing::{debug, instrument, warn};
+use tracing::{debug, info, instrument, warn};
 
 /// Main service discovery implementation
 ///
@@ -61,6 +61,9 @@ pub struct ServiceDiscovery {
 
     /// Retry manager for failed operations
     retry_manager: RetryManager,
+
+    /// Health check task handle for graceful shutdown
+    health_check_handle: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
 }
 
 impl ServiceDiscovery {
@@ -93,6 +96,7 @@ impl ServiceDiscovery {
             registration_failures: Arc::new(RwLock::new(HashMap::new())),
             update_propagator: UpdatePropagator::new(),
             retry_manager: RetryManager::new(),
+            health_check_handle: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -129,7 +133,71 @@ impl ServiceDiscovery {
             registration_failures: Arc::new(RwLock::new(HashMap::new())),
             update_propagator: UpdatePropagator::new(),
             retry_manager: RetryManager::new(),
+            health_check_handle: Arc::new(RwLock::new(None)),
         }
+    }
+
+    /// Returns a reference to the service discovery configuration
+    ///
+    /// # Returns
+    ///
+    /// Returns the current service discovery configuration including authentication settings.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use inferno_shared::service_discovery::{ServiceDiscovery, AuthMode};
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let discovery = ServiceDiscovery::new();
+    /// let config = discovery.get_config().await;
+    /// assert_eq!(config.auth_mode, AuthMode::Open);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn get_config(&self) -> &ServiceDiscoveryConfig {
+        &self.config
+    }
+
+    /// Removes a peer from service discovery by ID
+    ///
+    /// This method removes a peer from the known peers list, typically called
+    /// when a peer is determined to be unhealthy or no longer reachable.
+    ///
+    /// # Arguments
+    ///
+    /// * `peer_id` - The ID of the peer to remove
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if the peer was successfully removed or didn't exist,
+    /// or an error if the removal failed.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use inferno_shared::service_discovery::ServiceDiscovery;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let discovery = ServiceDiscovery::new();
+    /// discovery.remove_peer("unhealthy-backend-1").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn remove_peer(&self, peer_id: &str) -> ServiceDiscoveryResult<()> {
+        debug!(peer_id = %peer_id, "Removing peer from service discovery");
+
+        let mut backends = self.backends.write().await;
+        let mut registration_times = self.registration_times.write().await;
+
+        if backends.remove(peer_id).is_some() {
+            registration_times.remove(peer_id);
+            info!(peer_id = %peer_id, "Successfully removed peer from service discovery");
+        } else {
+            debug!(peer_id = %peer_id, "Peer not found in service discovery (already removed or never existed)");
+        }
+
+        Ok(())
     }
 
     /// Registers a backend with the service discovery
@@ -834,6 +902,240 @@ impl ServiceDiscovery {
         self.retry_manager.process_retry_queue().await
     }
 
+    /// Starts the health checking loop for continuous monitoring
+    ///
+    /// This method implements the health checking requirements from the specification:
+    /// "Load balancer → Adds backend to pool, starts checking metrics port"
+    /// "Backend fails → Load balancer removes it from pool (metrics port unreachable or ready=false)"
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if the health check loop starts successfully, or an error if it fails.
+    ///
+    /// # Health Check Algorithm
+    ///
+    /// 1. Runs every `health_check_interval` (default 5s as per specification)
+    /// 2. Checks all registered backends via their `/metrics` endpoint
+    /// 3. Removes backends that are unreachable or report `ready=false`
+    /// 4. Uses HTTP client with configurable timeout (default 2s)
+    /// 5. Logs health check results for monitoring and debugging
+    ///
+    /// # Performance Characteristics
+    ///
+    /// - Health check cycle: < 5s (configurable, meeting spec requirements)
+    /// - Parallel checks: All backends checked concurrently
+    /// - Memory overhead: Minimal, only stores task handle
+    /// - Network efficiency: Reuses HTTP connections via client pool
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use inferno_shared::service_discovery::ServiceDiscovery;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let discovery = ServiceDiscovery::new();
+    ///
+    /// // Start health checking (runs in background)
+    /// discovery.start_health_check_loop().await?;
+    ///
+    /// // Health checking now runs continuously...
+    /// // Backends will be automatically removed if they become unhealthy
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[instrument(skip(self))]
+    pub async fn start_health_check_loop(&self) -> ServiceDiscoveryResult<()> {
+        // Check if health check loop is already running
+        {
+            let handle = self.health_check_handle.read().await;
+            if handle.is_some() {
+                info!("Health check loop already running, skipping start");
+                return Ok(());
+            }
+        }
+
+        info!(
+            interval_secs = self.config.health_check_interval.as_secs(),
+            timeout_secs = self.config.health_check_timeout.as_secs(),
+            "Starting health check loop"
+        );
+
+        // Clone necessary data for the health check task
+        let backends = self.backends.clone();
+        let health_checker = self.health_checker.clone();
+        let interval = self.config.health_check_interval;
+
+        // Start the health check loop task
+        let task_handle = tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(interval);
+            ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+            loop {
+                ticker.tick().await;
+
+                // Get current list of backends to check
+                let current_backends = {
+                    let backends_lock = backends.read().await;
+                    backends_lock.clone()
+                };
+
+                if current_backends.is_empty() {
+                    debug!("No backends to health check, skipping cycle");
+                    continue;
+                }
+
+                debug!(
+                    backend_count = current_backends.len(),
+                    "Starting health check cycle"
+                );
+
+                // Check all backends concurrently
+                let mut check_tasks = Vec::new();
+                for (backend_id, node_info) in current_backends {
+                    let health_checker_clone = health_checker.clone();
+                    let backends_clone = backends.clone();
+                    let task = tokio::spawn(async move {
+                        match health_checker_clone.check_health(&node_info).await {
+                            Ok(result) => {
+                                if !result.is_healthy() {
+                                    warn!(
+                                        backend_id = %backend_id,
+                                        address = %node_info.address,
+                                        error = ?result.error_message(),
+                                        "Backend unhealthy, removing from pool"
+                                    );
+
+                                    // Remove unhealthy backend
+                                    let mut backends_write = backends_clone.write().await;
+                                    backends_write.remove(&backend_id);
+                                } else {
+                                    debug!(
+                                        backend_id = %backend_id,
+                                        address = %node_info.address,
+                                        "Backend health check passed"
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                warn!(
+                                    backend_id = %backend_id,
+                                    address = %node_info.address,
+                                    error = %e,
+                                    "Health check failed, removing backend"
+                                );
+
+                                // Remove failed backend
+                                let mut backends_write = backends_clone.write().await;
+                                backends_write.remove(&backend_id);
+                            }
+                        }
+                    });
+                    check_tasks.push(task);
+                }
+
+                // Wait for all health checks to complete
+                for task in check_tasks {
+                    if let Err(e) = task.await {
+                        warn!(error = %e, "Health check task panicked");
+                    }
+                }
+
+                debug!("Health check cycle completed");
+            }
+        });
+
+        // Store the task handle
+        {
+            let mut handle = self.health_check_handle.write().await;
+            *handle = Some(task_handle);
+        }
+
+        info!("Health check loop started successfully");
+        Ok(())
+    }
+
+    /// Stops the health checking loop
+    ///
+    /// This method gracefully shuts down the health checking background task.
+    /// It should be called when the service discovery system is being shut down.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if the health check loop stops successfully, or an error if it fails.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use inferno_shared::service_discovery::ServiceDiscovery;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let discovery = ServiceDiscovery::new();
+    ///
+    /// // Start health checking
+    /// discovery.start_health_check_loop().await?;
+    ///
+    /// // Later, during shutdown...
+    /// discovery.stop_health_check_loop().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[instrument(skip(self))]
+    pub async fn stop_health_check_loop(&self) -> ServiceDiscoveryResult<()> {
+        let task_handle = {
+            let mut handle = self.health_check_handle.write().await;
+            handle.take()
+        };
+
+        if let Some(handle) = task_handle {
+            info!("Stopping health check loop");
+            handle.abort();
+
+            // Wait for the task to finish (it should abort quickly)
+            match tokio::time::timeout(Duration::from_secs(5), async {
+                let _ = handle.await;
+            })
+            .await
+            {
+                Ok(_) => {
+                    info!("Health check loop stopped successfully");
+                }
+                Err(_) => {
+                    warn!("Health check loop did not stop within timeout, force terminated");
+                }
+            }
+        } else {
+            debug!("Health check loop was not running");
+        }
+
+        Ok(())
+    }
+
+    /// Checks if the health check loop is currently running
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` if the health check loop is active, `false` otherwise.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use inferno_shared::service_discovery::ServiceDiscovery;
+    ///
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let discovery = ServiceDiscovery::new();
+    ///
+    /// assert!(!discovery.is_health_check_running().await);
+    ///
+    /// discovery.start_health_check_loop().await?;
+    /// assert!(discovery.is_health_check_running().await);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn is_health_check_running(&self) -> bool {
+        let handle = self.health_check_handle.read().await;
+        handle.is_some()
+    }
+
     /// Legacy method: Gets all backends with vitals for backward compatibility
     ///
     /// Returns a list of all registered backends formatted for the proxy's peer manager.
@@ -1124,6 +1426,19 @@ impl std::fmt::Debug for ServiceDiscovery {
             .field("config", &self.config)
             .field("backends", &"<RwLock<HashMap>>")
             .field("health_checker", &"<dyn HealthChecker>")
+            .field("health_check_handle", &"<Arc<RwLock<Option<JoinHandle>>>>")
             .finish()
+    }
+}
+
+impl Drop for ServiceDiscovery {
+    fn drop(&mut self) {
+        // Attempt to stop the health check loop on drop
+        // This is a best-effort cleanup - we can't await in Drop
+        if let Ok(handle) = self.health_check_handle.try_read() {
+            if let Some(task_handle) = handle.as_ref() {
+                task_handle.abort();
+            }
+        }
     }
 }

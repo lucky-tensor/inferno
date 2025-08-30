@@ -38,6 +38,10 @@ pub struct BackendConfig {
     pub registration_endpoint: Option<SocketAddr>,
     /// Service name for registration
     pub service_name: String,
+    /// Service discovery authentication mode
+    pub service_discovery_auth_mode: String,
+    /// Shared secret for service discovery authentication
+    pub service_discovery_shared_secret: Option<String>,
 }
 
 impl Default for BackendConfig {
@@ -59,6 +63,8 @@ impl Default for BackendConfig {
             health_check_path: "/health".to_string(),
             registration_endpoint: None,
             service_name: "inferno-backend".to_string(),
+            service_discovery_auth_mode: "open".to_string(),
+            service_discovery_shared_secret: None,
         }
     }
 }
@@ -66,7 +72,23 @@ impl Default for BackendConfig {
 impl BackendConfig {
     /// Creates configuration from environment variables, falling back to defaults
     pub fn from_env() -> Result<Self> {
-        // TODO: Implement proper environment variable loading
-        Ok(Self::default())
+        let mut config = Self::default();
+
+        // Load service discovery authentication settings
+        if let Ok(auth_mode) = std::env::var("INFERNO_SERVICE_DISCOVERY_AUTH_MODE") {
+            config.service_discovery_auth_mode = auth_mode;
+        }
+
+        if let Ok(shared_secret) = std::env::var("INFERNO_SERVICE_DISCOVERY_SHARED_SECRET") {
+            config.service_discovery_shared_secret = Some(shared_secret);
+        }
+
+        // TODO: Implement loading for other environment variables
+        // - INFERNO_BACKEND_LISTEN_ADDR
+        // - INFERNO_BACKEND_MODEL_PATH
+        // - INFERNO_BACKEND_MAX_BATCH_SIZE
+        // - etc.
+
+        Ok(config)
     }
 }

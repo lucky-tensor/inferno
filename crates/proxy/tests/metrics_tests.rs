@@ -129,6 +129,18 @@ fn test_metrics_calculations() {
         active_backend_connections: 10,
         duration_histogram: [20, 30, 25, 15, 5, 0, 0, 0, 0],
         average_upstream_selection_time_us: 75,
+        service_discovery_registrations: 0,
+        service_discovery_registration_failures: 0,
+        consensus_operations: 0,
+        average_consensus_operation_time_us: 0,
+        peer_discovery_operations: 0,
+        average_peer_discovery_time_us: 0,
+        health_check_operations: 0,
+        health_check_failures: 0,
+        average_health_check_time_us: 0,
+        validation_failures: 0,
+        authentication_failures: 0,
+        payload_size_violations: 0,
         uptime: Duration::from_secs(3600), // 1 hour
         timestamp: SystemTime::now(),
     };

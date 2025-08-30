@@ -112,7 +112,7 @@ impl ProxyCliOptions {
     }
 
     /// Convert CLI options to ProxyConfig
-    fn to_config(&self) -> Result<ProxyConfig> {
+    pub fn to_config(&self) -> Result<ProxyConfig> {
         // Parse backend servers if provided
         let backend_servers = self
             .backend_servers
@@ -159,6 +159,8 @@ impl ProxyCliOptions {
             operations_addr: self.metrics.get_operations_addr(6100),
             load_balancing_algorithm: self.load_balancing_algorithm.clone(),
             backend_servers,
+            service_discovery_auth_mode: "open".to_string(),
+            service_discovery_shared_secret: None,
         })
     }
 }
