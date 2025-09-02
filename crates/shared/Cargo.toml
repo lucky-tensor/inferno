@@ -22,6 +22,10 @@ hyper = { workspace = true }
 http = { workspace = true }
 uuid = { version = "1.0", features = ["v4"] }
 fastrand = "2.0"
+# SWIM protocol dependencies
+bincode = "1.3"
+zstd = "0.13"
+rand = "0.8"
 
 [dev-dependencies]
 tokio-test = { workspace = true }
@@ -36,4 +40,8 @@ harness = false
 
 [[bench]]
 name = "update_benchmarks"
+harness = false
+
+[[bench]]
+name = "swim_benchmarks"
 harness = false

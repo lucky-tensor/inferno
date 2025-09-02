@@ -49,6 +49,23 @@ pub enum ServiceDiscoveryError {
     /// - Health check request timeout
     HealthCheckFailed { backend_id: String, reason: String },
 
+    /// SWIM protocol specific errors
+    ///
+    /// Member not found in SWIM cluster
+    MemberNotFound(String),
+
+    /// Invalid network address
+    InvalidAddress(String),
+
+    /// Serialization/deserialization error
+    SerializationError(String),
+
+    /// Compression/decompression error
+    CompressionError(String),
+
+    /// SWIM cluster operation failed
+    SwimOperationFailed { operation: String, reason: String },
+
     /// Backend not found in the registry
     ///
     /// This error occurs when:
