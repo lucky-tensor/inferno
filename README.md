@@ -51,7 +51,10 @@ Enterprise delivers maximum ROI through Governator AI automation, disaggregated 
 | Feature | Inferno Community | Inferno Enterprise | Nvidia Dynamo | Google DLLM | Ollama |
 |---------|------------------|-------------------|---------------|-------------|--------|
 | **Deployment Speed** | ⚡ Fastest (zero-config) | ⚡ Fastest (zero-config) | 🐌 Complex setup | 🐌 Complex setup | 🔄 Medium |
-| **Runtime Performance** | 🚀 High (Rust VLLM) | 🚀 Highest (Disaggregated) | 🔄 Medium | 🔄 Medium | 🐌 Lower |
+| **Runtime Performance** | 🚀 High (Rust VLLM) | 🚀 Highest (Disaggregated) | 🐌 Multi-lang overhead | 🐌 Multi-lang overhead | 🐌 Single-node only |
+| **Language Stack** | 🦀 Pure Rust | 🦀 Pure Rust | 🔄 Rust→Python→C++ | 🔄 Python→C++→Python | 🔄 Go→Python→C++ |
+| **Serialization** | ✅ Zero-copy | ✅ Zero-copy | ❌ Repeated ser/deser | ❌ Repeated ser/deser | ❌ Repeated ser/deser |
+| **Cloud Design** | ✅ Cloud-native | ✅ Cloud-native | ✅ Cloud-focused | ✅ Cloud-focused | ❌ Single-machine |
 | **Self-Healing** | ✅ SWIM consensus | ✅ Enhanced SWIM | ❌ Manual failover | ❌ Manual failover | ❌ Manual restart |
 | **Container Dependency** | 🆓 Optional | 🆓 Optional | 📦 Required (K8s) | 📦 Required (K8s) | 🐳 Docker only |
 | **Load Balancing** | ✅ Pingora + HTTP/3 | ✅ Pingora + HTTP/3 | 🔄 Basic | 🔄 Basic | ❌ None |
@@ -63,9 +66,12 @@ Enterprise delivers maximum ROI through Governator AI automation, disaggregated 
 | **License** | 🆓 Free | 💰 Commercial | 💰 Commercial | 💰 Commercial | 🆓 Open source |
 
 **Key Advantages:**
+- **Pure Rust stack** eliminates multi-language overhead (competitors: Rust→Python→C++)
+- **Zero-copy operations** vs repeated serialization/deserialization in competitors
+- **True cloud-native design** (Ollama limited to single-machine deployments)
 - **Fastest deployment** among all solutions (zero-configuration startup)
 - **Only solution** with built-in self-healing via SWIM consensus
-- **Best performance** through Rust-native implementation and disaggregated VLLM
+- **Best performance** through unified language stack and disaggregated VLLM
 - **Container-optional** deployment (competitors require Docker/K8s)
 - **Advanced protocols** (HTTP/3, QUIC) while competitors use older standards
 
