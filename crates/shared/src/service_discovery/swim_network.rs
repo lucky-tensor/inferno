@@ -515,7 +515,6 @@ impl Drop for SwimNetwork {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::{IpAddr, Ipv4Addr};
 
     #[tokio::test]
     async fn test_network_creation() {

@@ -5,7 +5,6 @@
 
 use inferno_proxy::{ProxyConfig, ProxyServer};
 use inferno_shared::{InfernoError, MetricsCollector};
-use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 
 use inferno_shared::test_utils::get_random_port_addr;

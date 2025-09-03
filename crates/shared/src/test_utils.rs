@@ -26,6 +26,7 @@ pub fn get_random_port_addr() -> SocketAddr {
     format!("127.0.0.1:{}", port).parse().unwrap()
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 

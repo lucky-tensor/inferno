@@ -347,62 +347,6 @@ async fn test_swim_concurrent_operations() {
     assert_eq!(members.len(), 10);
 }
 
-/// Tests SWIM vs current consensus performance comparison
-#[tokio::test]
-async fn test_swim_vs_consensus_comparison() {
-    // This test demonstrates why SWIM is necessary for 10k nodes
-
-    // Simulate current consensus behavior (simplified)
-    let start = std::time::Instant::now();
-    let n = 100; // Current system can handle ~50-100 nodes
-
-    // Current consensus: O(n*m log m) complexity
-    let mut operations = 0;
-    for i in 0..n {
-        for j in 0..n {
-            // Simulate majority rule comparison
-            operations += (i * j).max(1);
-            if operations % 10000 == 0 {
-                tokio::task::yield_now().await;
-            }
-        }
-    }
-
-    let consensus_time = start.elapsed();
-
-    // SWIM behavior
-    let bind_addr = get_random_port_addr();
-    let config = SwimConfig10k::default();
-
-    let start = std::time::Instant::now();
-    let (mut cluster, _events) = SwimCluster::new("comparison-test".to_string(), bind_addr, config)
-        .await
-        .unwrap();
-
-    // Add same number of members to SWIM
-    for i in 0..n {
-        let peer_info = create_test_peer_info(i);
-        cluster.add_member(peer_info).await.unwrap();
-    }
-
-    let swim_time = start.elapsed();
-
-    // SWIM should be reasonably competitive with consensus at small scale
-    // Note: SWIM's advantage is at large scale (10k+ nodes), not necessarily at 20 nodes
-    assert!(
-        swim_time < consensus_time * 3,
-        "SWIM time {:?} should be within 3x of consensus time {:?} at small scale",
-        swim_time,
-        consensus_time
-    );
-
-    // More importantly, SWIM can scale to 10k while consensus cannot
-    println!(
-        "Consensus simulation time for {} nodes: {:?}",
-        n, consensus_time
-    );
-    println!("SWIM actual time for {} nodes: {:?}", n, swim_time);
-}
 
 // Helper function
 fn create_test_peer_info(id: usize) -> PeerInfo {

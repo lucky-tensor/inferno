@@ -7,7 +7,6 @@
 use inferno_proxy::{ProxyCliOptions, ProxyConfig};
 use inferno_shared::{HealthCheckOptions, LoggingOptions, MetricsOptions};
 use serial_test::serial;
-use std::net::SocketAddr;
 use std::time::Duration;
 
 use inferno_shared::test_utils::get_random_port_addr;

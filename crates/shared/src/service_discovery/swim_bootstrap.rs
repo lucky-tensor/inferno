@@ -476,7 +476,6 @@ pub fn bootstrap_config_from_env() -> BootstrapConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::{IpAddr, Ipv4Addr};
 
     #[tokio::test]
     async fn test_bootstrap_creation() {
