@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 /// Health status enumeration
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum HealthStatus {
     /// Service is operating normally
     Healthy,
@@ -42,7 +42,7 @@ pub struct VLLMHealthChecker {
 
 impl VLLMHealthChecker {
     /// Create a new health checker
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             config: HealthConfig::default(),
             memory_pool: None,
@@ -52,7 +52,7 @@ impl VLLMHealthChecker {
     }
 
     /// Create a new health checker with configuration
-    pub fn with_config(config: HealthConfig) -> Self {
+    #[must_use] pub const fn with_config(config: HealthConfig) -> Self {
         Self {
             config,
             memory_pool: None,
@@ -62,12 +62,14 @@ impl VLLMHealthChecker {
     }
 
     /// Set memory pool for health checking
+    #[must_use]
     pub fn with_memory_pool(mut self, pool: Arc<CudaMemoryPool>) -> Self {
         self.memory_pool = Some(pool);
         self
     }
 
     /// Set memory tracker for health checking
+    #[must_use]
     pub fn with_memory_tracker(mut self, tracker: Arc<MemoryTracker>) -> Self {
         self.memory_tracker = Some(tracker);
         self
@@ -129,7 +131,7 @@ impl HealthChecker for VLLMHealthChecker {
                     // Memory pool is responsive
                 }
                 Ok(Err(e)) => {
-                    issues.push(format!("Memory pool error: {}", e));
+                    issues.push(format!("Memory pool error: {e}"));
                 }
                 Err(_) => {
                     issues.push("Memory pool health check timeout".to_string());
@@ -140,6 +142,7 @@ impl HealthChecker for VLLMHealthChecker {
         // Simple inference latency test (placeholder)
         let inference_start = Instant::now();
         tokio::time::sleep(Duration::from_millis(1)).await; // Simulate minimal inference
+        #[allow(clippy::cast_precision_loss)] // Duration conversion for metrics
         let inference_latency = inference_start.elapsed().as_millis() as f64;
 
         if inference_latency > self.config.inference_latency_threshold_ms {
@@ -169,12 +172,12 @@ impl VLLMHealthChecker {
     }
 
     /// Check if health checking is enabled
-    pub fn is_enabled(&self) -> bool {
+    pub const fn is_enabled(&self) -> bool {
         self.config.enabled
     }
 
     /// Get health configuration
-    pub fn config(&self) -> &HealthConfig {
+    pub const fn config(&self) -> &HealthConfig {
         &self.config
     }
 }
@@ -207,22 +210,21 @@ pub struct HealthMetrics {
 
 impl VLLMHealthChecker {
     /// Perform detailed health check with metrics
+    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
     pub async fn check_health_detailed(&self) -> VLLMResult<HealthCheckResult> {
         let start_time = Instant::now();
         let status = self.check_health().await?;
         let duration = start_time.elapsed();
 
-        let metrics = if let Some(memory_tracker) = &self.memory_tracker {
+        let metrics = self.memory_tracker.as_ref().map(|memory_tracker| {
             let stats = memory_tracker.get_stats();
-            Some(HealthMetrics {
+            HealthMetrics {
                 memory_utilization: stats.utilization_percentage,
                 active_allocations: stats.num_allocations,
                 inference_latency_ms: 1.0, // Placeholder
                 gpu_available: stats.device_id >= 0,
-            })
-        } else {
-            None
-        };
+            }
+        });
 
         Ok(HealthCheckResult {
             status,
@@ -248,8 +250,10 @@ mod tests {
 
     #[test]
     fn test_health_checker_with_config() {
-        let mut config = HealthConfig::default();
-        config.enabled = false;
+        let config = HealthConfig {
+            enabled: false,
+            ..Default::default()
+        };
 
         let checker = VLLMHealthChecker::with_config(config);
         assert!(!checker.is_enabled());
@@ -269,8 +273,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_health_check_with_disabled() {
-        let mut config = HealthConfig::default();
-        config.enabled = false;
+        let config = HealthConfig {
+            enabled: false,
+            ..Default::default()
+        };
 
         let checker = VLLMHealthChecker::with_config(config);
         let result = checker.check_health().await;
@@ -305,7 +311,7 @@ mod tests {
         assert!(health_result.metrics.is_some());
 
         let metrics = health_result.metrics.unwrap();
-        assert_eq!(metrics.gpu_available, false); // CPU mode
+        assert!(!metrics.gpu_available); // CPU mode
     }
 
     #[tokio::test]
@@ -321,8 +327,10 @@ mod tests {
         };
         memory_tracker.track_allocation(&large_memory);
 
-        let mut config = HealthConfig::default();
-        config.gpu_memory_threshold = 0.5; // 50% threshold
+        let config = HealthConfig {
+            gpu_memory_threshold: 0.5, // 50% threshold
+            ..Default::default()
+        };
 
         let checker = VLLMHealthChecker::with_config(config).with_memory_tracker(memory_tracker);
 

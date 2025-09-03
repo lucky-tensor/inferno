@@ -20,7 +20,7 @@ pub struct VLLMBackend {
 
 impl VLLMBackend {
     /// Create a new VLLM backend
-    pub async fn new(config: VLLMConfig) -> VLLMResult<Self> {
+    pub fn new(config: VLLMConfig) -> VLLMResult<Self> {
         // Initialize memory management
         let memory_pool = Arc::new(CudaMemoryPool::new(config.device_id)?);
         let memory_tracker = Arc::new(MemoryTracker::new(config.device_id));
@@ -85,32 +85,32 @@ impl VLLMBackend {
     }
 
     /// Get the engine reference
-    pub fn engine(&self) -> &VLLMEngine {
+    #[must_use] pub fn engine(&self) -> &VLLMEngine {
         &self.engine
     }
 
     /// Get the configuration
-    pub fn config(&self) -> &VLLMConfig {
+    #[must_use] pub const fn config(&self) -> &VLLMConfig {
         &self.config
     }
 
     /// Get the memory pool
-    pub fn memory_pool(&self) -> &Arc<CudaMemoryPool> {
+    #[must_use] pub const fn memory_pool(&self) -> &Arc<CudaMemoryPool> {
         &self.memory_pool
     }
 
     /// Get the memory tracker
-    pub fn memory_tracker(&self) -> &Arc<MemoryTracker> {
+    #[must_use] pub const fn memory_tracker(&self) -> &Arc<MemoryTracker> {
         &self.memory_tracker
     }
 
     /// Get the health checker
-    pub fn health_checker(&self) -> &Arc<VLLMHealthChecker> {
+    #[must_use] pub const fn health_checker(&self) -> &Arc<VLLMHealthChecker> {
         &self.health_checker
     }
 
     /// Get the service registration
-    pub fn service_registration(&self) -> &Arc<VLLMServiceRegistration> {
+    #[must_use] pub const fn service_registration(&self) -> &Arc<VLLMServiceRegistration> {
         &self.service_registration
     }
 }
@@ -154,6 +154,7 @@ impl VLLMEngine {
         // TODO: Initialize VLLM engine here
 
         *state = EngineState::Running;
+        drop(state);
         Ok(())
     }
 
@@ -162,8 +163,7 @@ impl VLLMEngine {
         let mut state = self.state.write().await;
 
         match &*state {
-            EngineState::NotStarted | EngineState::Stopped => return Ok(()),
-            EngineState::Stopping => return Ok(()),
+            EngineState::NotStarted | EngineState::Stopped | EngineState::Stopping => return Ok(()),
             _ => {}
         }
 
@@ -172,6 +172,7 @@ impl VLLMEngine {
         // TODO: Cleanup VLLM engine here
 
         *state = EngineState::Stopped;
+        drop(state);
         Ok(())
     }
 
@@ -188,7 +189,7 @@ impl VLLMEngine {
             EngineState::Running => "running".to_string(),
             EngineState::Stopping => "stopping".to_string(),
             EngineState::Stopped => "stopped".to_string(),
-            EngineState::Error(msg) => format!("error: {}", msg),
+            EngineState::Error(msg) => format!("error: {msg}"),
         }
     }
 }

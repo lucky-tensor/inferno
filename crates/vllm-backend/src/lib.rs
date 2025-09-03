@@ -21,7 +21,7 @@
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     let config = VLLMConfig::from_env()?;
-//!     let backend = VLLMBackend::new(config).await?;
+//!     let backend = VLLMBackend::new(config)?;
 //!     backend.start().await?;
 //!     Ok(())
 //! }

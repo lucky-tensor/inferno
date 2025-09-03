@@ -17,7 +17,7 @@ pub struct VLLMServiceRegistration {
 }
 
 /// Service registration status
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum RegistrationStatus {
     /// Not yet registered
     NotRegistered,
@@ -33,7 +33,7 @@ pub enum RegistrationStatus {
 
 impl VLLMServiceRegistration {
     /// Create a new service registration
-    pub fn new(config: VLLMConfig) -> Self {
+    #[must_use] pub fn new(config: VLLMConfig) -> Self {
         Self {
             config: config.service_discovery,
             health_checker: None,
@@ -43,12 +43,14 @@ impl VLLMServiceRegistration {
     }
 
     /// Set health checker for service registration
+    #[must_use]
     pub fn with_health_checker(mut self, health_checker: Arc<VLLMHealthChecker>) -> Self {
         self.health_checker = Some(health_checker);
         self
     }
 
     /// Register the service
+    #[allow(clippy::cognitive_complexity)]
     pub async fn register(&self) -> VLLMResult<()> {
         if !self.config.enabled {
             tracing::debug!("Service discovery disabled, skipping registration");
@@ -80,7 +82,7 @@ impl VLLMServiceRegistration {
                     tracing::info!("Pre-registration health check: {:?}", health_status);
                 }
                 Err(e) => {
-                    let error_msg = format!("Health check failed before registration: {}", e);
+                    let error_msg = format!("Health check failed before registration: {e}");
                     *self.registration_status.write().await =
                         RegistrationStatus::Failed(error_msg.clone());
                     return Err(ServiceRegistrationError::HealthCheckFailed(error_msg).into());
@@ -109,6 +111,7 @@ impl VLLMServiceRegistration {
     }
 
     /// Unregister the service
+    #[allow(clippy::cognitive_complexity)]
     pub async fn unregister(&self) -> VLLMResult<()> {
         if !self.config.enabled {
             return Ok(());
@@ -145,6 +148,7 @@ impl VLLMServiceRegistration {
     }
 
     /// Send heartbeat
+    #[allow(clippy::cognitive_complexity)]
     pub async fn heartbeat(&self) -> VLLMResult<()> {
         if !self.config.enabled {
             return Ok(());
@@ -153,15 +157,12 @@ impl VLLMServiceRegistration {
         // Check if service is registered
         {
             let status = self.registration_status.read().await;
-            match *status {
-                RegistrationStatus::Registered => {}
-                _ => {
-                    tracing::warn!("Cannot send heartbeat - service not registered");
-                    return Err(ServiceRegistrationError::RegistrationFailed(
-                        "Service not registered".to_string(),
-                    )
-                    .into());
-                }
+            if *status != RegistrationStatus::Registered {
+                tracing::warn!("Cannot send heartbeat - service not registered");
+                return Err(ServiceRegistrationError::RegistrationFailed(
+                    "Service not registered".to_string(),
+                )
+                .into());
             }
         }
 
@@ -192,7 +193,8 @@ impl VLLMServiceRegistration {
     }
 
     /// Get service configuration
-    pub fn config(&self) -> &ServiceDiscoveryConfig {
+    #[must_use]
+    pub const fn config(&self) -> &ServiceDiscoveryConfig {
         &self.config
     }
 
@@ -215,7 +217,7 @@ impl VLLMServiceRegistration {
     }
 
     /// Start periodic heartbeat task
-    pub async fn start_heartbeat_task(self: Arc<Self>) -> VLLMResult<tokio::task::JoinHandle<()>> {
+    pub fn start_heartbeat_task(self: Arc<Self>) -> VLLMResult<tokio::task::JoinHandle<()>> {
         if !self.config.enabled {
             return Err(ServiceRegistrationError::DiscoveryUnavailable.into());
         }

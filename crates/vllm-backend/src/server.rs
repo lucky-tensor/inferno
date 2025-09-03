@@ -10,14 +10,14 @@ pub struct VLLMServer {
 
 impl VLLMServer {
     /// Create a new server
-    pub fn new(config: VLLMConfig) -> Self {
+    #[must_use] pub fn new(config: VLLMConfig) -> Self {
         Self {
             config: config.server,
         }
     }
 
     /// Start the server
-    pub async fn start(&self) -> VLLMResult<()> {
+    pub fn start(&self) -> VLLMResult<()> {
         // TODO: Implement HTTP server with axum
         // - /v1/completions endpoint
         // - /v1/chat/completions endpoint
@@ -28,13 +28,14 @@ impl VLLMServer {
     }
 
     /// Stop the server
-    pub async fn stop(&self) -> VLLMResult<()> {
+    pub fn stop(&self) -> VLLMResult<()> {
         tracing::info!("VLLM server stopping");
         Ok(())
     }
 
     /// Get server configuration
-    pub fn config(&self) -> &ServerConfig {
+    #[must_use]
+    pub const fn config(&self) -> &ServerConfig {
         &self.config
     }
 }

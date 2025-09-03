@@ -30,8 +30,7 @@ impl CudaMemoryPool {
         // Validate device ID
         if device_id < -1 {
             return Err(crate::error::AllocationError::DeviceMemory(format!(
-                "Invalid device ID: {}",
-                device_id
+                "Invalid device ID: {device_id}"
             ))
             .into());
         }
@@ -43,12 +42,12 @@ impl CudaMemoryPool {
     }
 
     /// Get the device ID
-    pub fn device_id(&self) -> i32 {
+    pub const fn device_id(&self) -> i32 {
         self.device_id
     }
 
     /// Check if CUDA is available for this pool
-    pub fn is_cuda_available(&self) -> bool {
+    pub const fn is_cuda_available(&self) -> bool {
         self.device_id >= 0
     }
 
@@ -80,7 +79,7 @@ impl GpuAllocator for CudaMemoryPool {
             let layout = std::alloc::Layout::from_size_align(size, alignment)
                 .map_err(|_| AllocationError::InvalidAlignment(alignment))?;
 
-            let ptr = unsafe { std::alloc::alloc(layout) } as *mut std::ffi::c_void;
+            let ptr = unsafe { std::alloc::alloc(layout) }.cast::<std::ffi::c_void>();
 
             if ptr.is_null() {
                 return Err(AllocationError::OutOfMemory {
@@ -102,7 +101,7 @@ impl GpuAllocator for CudaMemoryPool {
             // GPU allocation would be implemented here with CUDA
             #[cfg(not(feature = "cuda"))]
             {
-                Err(crate::error::VLLMError::CudaNotAvailable.into())
+                Err(crate::error::VLLMError::CudaNotAvailable)
             }
 
             #[cfg(feature = "cuda")]
@@ -143,13 +142,13 @@ impl GpuAllocator for CudaMemoryPool {
                 })?;
 
             unsafe {
-                std::alloc::dealloc(memory.ptr as *mut u8, layout);
+                std::alloc::dealloc(memory.ptr.cast::<u8>(), layout);
             }
         } else {
             // GPU deallocation would be implemented here
             #[cfg(not(feature = "cuda"))]
             {
-                return Err(crate::error::VLLMError::CudaNotAvailable.into());
+                return Err(crate::error::VLLMError::CudaNotAvailable);
             }
 
             #[cfg(feature = "cuda")]
@@ -165,9 +164,12 @@ impl GpuAllocator for CudaMemoryPool {
         Ok(())
     }
 
+    #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
     async fn get_stats(&self) -> VLLMResult<MemoryStats> {
-        let mut stats = MemoryStats::default();
-        stats.device_id = self.device_id;
+        let mut stats = MemoryStats {
+            device_id: self.device_id,
+            ..Default::default()
+        };
 
         if self.device_id < 0 {
             // CPU memory stats (simplified)
@@ -177,7 +179,7 @@ impl GpuAllocator for CudaMemoryPool {
         } else {
             #[cfg(not(feature = "cuda"))]
             {
-                return Err(crate::error::VLLMError::CudaNotAvailable.into());
+                return Err(crate::error::VLLMError::CudaNotAvailable);
             }
 
             #[cfg(feature = "cuda")]
@@ -207,7 +209,7 @@ pub struct MemoryTracker {
 
 impl MemoryTracker {
     /// Create a new memory tracker
-    pub fn new(device_id: i32) -> Self {
+    #[must_use] pub const fn new(device_id: i32) -> Self {
         Self {
             device_id,
             active_allocations: AtomicU64::new(0),
@@ -264,6 +266,7 @@ impl MemoryTracker {
     }
 
     /// Get tracking statistics
+    #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
     pub fn get_stats(&self) -> MemoryStats {
         let active_allocations = self.active_allocations.load(Ordering::SeqCst) as usize;
         let total_allocated = self.total_allocated_bytes.load(Ordering::SeqCst) as usize;
@@ -295,7 +298,7 @@ impl MemoryTracker {
     }
 
     /// Get the device ID being tracked
-    pub fn device_id(&self) -> i32 {
+    pub const fn device_id(&self) -> i32 {
         self.device_id
     }
 }

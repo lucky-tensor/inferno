@@ -296,6 +296,7 @@ pub struct VLLMConfigBuilder {
 
 impl VLLMConfigBuilder {
     /// Create a new configuration builder
+    #[must_use]
     pub fn new() -> Self {
         Self {
             config: VLLMConfig::default(),
@@ -303,55 +304,64 @@ impl VLLMConfigBuilder {
     }
 
     /// Set the model path
+    #[must_use]
     pub fn model_path<P: AsRef<Path>>(mut self, path: P) -> Self {
         self.config.model_path = path.as_ref().to_string_lossy().to_string();
         self
     }
 
     /// Set the model name
+    #[must_use]
     pub fn model_name<S: Into<String>>(mut self, name: S) -> Self {
         self.config.model_name = name.into();
         self
     }
 
     /// Set the device ID
-    pub fn device_id(mut self, device_id: i32) -> Self {
+    #[must_use]
+    pub const fn device_id(mut self, device_id: i32) -> Self {
         self.config.device_id = device_id;
         self
     }
 
     /// Set the maximum batch size
-    pub fn max_batch_size(mut self, size: usize) -> Self {
+    #[must_use]
+    pub const fn max_batch_size(mut self, size: usize) -> Self {
         self.config.max_batch_size = size;
         self
     }
 
     /// Set the maximum sequence length
-    pub fn max_sequence_length(mut self, length: usize) -> Self {
+    #[must_use]
+    pub const fn max_sequence_length(mut self, length: usize) -> Self {
         self.config.max_sequence_length = length;
         self
     }
 
     /// Set the GPU memory pool size
-    pub fn gpu_memory_pool_size_mb(mut self, size_mb: usize) -> Self {
+    #[must_use]
+    pub const fn gpu_memory_pool_size_mb(mut self, size_mb: usize) -> Self {
         self.config.gpu_memory_pool_size_mb = size_mb;
         self
     }
 
     /// Set the server port
-    pub fn port(mut self, port: u16) -> Self {
+    #[must_use]
+    pub const fn port(mut self, port: u16) -> Self {
         self.config.server.port = port;
         self
     }
 
     /// Set the server host
+    #[must_use]
     pub fn host<S: Into<String>>(mut self, host: S) -> Self {
         self.config.server.host = host.into();
         self
     }
 
     /// Enable or disable service discovery
-    pub fn service_discovery(mut self, enabled: bool) -> Self {
+    #[must_use]
+    pub const fn service_discovery(mut self, enabled: bool) -> Self {
         self.config.service_discovery.enabled = enabled;
         self
     }
@@ -372,7 +382,7 @@ impl Default for VLLMConfigBuilder {
 impl VLLMConfig {
     /// Load configuration from environment variables
     pub fn from_env() -> VLLMResult<Self> {
-        let mut config = VLLMConfig::default();
+        let mut config = Self::default();
 
         // Load from environment variables with VLLM_ prefix
         if let Ok(model_path) = env::var("VLLM_MODEL_PATH") {
@@ -442,10 +452,10 @@ impl VLLMConfig {
     /// Load configuration from a TOML file
     pub fn from_file<P: AsRef<Path>>(path: P) -> VLLMResult<Self> {
         let content = fs::read_to_string(path.as_ref())
-            .map_err(|e| VLLMConfigError::FileRead(format!("Failed to read config file: {}", e)))?;
+            .map_err(|e| VLLMConfigError::FileRead(format!("Failed to read config file: {e}")))?;
 
-        let config: VLLMConfig = toml::from_str(&content)
-            .map_err(|e| VLLMConfigError::Parse(format!("Failed to parse TOML: {}", e)))?;
+        let config: Self = toml::from_str(&content)
+            .map_err(|e| VLLMConfigError::Parse(format!("Failed to parse TOML: {e}")))?;
 
         config.validate()?;
         Ok(config)
@@ -454,10 +464,10 @@ impl VLLMConfig {
     /// Load configuration from a JSON file
     pub fn from_json_file<P: AsRef<Path>>(path: P) -> VLLMResult<Self> {
         let content = fs::read_to_string(path.as_ref())
-            .map_err(|e| VLLMConfigError::FileRead(format!("Failed to read config file: {}", e)))?;
+            .map_err(|e| VLLMConfigError::FileRead(format!("Failed to read config file: {e}")))?;
 
-        let config: VLLMConfig = serde_json::from_str(&content)
-            .map_err(|e| VLLMConfigError::Parse(format!("Failed to parse JSON: {}", e)))?;
+        let config: Self = serde_json::from_str(&content)
+            .map_err(|e| VLLMConfigError::Parse(format!("Failed to parse JSON: {e}")))?;
 
         config.validate()?;
         Ok(config)
@@ -466,10 +476,10 @@ impl VLLMConfig {
     /// Save configuration to a TOML file
     pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> VLLMResult<()> {
         let content = toml::to_string_pretty(self)
-            .map_err(|e| VLLMConfigError::Parse(format!("Failed to serialize TOML: {}", e)))?;
+            .map_err(|e| VLLMConfigError::Parse(format!("Failed to serialize TOML: {e}")))?;
 
         fs::write(path.as_ref(), content).map_err(|e| {
-            VLLMConfigError::FileRead(format!("Failed to write config file: {}", e))
+            VLLMConfigError::FileRead(format!("Failed to write config file: {e}"))
         })?;
 
         Ok(())
@@ -515,12 +525,14 @@ impl VLLMConfig {
     }
 
     /// Get the full server address
+    #[must_use]
     pub fn server_address(&self) -> String {
         format!("{}:{}", self.server.host, self.server.port)
     }
 
     /// Check if CUDA is required
-    pub fn requires_cuda(&self) -> bool {
+    #[must_use]
+    pub const fn requires_cuda(&self) -> bool {
         self.device_id >= 0
     }
 }
@@ -567,8 +579,10 @@ mod tests {
 
     #[test]
     fn test_config_validation() {
-        let mut config = VLLMConfig::default();
-        config.model_path = "/nonexistent/path".to_string();
+        let config = VLLMConfig {
+            model_path: "/nonexistent/path".to_string(),
+            ..Default::default()
+        };
 
         let result = config.validate();
         assert!(result.is_err());

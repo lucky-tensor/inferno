@@ -229,12 +229,12 @@ impl From<inferno_shared::error::InfernoError> for VLLMError {
     fn from(err: inferno_shared::error::InfernoError) -> Self {
         match err {
             inferno_shared::error::InfernoError::Configuration { message, .. } => {
-                VLLMError::Configuration(VLLMConfigError::ValidationFailed(message))
+                Self::Configuration(VLLMConfigError::ValidationFailed(message))
             }
             inferno_shared::error::InfernoError::Network { message, .. } => {
-                VLLMError::ServiceRegistration(ServiceRegistrationError::Network(message))
+                Self::ServiceRegistration(ServiceRegistrationError::Network(message))
             }
-            _ => VLLMError::OperationFailed(err.to_string()),
+            _ => Self::OperationFailed(err.to_string()),
         }
     }
 }
@@ -250,70 +250,67 @@ impl From<validator::ValidationErrors> for VLLMError {
                     format!(
                         "{}: {}",
                         field,
-                        error.message.as_ref().unwrap_or(&"validation error".into())
+                        error.message.as_ref().unwrap_or(&std::borrow::Cow::Borrowed("validation error"))
                     )
                 })
             })
             .collect();
 
-        VLLMError::Configuration(VLLMConfigError::ValidationFailed(messages.join(", ")))
+        Self::Configuration(VLLMConfigError::ValidationFailed(messages.join(", ")))
     }
 }
 
 /// Convert common standard library errors
 impl From<tokio::task::JoinError> for VLLMError {
     fn from(_: tokio::task::JoinError) -> Self {
-        VLLMError::ThreadJoin
+        Self::ThreadJoin
     }
 }
 
 impl<T> From<tokio::sync::mpsc::error::SendError<T>> for VLLMError {
     fn from(err: tokio::sync::mpsc::error::SendError<T>) -> Self {
-        VLLMError::Channel(format!("Send error: {}", err))
+        Self::Channel(format!("Send error: {err}"))
     }
 }
 
 impl From<tokio::sync::oneshot::error::RecvError> for VLLMError {
     fn from(err: tokio::sync::oneshot::error::RecvError) -> Self {
-        VLLMError::Channel(format!("Receive error: {}", err))
+        Self::Channel(format!("Receive error: {err}"))
     }
 }
 
 /// HTTP status code mapping for API responses
 impl VLLMError {
     /// Convert error to appropriate HTTP status code
-    pub fn to_status_code(&self) -> u16 {
+    #[must_use]
+    pub const fn to_status_code(&self) -> u16 {
         match self {
-            VLLMError::InvalidArgument(_) => 400,
-            VLLMError::Configuration(_) => 400,
-            VLLMError::EngineNotInitialized => 503,
-            VLLMError::OutOfMemory(_) => 507,
-            VLLMError::Timeout(_) => 408,
-            VLLMError::Engine(VLLMEngineError::QueueFull) => 429,
-            VLLMError::Engine(VLLMEngineError::RequestNotFound(_)) => 404,
-            VLLMError::Engine(VLLMEngineError::ResourceExhausted(_)) => 507,
-            VLLMError::CudaNotAvailable => 501,
-            VLLMError::ModelLoadFailed(_) => 422,
-            VLLMError::InferenceFailed(_) => 500,
-            VLLMError::HealthCheckFailed(_) => 503,
+            Self::InvalidArgument(_) | Self::Configuration(_) => 400,
+            Self::EngineNotInitialized | Self::HealthCheckFailed(_) => 503,
+            Self::OutOfMemory(_) | Self::Engine(VLLMEngineError::ResourceExhausted(_)) => 507,
+            Self::Timeout(_) => 408,
+            Self::Engine(VLLMEngineError::QueueFull) => 429,
+            Self::Engine(VLLMEngineError::RequestNotFound(_)) => 404,
+            Self::CudaNotAvailable => 501,
+            Self::ModelLoadFailed(_) => 422,
             _ => 500,
         }
     }
 
     /// Get user-friendly error message
-    pub fn user_message(&self) -> String {
+    #[must_use] pub fn user_message(&self) -> String {
         match self {
-            VLLMError::InvalidArgument(msg) => format!("Invalid request: {}", msg),
-            VLLMError::OutOfMemory(_) => {
+            Self::InvalidArgument(msg) => format!("Invalid request: {msg}"),
+            Self::OutOfMemory(_) => {
                 "Server is out of memory. Please try again later.".to_string()
             }
-            VLLMError::Timeout(_) => "Request timed out. Please try again.".to_string(),
-            VLLMError::Engine(VLLMEngineError::QueueFull) => {
+            Self::Timeout(_) => "Request timed out. Please try again.".to_string(),
+            Self::Engine(VLLMEngineError::QueueFull) => {
                 "Server is busy. Please try again later.".to_string()
             }
-            VLLMError::CudaNotAvailable => "GPU acceleration is not available.".to_string(),
-            VLLMError::EngineNotInitialized => "Service is temporarily unavailable.".to_string(),
-            VLLMError::HealthCheckFailed(_) => "Service is unhealthy.".to_string(),
+            Self::CudaNotAvailable => "GPU acceleration is not available.".to_string(),
+            Self::EngineNotInitialized => "Service is temporarily unavailable.".to_string(),
+            Self::HealthCheckFailed(_) => "Service is unhealthy.".to_string(),
             _ => "An internal error occurred.".to_string(),
         }
     }
@@ -355,7 +352,7 @@ impl From<VLLMError> for ErrorResponse {
             _ => "internal_error",
         };
 
-        ErrorResponse {
+        Self {
             error: ErrorDetails {
                 r#type: error_type.to_string(),
                 message: err.user_message(),

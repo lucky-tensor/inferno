@@ -58,9 +58,11 @@ fn test_config_from_env() {
 
 #[tokio::test]
 async fn test_engine_lifecycle() {
-    let mut config = VLLMConfig::default();
-    config.model_path = "/tmp/fake_model".to_string(); // Non-existent is OK for this test
-    config.device_id = -1; // CPU-only mode
+    let config = VLLMConfig {
+        model_path: "/tmp/fake_model".to_string(), // Non-existent is OK for this test
+        device_id: -1, // CPU-only mode
+        ..Default::default()
+    };
 
     // Test engine creation
     let engine = VLLMEngine::new(&config);
@@ -93,12 +95,14 @@ async fn test_engine_lifecycle() {
 
 #[tokio::test]
 async fn test_backend_integration() {
-    let mut config = VLLMConfig::default();
-    config.model_path = "/tmp/fake_model".to_string();
-    config.device_id = -1; // CPU-only mode
+    let config = VLLMConfig {
+        model_path: "/tmp/fake_model".to_string(),
+        device_id: -1, // CPU-only mode
+        ..Default::default()
+    };
 
     // Test backend creation
-    let backend = VLLMBackend::new(config).await;
+    let backend = VLLMBackend::new(config);
     assert!(backend.is_ok(), "Backend creation should succeed");
 
     let backend = backend.unwrap();
@@ -145,9 +149,11 @@ fn test_memory_allocator_interface() {
 
 #[test]
 fn test_configuration_serialization() {
-    let mut config = VLLMConfig::default();
-    config.model_path = "/tmp/test".to_string();
-    config.model_name = "test-model".to_string();
+    let config = VLLMConfig {
+        model_path: "/tmp/test".to_string(),
+        model_name: "test-model".to_string(),
+        ..Default::default()
+    };
 
     // Test JSON serialization
     let json_str = serde_json::to_string(&config);

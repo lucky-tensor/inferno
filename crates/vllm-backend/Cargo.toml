@@ -80,7 +80,7 @@ tempfile = "3.8"
 rstest = "0.18"
 
 [features]
-default = ["cuda"]
+default = ["cpu-only"]
 cuda = ["cudarc", "candle-core/cuda", "candle-nn", "bindgen", "ndarray"]
 cpu-only = ["ndarray"]
 
