@@ -8,6 +8,109 @@
 
 Inferno Proxy is a self-healing cloud platform for AI inference, designed for high-performance, reliability, and observability. It demonstrates best practices for distributed systems, with comprehensive testing and robust error recovery for AI workloads.
 
+## Community vs Enterprise
+
+### Community Edition (Free)
+**Sub-60 second deployment with production-grade performance optimization.**
+
+- ⚡ **Rapid deployment**: Zero-configuration startup with optimal defaults
+- 🏆 **Optimized architecture**: Streamlined design with configurable performance defaults  
+- 🔧 **Simplified stack**: Rust-native implementation without Python extensibility layers
+- 🌐 **Self-healing discovery**: SWIM consensus protocol for automatic node discovery and failure detection
+- 🐳 **Container-optional**: No Docker or Kubernetes required (but supported if preferred)
+- 🦀 **In-house Rust VLLM**: Custom-tuned Rust implementation for maximum performance
+- ⚖️ **Cloudflare Pingora**: Enterprise-grade load balancing with HTTP/3 and QUIC support
+- 📊 **Comprehensive metrics**: Prometheus monitoring for every system component
+- 📈 **High throughput**: Benchmarked performance improvements over baseline implementations
+- ⚖️ **Design approach**: Optimized defaults reduce configuration complexity while maintaining extensibility
+
+Ideal for teams seeking production-ready performance with minimal operational overhead.
+
+### Enterprise Edition
+**Production-grade performance with intelligent cluster management and cost optimization.**
+
+- 🚀 **Enhanced performance**: Hardware-optimized binaries with specialized tuning profiles
+- 🧠 **Governator AI**: ML-driven optimization engine that automatically:
+  - Profiles GPU hardware configurations using telemetry analysis
+  - Determines optimal model placement through reinforcement learning
+  - Adjusts request load distribution based on real-time performance metrics
+  - *Technical details available in separate architecture documentation*
+- 💰 **Cost optimization**: Intelligent cluster management that:
+  - Monitors $/token efficiency across nodes
+  - Automatically scales up high-performing instances
+  - Powers down suboptimal nodes to reduce costs
+- 🌐 **Enhanced SWIM consensus**: Advanced node discovery with predictive failure detection
+- 🔄 **Disaggregated VLLM**: Full disaggregated architecture replacing Nvidia Dynamo and DLLM
+- ⚡ **Advanced HTTP/3 & QUIC**: Optimized protocol implementations with custom tuning for AI workloads
+- 📊 **Comprehensive telemetry**: Enhanced Prometheus metrics with AI-driven insights and alerting
+- 📈 **Advanced analytics**: Real-time cost and performance insights with predictive modeling
+
+Enterprise Edition provides measurable ROI through automated optimization, disaggregated architecture, and intelligent cost management.
+
+## Competitive Comparison
+
+| Feature | Inferno Community | Inferno Enterprise | Nvidia Dynamo | llm-d (K8s) | Ollama |
+|---------|------------------|-------------------|---------------|-------------|--------|
+| **Deployment Speed** | ⚡ Rapid (zero-config) | ⚡ Rapid (zero-config) | 🐌 Complex setup | 🐌 Complex setup | 🔄 Medium |
+| **Runtime Performance** | 🚀 High (Rust VLLM) | 🚀 Enhanced (Disaggregated) | 🐌 Multi-lang overhead | 🐌 Multi-lang overhead | 🐌 Single-node only |
+| **Language Stack** | 🦀 Pure Rust | 🦀 Pure Rust | 🔄 Rust→Python→C++ | 🔄 Python→C++→Python | 🔄 Go→Python→C++ |
+| **Serialization** | ✅ Zero-copy | ✅ Zero-copy | ❌ Repeated ser/deser | ❌ Repeated ser/deser | ❌ Repeated ser/deser |
+| **Cloud Design** | ✅ Cloud-native | ✅ Cloud-native | ✅ Cloud-focused | ✅ Cloud-focused | ❌ Single-machine |
+| **Self-Healing** | ✅ SWIM consensus | ✅ Enhanced SWIM | ❌ Manual failover | ❌ Manual failover | ❌ Manual restart |
+| **Container Dependency** | 🆓 Optional | 🆓 Optional | 📦 Required (K8s) | 📦 Kubernetes-native | 🐳 Docker only |
+| **Load Balancing** | ✅ Pingora + HTTP/3 | ✅ Pingora + HTTP/3 | 🔄 Basic | 🔄 Basic | ❌ None |
+| **Cost Optimization** | ❌ Manual | ✅ Governator AI | 💰 Expensive | 💰 Expensive | 🆓 Free |
+| **GPU Optimization** | 🔧 Manual tuning | 🧠 Auto (Governator) | 🔧 Manual tuning | 🔧 Manual tuning | 🔧 Manual tuning |
+| **Observability** | 📊 Prometheus | 📊 Enhanced metrics | 🔄 Limited | 🔄 Limited | ❌ Basic logs |
+| **Protocol Support** | ✅ HTTP/3, QUIC | ✅ HTTP/3, QUIC | 🔄 HTTP/2 only | 🔄 HTTP/2 only | 🔄 HTTP/1.1 |
+| **Extensibility** | 🔒 Performance-first | 🔒 Performance-first | 🔧 Highly extensible | 🔧 Highly extensible | 🔧 Plugin system |
+| **License** | 🆓 Free | 💰 Commercial | 🆓 Open source* | 🆓 Apache 2.0 | 🆓 Open source (MIT) |
+
+*Nvidia Dynamo: Open source with optional enterprise support via NVIDIA AI Enterprise  
+**llm-d**: Kubernetes-native framework by CoreWeave, Google, IBM, NVIDIA, Red Hat
+
+**Key Advantages:**
+- **Pure Rust stack** eliminates multi-language overhead (competitors: Rust→Python→C++)
+- **Zero-copy operations** vs repeated serialization/deserialization in competitors
+- **True cloud-native design** (Ollama limited to single-machine deployments)
+- **Rapid deployment** with zero-configuration startup
+- **Built-in self-healing** via SWIM consensus protocol
+- **High performance** through unified Rust stack and disaggregated VLLM
+- **Container-optional** deployment (competitors require Docker/K8s, llm-d is K8s-native)
+- **Advanced protocols** (HTTP/3, QUIC) while competitors use older standards
+
+## Why We Built Inferno
+
+After years of deploying AI inference systems in production, we witnessed the same painful patterns across every major solution in the market. IT departments consistently struggle with three fundamental problems that existing tools fail to address:
+
+### **Security Challenges**
+**Ollama**: Multiple critical RCE vulnerabilities discovered in 2024 (CVE-2024-37032, etc.). Wiz Research found **9,831 exposed instances** on the internet without authentication (as of Q4 2024), with 1 in 4 servers considered vulnerable. No built-in authentication means every deployment requires reverse proxy setup.
+
+**Solution**: Inferno includes secure defaults, built-in authentication, and follows security-first design principles from day one. Built in Rust, we eliminate entire classes of vulnerabilities (buffer overflows, use-after-free, memory corruption) that plague C/C++ implementations used by competitors.
+
+### **Deployment Complexity**
+**NVIDIA Dynamo**: Alpha-stage software (as of 2025 release) requiring NATS, etcd, and complex distributed setup. AWS EKS deployments frequently fail with image pull errors and pod failures. Manual memory tuning and GPU visibility management required.
+
+**llm-d**: Kubernetes-native framework (launched 2024) with mandatory K8s 1.29+ requirement and no bare-metal options. Requires specialized DevOps expertise for disaggregated architecture. Container bloat from massive model files (10GB+) slows cold starts.
+
+**Solution**: Inferno offers zero-configuration startup with optimal defaults. Container-optional deployment means you can run on bare metal, VMs, or containers as needed.
+
+### **Production Reality Gaps**
+**Ollama**: **Not designed for cloud/production usage** - fundamentally single-machine focused. No user management, minimal monitoring, no compliance certifications. Recent concurrency support still requires multiple instances with massive memory waste.
+
+**All Competitors**: Multi-language stacks (Rust→Python→C++) create serialization overhead and performance bottlenecks. Manual failover requires human intervention during outages.
+
+**Solution**: Inferno provides true cloud-native design with SWIM consensus for self-healing, pure Rust stack eliminates both performance penalties and memory safety vulnerabilities, and comprehensive observability built-in.
+
+### **The Enterprise Tax**
+Every existing solution forces a choice: use inadequate open-source tools or pay expensive enterprise licenses for basic functionality. IT departments need production-ready solutions without enterprise lock-in.
+
+**Solution**: Inferno Community Edition delivers enterprise-grade performance, security, and reliability for free. Enterprise Edition adds Governator AI automation and cost optimization for organizations that need maximum ROI.
+
+---
+
+**We built Inferno to address these enterprise IT requirements.** Eliminate security vulnerabilities through design. Simplify deployments without sacrificing functionality. Provide enterprise-grade capabilities without commercial lock-in.
+
 ## Features
 
 - 🚀 **High Performance**: Zero-allocation request handling patterns where possible
