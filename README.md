@@ -160,6 +160,27 @@ git worktree add ../inferno-hotfix hotfix-branch
 - Dependency cache at `~/.cargo` is automatically shared
 - No additional setup required - configuration is in `.cargo/config.toml`
 
+**Optional: sccache Integration**
+
+For even better cache performance, especially in CI or across multiple machines:
+
+```bash
+# Install sccache
+cargo install sccache
+
+# Enable sccache in .cargo/config.toml (uncomment the rustc-wrapper line)
+# rustc-wrapper = "sccache"
+
+# Configure sccache (optional - defaults to local disk cache)
+export SCCACHE_DIR="$HOME/.cache/sccache"
+export SCCACHE_CACHE_SIZE="10G"
+
+# Check sccache statistics
+sccache --show-stats
+```
+
+Benefits: Additional ~50-90% compile time reduction through compiler output caching across builds and machines.
+
 ### Running Tests
 
 ```bash

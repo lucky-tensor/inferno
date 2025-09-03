@@ -1,6 +1,8 @@
 [build]
 rustflags = ["-C", "target-cpu=native"]
 target-dir = "../shared-target"
+# Uncomment to enable sccache for distributed compilation caching
+# rustc-wrapper = "sccache"
 
 [alias]
 lint = "clippy --all-targets --all-features -- -D warnings"
