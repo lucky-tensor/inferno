@@ -16,6 +16,11 @@ Inferno Proxy is a self-healing cloud platform for AI inference, designed for hi
 - ⚡ **Fastest deployment**: Zero-configuration startup with optimal defaults
 - 🏆 **Performance-first**: Highly coupled architecture prioritizing speed over flexibility  
 - 🔧 **Simplified stack**: Rust-native implementation without Python extensibility layers
+- 🌐 **Self-healing discovery**: SWIM consensus protocol for automatic node discovery and failure detection
+- 🐳 **Container-optional**: No Docker or Kubernetes required (but supported if preferred)
+- 🔄 **Disaggregated VLLM**: Modern replacement for Nvidia Dynamo and DLLM architectures
+- ⚖️ **Cloudflare Pingora**: Enterprise-grade load balancing with HTTP/3 and QUIC support
+- 📊 **Comprehensive metrics**: Prometheus monitoring for every system component
 - 📈 **Best-in-class throughput**: Outperforms other free inference solutions
 - ⚖️ **Design tradeoff**: Less customizable than Python-based alternatives, but significantly faster
 
@@ -33,7 +38,11 @@ Perfect for teams prioritizing performance and quick deployment over extensive c
   - Monitors $/token efficiency across nodes
   - Automatically scales up high-performing instances
   - Powers down suboptimal nodes to reduce costs
-- 📊 **Advanced analytics**: Real-time cost and performance insights
+- 🌐 **Enhanced SWIM consensus**: Advanced node discovery with predictive failure detection
+- 🔄 **Premium VLLM features**: Extended disaggregated architecture with enterprise-grade optimizations
+- ⚡ **Advanced HTTP/3 & QUIC**: Optimized protocol implementations with custom tuning for AI workloads
+- 📊 **Comprehensive telemetry**: Enhanced Prometheus metrics with AI-driven insights and alerting
+- 📈 **Advanced analytics**: Real-time cost and performance insights with predictive modeling
 
 Enterprise delivers maximum ROI through automated optimization and cost management.
 
