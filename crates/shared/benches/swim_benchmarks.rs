@@ -6,6 +6,7 @@
 //! gossip dissemination efficiency, and memory usage.
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use std::sync::Arc;
 use inferno_shared::service_discovery::{
     NodeType, PeerInfo, SwimCluster, SwimConfig10k, SwimIntegrationConfig, SwimServiceDiscovery,
 };
@@ -265,9 +266,10 @@ fn bench_concurrent_operations(c: &mut Criterion) {
                     .unwrap();
 
                     // Create concurrent registration tasks
+                    let cluster = Arc::new(cluster);
                     let mut handles = Vec::new();
                     for i in 0..concurrency {
-                        let cluster_clone = cluster.clone();
+                        let cluster_clone = Arc::clone(&cluster);
                         let handle = tokio::spawn(async move {
                             let peer_info = create_test_peer_info(i);
                             // Note: This would require Arc<Mutex<SwimCluster>> for true concurrency

@@ -93,6 +93,7 @@ struct SyncState {
 
 /// Synchronization operation
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 enum SyncOperation {
     AddBackend(PeerInfo),
     RemoveBackend(String),
@@ -234,7 +235,7 @@ impl SwimServiceDiscovery {
         // This would be implemented by updating member state to Left
 
         // Also remove from legacy service discovery for consistency
-        self.legacy_service_discovery.remove_backend(node_id).await;
+        let _ = self.legacy_service_discovery.remove_backend(node_id).await;
 
         let mut stats = self.stats.write().await;
         stats.swim_native_calls += 1;
@@ -430,7 +431,7 @@ impl SwimServiceDiscovery {
                     debug!(node_id = %node_id, "Member recovered - marked healthy");
                 }
                 (_, MemberState::Dead) => {
-                    legacy_service_discovery.remove_backend(&node_id).await;
+                    let _ = legacy_service_discovery.remove_backend(&node_id).await;
                     debug!(node_id = %node_id, "Member died - removed backend");
                 }
                 _ => {
@@ -444,12 +445,12 @@ impl SwimServiceDiscovery {
             },
 
             SwimMembershipEvent::MemberDied(node_id) => {
-                legacy_service_discovery.remove_backend(&node_id).await;
+                let _ = legacy_service_discovery.remove_backend(&node_id).await;
                 debug!(node_id = %node_id, "Member died - removed backend");
             }
 
             SwimMembershipEvent::MemberLeft(node_id) => {
-                legacy_service_discovery.remove_backend(&node_id).await;
+                let _ = legacy_service_discovery.remove_backend(&node_id).await;
                 debug!(node_id = %node_id, "Member left - removed backend");
             }
 
@@ -550,7 +551,7 @@ impl SwimServiceDiscovery {
 
             // Remove extra backends from service discovery
             for extra_id in &missing_in_swim {
-                legacy_service_discovery.remove_backend(extra_id).await;
+                let _ = legacy_service_discovery.remove_backend(extra_id).await;
             }
         }
 

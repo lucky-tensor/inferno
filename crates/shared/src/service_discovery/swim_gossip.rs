@@ -336,12 +336,7 @@ impl SwimGossipManager {
         // Check for duplicate message
         let is_duplicate = {
             let mut received = self.received_messages.write().await;
-            if received.contains_key(&message.sequence) {
-                true
-            } else {
-                received.insert(message.sequence, Instant::now());
-                false
-            }
+            received.insert(message.sequence, Instant::now()).is_some()
         };
 
         if is_duplicate {

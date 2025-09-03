@@ -23,6 +23,7 @@ pub struct SwimBasedServiceDiscovery {
     /// SWIM service discovery implementation
     inner: Arc<RwLock<SwimServiceDiscovery>>,
     /// Configuration
+    #[allow(dead_code)]
     config: ServiceDiscoveryConfig,
     /// Local node information
     local_node_id: String,
@@ -326,7 +327,7 @@ mod tests {
         let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8002);
         let config = ServiceDiscoveryConfig::default();
 
-        let mut service_discovery =
+        let service_discovery =
             SwimBasedServiceDiscovery::new("ops-test-node".to_string(), bind_addr, config)
                 .await
                 .unwrap();
@@ -374,7 +375,7 @@ mod tests {
         let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8003);
         let config = ServiceDiscoveryConfig::default();
 
-        let mut service_discovery =
+        let service_discovery =
             SwimBasedServiceDiscovery::new("health-test-node".to_string(), bind_addr, config)
                 .await
                 .unwrap();

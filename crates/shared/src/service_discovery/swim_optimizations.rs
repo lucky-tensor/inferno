@@ -54,7 +54,7 @@ impl CompactMember {
             .as_secs() as u32;
 
         let mut flags = 0u8;
-        flags |= (member.node_type as u8) << 0; // Bits 0-1: node type
+        flags |= member.node_type as u8; // Bits 0-1: node type
         flags |= (member.is_load_balancer as u8) << 2; // Bit 2: load balancer
 
         Self {
@@ -106,6 +106,12 @@ impl CompactMember {
     /// Gets memory size of this member
     pub const fn memory_size() -> usize {
         std::mem::size_of::<Self>()
+    }
+}
+
+impl Default for CompactMemberStorage {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -190,8 +196,8 @@ impl CompactMemberStorage {
             * (std::mem::size_of::<std::net::SocketAddr>() + std::mem::size_of::<u32>());
         let id_map_memory = self
             .id_map
-            .iter()
-            .map(|(k, _)| k.len() + std::mem::size_of::<u32>())
+            .keys()
+            .map(|k| k.len() + std::mem::size_of::<u32>())
             .sum::<usize>();
 
         member_memory + address_map_memory + id_map_memory
@@ -433,6 +439,12 @@ pub struct NetworkStats {
     pub packet_loss_rate: f64,
 }
 
+impl Default for ScalePerformanceMonitor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ScalePerformanceMonitor {
     /// Creates new performance monitor
     pub fn new() -> Self {
@@ -449,7 +461,7 @@ impl ScalePerformanceMonitor {
         let samples = self
             .operation_times
             .entry(operation.to_string())
-            .or_insert_with(VecDeque::new);
+            .or_default();
 
         if samples.len() >= 1000 {
             samples.pop_front();

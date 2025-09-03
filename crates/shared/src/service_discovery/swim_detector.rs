@@ -379,7 +379,7 @@ impl SwimFailureDetector {
             sequence,
             timestamp: Instant::now(),
             timeout: self.config.indirect_probe_timeout,
-            responses_needed: (probe_via.len() + 1) / 2, // Majority
+            responses_needed: probe_via.len().div_ceil(2), // Majority
         };
 
         // Store pending indirect probe

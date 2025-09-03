@@ -471,7 +471,7 @@ mod integration {
         sleep(Duration::from_millis(100)).await;
 
         // 5. Verify removal (in a real system, this would be handled by failure detection)
-        let remaining_backends = service_discovery.get_live_backends().await;
+        let _remaining_backends = service_discovery.get_live_backends().await;
         // Note: Actual removal in SWIM happens through failure detection, not explicit removal
 
         // 6. Check statistics

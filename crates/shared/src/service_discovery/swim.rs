@@ -133,7 +133,7 @@ impl SwimMember {
             id: self.node_id.clone(),
             address: self.addr.to_string(),
             metrics_port: self.metrics_port,
-            node_type: self.node_type.clone(),
+            node_type: self.node_type,
             is_load_balancer: self.is_load_balancer,
             last_updated: SystemTime::now(),
         }
