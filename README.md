@@ -48,7 +48,7 @@ Enterprise delivers maximum ROI through Governator AI automation, disaggregated 
 
 ## Competitive Comparison
 
-| Feature | Inferno Community | Inferno Enterprise | Nvidia Dynamo | Google DLLM | Ollama |
+| Feature | Inferno Community | Inferno Enterprise | Nvidia Dynamo | llm-d (K8s) | Ollama |
 |---------|------------------|-------------------|---------------|-------------|--------|
 | **Deployment Speed** | ⚡ Fastest (zero-config) | ⚡ Fastest (zero-config) | 🐌 Complex setup | 🐌 Complex setup | 🔄 Medium |
 | **Runtime Performance** | 🚀 High (Rust VLLM) | 🚀 Highest (Disaggregated) | 🐌 Multi-lang overhead | 🐌 Multi-lang overhead | 🐌 Single-node only |
@@ -56,17 +56,17 @@ Enterprise delivers maximum ROI through Governator AI automation, disaggregated 
 | **Serialization** | ✅ Zero-copy | ✅ Zero-copy | ❌ Repeated ser/deser | ❌ Repeated ser/deser | ❌ Repeated ser/deser |
 | **Cloud Design** | ✅ Cloud-native | ✅ Cloud-native | ✅ Cloud-focused | ✅ Cloud-focused | ❌ Single-machine |
 | **Self-Healing** | ✅ SWIM consensus | ✅ Enhanced SWIM | ❌ Manual failover | ❌ Manual failover | ❌ Manual restart |
-| **Container Dependency** | 🆓 Optional | 🆓 Optional | 📦 Required (K8s) | 📦 Required (K8s) | 🐳 Docker only |
+| **Container Dependency** | 🆓 Optional | 🆓 Optional | 📦 Required (K8s) | 📦 Kubernetes-native | 🐳 Docker only |
 | **Load Balancing** | ✅ Pingora + HTTP/3 | ✅ Pingora + HTTP/3 | 🔄 Basic | 🔄 Basic | ❌ None |
 | **Cost Optimization** | ❌ Manual | ✅ Governator AI | 💰 Expensive | 💰 Expensive | 🆓 Free |
 | **GPU Optimization** | 🔧 Manual tuning | 🧠 Auto (Governator) | 🔧 Manual tuning | 🔧 Manual tuning | 🔧 Manual tuning |
 | **Observability** | 📊 Prometheus | 📊 Enhanced metrics | 🔄 Limited | 🔄 Limited | ❌ Basic logs |
 | **Protocol Support** | ✅ HTTP/3, QUIC | ✅ HTTP/3, QUIC | 🔄 HTTP/2 only | 🔄 HTTP/2 only | 🔄 HTTP/1.1 |
 | **Extensibility** | 🔒 Performance-first | 🔒 Performance-first | 🔧 Highly extensible | 🔧 Highly extensible | 🔧 Plugin system |
-| **License** | 🆓 Free | 💰 Commercial | 🆓 Open source* | ❓ Unknown | 🆓 Open source (MIT) |
+| **License** | 🆓 Free | 💰 Commercial | 🆓 Open source* | 🆓 Apache 2.0 | 🆓 Open source (MIT) |
 
 *Nvidia Dynamo: Open source with optional enterprise support via NVIDIA AI Enterprise  
-**Google DLLM**: Could not verify existence of this product - may need clarification
+**llm-d**: Kubernetes-native framework by CoreWeave, Google, IBM, NVIDIA, Red Hat
 
 **Key Advantages:**
 - **Pure Rust stack** eliminates multi-language overhead (competitors: Rust→Python→C++)
@@ -75,7 +75,7 @@ Enterprise delivers maximum ROI through Governator AI automation, disaggregated 
 - **Fastest deployment** among all solutions (zero-configuration startup)
 - **Only solution** with built-in self-healing via SWIM consensus
 - **Best performance** through unified language stack and disaggregated VLLM
-- **Container-optional** deployment (competitors require Docker/K8s)
+- **Container-optional** deployment (competitors require Docker/K8s, llm-d is K8s-native)
 - **Advanced protocols** (HTTP/3, QUIC) while competitors use older standards
 
 ## Features
