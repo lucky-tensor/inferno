@@ -46,7 +46,10 @@ use super::errors::{ServiceDiscoveryError, ServiceDiscoveryResult};
 use super::registration::{RegistrationAction, RegistrationRequest, RegistrationResponse};
 use super::types::{NodeInfo, PeerInfo};
 use super::{content_types, headers, protocol};
-use hyper::{Body, Client, Method, Request, StatusCode};
+use http_body_util::{BodyExt, Full};
+use hyper::body::Bytes;
+use hyper::{Method, Request, StatusCode};
+use hyper_util::client::legacy::Client;
 use serde_json;
 use std::time::Duration;
 use tracing::{debug, instrument, warn};
@@ -194,7 +197,7 @@ impl Default for ClientConfig {
 #[derive(Clone)]
 pub struct ServiceDiscoveryClient {
     /// Hyper HTTP client with connection pooling
-    client: Client<hyper::client::HttpConnector>,
+    client: Client<hyper_util::client::legacy::connect::HttpConnector, Full<Bytes>>,
 
     /// Client configuration
     config: ClientConfig,
@@ -249,11 +252,14 @@ impl ServiceDiscoveryClient {
     /// let client = ServiceDiscoveryClient::with_config(config);
     /// ```
     pub fn with_config(config: ClientConfig) -> Self {
-        // Build HTTP client with connection pooling
-        let client = Client::builder()
+        // Build HTTP client with connection pooling  
+        use hyper_util::client::legacy::connect::HttpConnector;
+        let connector = HttpConnector::new();
+        
+        let client = Client::builder(hyper_util::rt::TokioExecutor::new())
             .pool_idle_timeout(config.connection_pool_idle_timeout)
             .pool_max_idle_per_host(config.max_connections)
-            .build_http();
+            .build(connector);
 
         Self { client, config }
     }
@@ -427,7 +433,7 @@ impl ServiceDiscoveryClient {
             .header(headers::CONTENT_TYPE, content_types::JSON)
             .header(headers::NODE_ID, &node_info.id)
             .header(headers::NODE_TYPE, node_info.node_type.as_str())
-            .body(Body::from(request_body))
+            .body(Full::new(Bytes::from(request_body)))
             .map_err(|e| ServiceDiscoveryError::NetworkError {
                 operation: format!("build_request to {}", url),
                 error: format!("Failed to build HTTP request: {}", e),
@@ -462,12 +468,12 @@ impl ServiceDiscoveryClient {
         }
 
         // Read response body
-        let body_bytes = hyper::body::to_bytes(response.into_body())
+        let body_bytes = response.into_body().collect()
             .await
             .map_err(|e| ServiceDiscoveryError::NetworkError {
                 operation: format!("operation to {}", url),
                 error: format!("Failed to read response body: {}", e),
-            })?;
+            })?.to_bytes();
 
         // Parse JSON response
         let registration_response: RegistrationResponse = serde_json::from_slice(&body_bytes)
@@ -529,7 +535,7 @@ impl ServiceDiscoveryClient {
             .method(Method::GET)
             .uri(&url)
             .header(headers::CONTENT_TYPE, content_types::JSON)
-            .body(Body::empty())
+            .body(Full::new(Bytes::new()))
             .map_err(|e| ServiceDiscoveryError::NetworkError {
                 operation: format!("operation to {}", url),
                 error: format!("Failed to build HTTP request: {}", e),
@@ -564,12 +570,12 @@ impl ServiceDiscoveryClient {
         }
 
         // Read response body
-        let body_bytes = hyper::body::to_bytes(response.into_body())
+        let body_bytes = response.into_body().collect()
             .await
             .map_err(|e| ServiceDiscoveryError::NetworkError {
                 operation: format!("operation to {}", url),
                 error: format!("Failed to read response body: {}", e),
-            })?;
+            })?.to_bytes();
 
         // Parse JSON response
         let peers: Vec<PeerInfo> = serde_json::from_slice(&body_bytes).map_err(|e| {
@@ -631,7 +637,7 @@ impl ServiceDiscoveryClient {
         let request = Request::builder()
             .method(Method::GET)
             .uri(&url)
-            .body(Body::empty())
+            .body(Full::new(Bytes::new()))
             .map_err(|e| ServiceDiscoveryError::NetworkError {
                 operation: format!("operation to {}", url),
                 error: format!("Failed to build HTTP request: {}", e),

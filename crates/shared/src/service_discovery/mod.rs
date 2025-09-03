@@ -81,6 +81,9 @@ pub mod config;
 pub mod consensus;
 pub mod errors;
 pub mod health;
+pub mod http3_client;
+mod http3_transport;
+mod http3_client_native;
 pub mod registration;
 pub mod retry;
 pub mod server;
@@ -99,6 +102,7 @@ pub use config::ServiceDiscoveryConfig;
 pub use consensus::{ConsensusMetrics, ConsensusResolver};
 pub use errors::{ServiceDiscoveryError, ServiceDiscoveryResult};
 pub use health::{HealthCheckResult, HealthChecker, HttpHealthChecker, NodeVitals};
+pub use http3_client::{Http3ClientConfig, Http3Metrics, Http3ServiceDiscoveryClient};
 pub use registration::{
     RegistrationAction, RegistrationHandler, RegistrationRequest, RegistrationResponse,
 };

@@ -760,7 +760,7 @@ impl ProxyServer {
 
             // Set the initial connected peers count to the number of configured backends
             let peer_counter = server.connected_peers_handle();
-            peer_counter.store(backend_count, std::sync::atomic::Ordering::Relaxed);
+            peer_counter.store(backend_count as usize, std::sync::atomic::Ordering::Relaxed);
 
             if let Err(e) = server.start().await {
                 error!(

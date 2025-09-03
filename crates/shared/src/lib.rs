@@ -21,16 +21,73 @@
 pub mod cli;
 pub mod error;
 pub mod metrics;
-pub mod operations_server;
+// TODO: Fix operations_server for hyper 1.x API changes
+// pub mod operations_server;
 pub mod service_discovery;
 
 // Re-export commonly used types for convenience
 pub use cli::{HealthCheckOptions, LoggingOptions, MetricsOptions, ServiceDiscoveryOptions};
 pub use error::{InfernoError, ProxyError, Result};
 pub use metrics::{MetricsCollector, MetricsSnapshot};
-pub use operations_server::OperationsServer;
-// Backward compatibility alias
-pub use operations_server::OperationsServer as MetricsServer;
+// TODO: Fix operations_server exports after hyper 1.x migration
+// pub use operations_server::OperationsServer;
+// Backward compatibility alias - provide stub until hyper 1.x migration complete
+
+use std::sync::Arc;
+use std::net::SocketAddr;
+use std::sync::atomic::AtomicUsize;
+
+/// Temporary stub for MetricsServer until hyper 1.x migration is complete
+pub struct MetricsServer {
+    connected_peers: Arc<AtomicUsize>,
+}
+
+impl MetricsServer {
+    /// Stub for with_service_info
+    pub fn with_service_info(
+        _metrics: Arc<MetricsCollector>,
+        _addr: SocketAddr,
+        _service_name: String,
+        _version: String,
+    ) -> Self {
+        MetricsServer {
+            connected_peers: Arc::new(AtomicUsize::new(0)),
+        }
+    }
+    
+    /// Stub for with_service_discovery (old API with 5 params for compatibility)
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_service_discovery(
+        _metrics: Arc<MetricsCollector>,
+        _addr: SocketAddr,
+        _service_name: String,
+        _version: String,
+        _discovery: Arc<ServiceDiscovery>,
+    ) -> Self {
+        MetricsServer {
+            connected_peers: Arc::new(AtomicUsize::new(0)),
+        }
+    }
+    
+    /// Stub for start
+    pub async fn start(self) -> Result<()> {
+        // TODO: Implement once operations_server is migrated to hyper 1.x
+        Err(InfernoError::internal(
+            "MetricsServer not yet implemented for hyper 1.x",
+            None,
+        ))
+    }
+    
+    /// Stub for run
+    pub async fn run(self) -> Result<()> {
+        self.start().await
+    }
+    
+    /// Stub for connected_peers_handle
+    pub fn connected_peers_handle(&self) -> Arc<AtomicUsize> {
+        Arc::clone(&self.connected_peers)
+    }
+}
 pub use service_discovery::{
     AuthMode, BackendRegistration, HealthCheckResult, HealthChecker, HttpHealthChecker, NodeInfo,
     NodeType, NodeVitals, PeerInfo, ServiceDiscovery, ServiceDiscoveryConfig,
