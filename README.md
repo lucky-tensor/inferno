@@ -78,6 +78,38 @@ Enterprise delivers maximum ROI through Governator AI automation, disaggregated 
 - **Container-optional** deployment (competitors require Docker/K8s, llm-d is K8s-native)
 - **Advanced protocols** (HTTP/3, QUIC) while competitors use older standards
 
+## Why We Built Inferno
+
+After years of deploying AI inference systems in production, we witnessed the same painful patterns across every major solution in the market. IT departments consistently struggle with three fundamental problems that existing tools fail to address:
+
+### **Security Nightmares**
+**Ollama**: Multiple critical RCE vulnerabilities discovered in 2024 (CVE-2024-37032, etc.). Research found **9,831 exposed instances** on the internet without authentication, with 1 in 4 servers considered vulnerable. No built-in authentication means every deployment requires reverse proxy setup.
+
+**Solution**: Inferno includes secure defaults, built-in authentication, and follows security-first design principles from day one.
+
+### **Deployment Complexity Hell**
+**NVIDIA Dynamo**: Alpha-stage software requiring NATS, etcd, and complex distributed setup. AWS EKS deployments frequently fail with image pull errors and pod failures. Manual memory tuning and GPU visibility management required.
+
+**llm-d**: Mandatory Kubernetes 1.29+ requirement with no bare-metal options. Requires specialized DevOps expertise for disaggregated architecture. Container bloat from massive model files (10GB+) slows cold starts.
+
+**Solution**: Inferno offers zero-configuration startup with optimal defaults. Container-optional deployment means you can run on bare metal, VMs, or containers as needed.
+
+### **Production Reality Gaps**
+**Ollama**: **Not designed for cloud/production usage** - fundamentally single-machine focused. No user management, minimal monitoring, no compliance certifications. Recent concurrency support still requires multiple instances with massive memory waste.
+
+**All Competitors**: Multi-language stacks (Rust→Python→C++) create serialization overhead and performance bottlenecks. Manual failover requires human intervention during outages.
+
+**Solution**: Inferno provides true cloud-native design with SWIM consensus for self-healing, pure Rust stack eliminates performance penalties, and comprehensive observability built-in.
+
+### **The Enterprise Tax**
+Every existing solution forces a choice: use inadequate open-source tools or pay expensive enterprise licenses for basic functionality. IT departments need production-ready solutions without enterprise lock-in.
+
+**Solution**: Inferno Community Edition delivers enterprise-grade performance, security, and reliability for free. Enterprise Edition adds Governator AI automation and cost optimization for organizations that need maximum ROI.
+
+---
+
+**We built Inferno because IT departments deserve better.** No more security vulnerabilities by design. No more complex deployments that require specialized expertise. No more choosing between inadequate free tools and expensive enterprise solutions.
+
 ## Features
 
 - 🚀 **High Performance**: Zero-allocation request handling patterns where possible
