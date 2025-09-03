@@ -1,6 +1,7 @@
 [build]
 rustflags = ["-C", "target-cpu=native"]
-target-dir = "../shared-target"
+# Shared target directory in principal worktree for all worktrees
+target-dir = "../../inferno/target"
 # Uncomment to enable sccache for distributed compilation caching
 # rustc-wrapper = "sccache"
 

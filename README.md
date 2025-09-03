@@ -151,12 +151,12 @@ git worktree add ../inferno-feature1 feature1-branch
 git worktree add ../inferno-feature2 feature2-branch
 git worktree add ../inferno-hotfix hotfix-branch
 
-# The shared target directory (../shared-target) will be used by all worktrees
+# The shared target directory (inferno/target) will be used by all worktrees
 # This prevents cache duplication and reduces storage by ~75%
 ```
 
 **Cache Configuration**: 
-- All worktrees share a single `../shared-target` directory for compiled artifacts
+- All worktrees share the principal worktree's `target/` directory for compiled artifacts
 - Dependency cache at `~/.cargo` is automatically shared
 - No additional setup required - configuration is in `.cargo/config.toml`
 
