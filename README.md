@@ -46,6 +46,29 @@ Perfect for teams prioritizing performance and quick deployment over extensive c
 
 Enterprise delivers maximum ROI through Governator AI automation, disaggregated VLLM, and intelligent cost management.
 
+## Competitive Comparison
+
+| Feature | Inferno Community | Inferno Enterprise | Nvidia Dynamo | Google DLLM | Ollama |
+|---------|------------------|-------------------|---------------|-------------|--------|
+| **Deployment Speed** | ⚡ Fastest (zero-config) | ⚡ Fastest (zero-config) | 🐌 Complex setup | 🐌 Complex setup | 🔄 Medium |
+| **Runtime Performance** | 🚀 High (Rust VLLM) | 🚀 Highest (Disaggregated) | 🔄 Medium | 🔄 Medium | 🐌 Lower |
+| **Self-Healing** | ✅ SWIM consensus | ✅ Enhanced SWIM | ❌ Manual failover | ❌ Manual failover | ❌ Manual restart |
+| **Container Dependency** | 🆓 Optional | 🆓 Optional | 📦 Required (K8s) | 📦 Required (K8s) | 🐳 Docker only |
+| **Load Balancing** | ✅ Pingora + HTTP/3 | ✅ Pingora + HTTP/3 | 🔄 Basic | 🔄 Basic | ❌ None |
+| **Cost Optimization** | ❌ Manual | ✅ Governator AI | 💰 Expensive | 💰 Expensive | 🆓 Free |
+| **GPU Optimization** | 🔧 Manual tuning | 🧠 Auto (Governator) | 🔧 Manual tuning | 🔧 Manual tuning | 🔧 Manual tuning |
+| **Observability** | 📊 Prometheus | 📊 Enhanced metrics | 🔄 Limited | 🔄 Limited | ❌ Basic logs |
+| **Protocol Support** | ✅ HTTP/3, QUIC | ✅ HTTP/3, QUIC | 🔄 HTTP/2 only | 🔄 HTTP/2 only | 🔄 HTTP/1.1 |
+| **Extensibility** | 🔒 Performance-first | 🔒 Performance-first | 🔧 Highly extensible | 🔧 Highly extensible | 🔧 Plugin system |
+| **License** | 🆓 Free | 💰 Commercial | 💰 Commercial | 💰 Commercial | 🆓 Open source |
+
+**Key Advantages:**
+- **Fastest deployment** among all solutions (zero-configuration startup)
+- **Only solution** with built-in self-healing via SWIM consensus
+- **Best performance** through Rust-native implementation and disaggregated VLLM
+- **Container-optional** deployment (competitors require Docker/K8s)
+- **Advanced protocols** (HTTP/3, QUIC) while competitors use older standards
+
 ## Features
 
 - 🚀 **High Performance**: Zero-allocation request handling patterns where possible
