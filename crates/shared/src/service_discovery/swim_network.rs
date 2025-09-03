@@ -519,7 +519,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_network_creation() {
-        let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9500);
+        let bind_addr = crate::test_utils::get_random_port_addr();
         let config = NetworkConfig::default();
 
         let network = SwimNetwork::new(bind_addr, 1, config).await.unwrap();

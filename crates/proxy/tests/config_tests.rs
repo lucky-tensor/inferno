@@ -7,7 +7,10 @@
 use inferno_proxy::{ProxyCliOptions, ProxyConfig};
 use inferno_shared::{HealthCheckOptions, LoggingOptions, MetricsOptions};
 use serial_test::serial;
+use std::net::SocketAddr;
 use std::time::Duration;
+
+use inferno_shared::test_utils::get_random_port_addr;
 
 #[test]
 fn test_default_configuration() {
@@ -190,8 +193,10 @@ fn test_configuration_from_env_custom_values() {
         }
     }
 
-    std::env::set_var("INFERNO_LISTEN_ADDR", "127.0.0.1:9091");
-    std::env::set_var("INFERNO_BACKEND_ADDR", "127.0.0.1:4000");
+    let listen_addr = get_random_port_addr();
+    let backend_addr = get_random_port_addr();
+    std::env::set_var("INFERNO_LISTEN_ADDR", listen_addr.to_string());
+    std::env::set_var("INFERNO_BACKEND_ADDR", backend_addr.to_string());
     std::env::set_var("INFERNO_TIMEOUT_SECONDS", "60");
     std::env::set_var("INFERNO_MAX_CONNECTIONS", "5000");
     std::env::set_var("INFERNO_LOG_LEVEL", "debug");
@@ -202,8 +207,8 @@ fn test_configuration_from_env_custom_values() {
 
     let config = ProxyConfig::from_env().unwrap();
 
-    assert_eq!(config.listen_addr.port(), 9091);
-    assert_eq!(config.backend_addr.port(), 4000);
+    assert_eq!(config.listen_addr, listen_addr);
+    assert_eq!(config.backend_addr, backend_addr);
     assert_eq!(config.timeout, Duration::from_secs(60));
     assert_eq!(config.max_connections, 5000);
     assert_eq!(config.log_level, "debug");
@@ -242,9 +247,13 @@ fn test_configuration_from_env_invalid_values() {
 
 #[test]
 fn test_proxy_cli_to_config_conversion() {
+    let listen_addr = get_random_port_addr();
+    let backend_addr = get_random_port_addr();
+    let operations_addr = get_random_port_addr();
+    
     let cli = ProxyCliOptions {
-        listen_addr: "127.0.0.1:9090".parse().unwrap(),
-        backend_addr: Some("127.0.0.1:4000".parse().unwrap()),
+        listen_addr,
+        backend_addr: Some(backend_addr),
         backend_servers: Some("192.168.1.1:8080,192.168.1.2:8080".to_string()),
         max_connections: 5000,
         timeout_seconds: 60,
@@ -258,7 +267,7 @@ fn test_proxy_cli_to_config_conversion() {
         },
         metrics: MetricsOptions {
             enable_metrics: true,
-            operations_addr: Some("127.0.0.1:6101".parse().unwrap()),
+            operations_addr: Some(operations_addr),
             metrics_addr: None,
         },
         enable_tls: true,
@@ -267,8 +276,8 @@ fn test_proxy_cli_to_config_conversion() {
 
     let config = cli.to_config().unwrap();
 
-    assert_eq!(config.listen_addr, "127.0.0.1:9090".parse().unwrap());
-    assert_eq!(config.backend_addr, "127.0.0.1:4000".parse().unwrap());
+    assert_eq!(config.listen_addr, listen_addr);
+    assert_eq!(config.backend_addr, backend_addr);
     assert_eq!(config.backend_servers.len(), 2);
     assert_eq!(config.max_connections, 5000);
     assert_eq!(config.timeout, Duration::from_secs(60));
@@ -277,15 +286,17 @@ fn test_proxy_cli_to_config_conversion() {
     assert_eq!(config.health_check_path, "/status");
     assert_eq!(config.log_level, "debug");
     assert!(config.enable_metrics);
-    assert_eq!(config.operations_addr, "127.0.0.1:6101".parse().unwrap());
+    assert_eq!(config.operations_addr, operations_addr);
     assert!(config.enable_tls);
     assert_eq!(config.load_balancing_algorithm, "least_connections");
 }
 
 #[test]
 fn test_proxy_cli_to_config_with_defaults() {
+    let listen_addr = get_random_port_addr();
+    
     let cli = ProxyCliOptions {
-        listen_addr: "127.0.0.1:8080".parse().unwrap(),
+        listen_addr,
         backend_addr: None,
         backend_servers: None,
         max_connections: 10000,
@@ -309,7 +320,7 @@ fn test_proxy_cli_to_config_with_defaults() {
 
     let config = cli.to_config().unwrap();
 
-    assert_eq!(config.listen_addr, "127.0.0.1:8080".parse().unwrap());
+    assert_eq!(config.listen_addr, listen_addr);
     assert_eq!(config.backend_addr, "127.0.0.1:3000".parse().unwrap()); // Default
     assert!(config.backend_servers.is_empty());
     assert_eq!(config.max_connections, 10000);
@@ -326,8 +337,8 @@ fn test_proxy_cli_to_config_with_defaults() {
 #[tokio::test]
 async fn test_proxy_cli_run_method() {
     let cli = ProxyCliOptions {
-        listen_addr: "127.0.0.1:8081".parse().unwrap(), // Different port to avoid conflicts
-        backend_addr: Some("127.0.0.1:3001".parse().unwrap()),
+        listen_addr: get_random_port_addr(),
+        backend_addr: Some(get_random_port_addr()),
         backend_servers: None,
         max_connections: 1000,
         timeout_seconds: 30,

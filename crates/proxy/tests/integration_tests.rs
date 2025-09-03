@@ -5,7 +5,10 @@
 
 use inferno_proxy::{ProxyConfig, ProxyServer};
 use inferno_shared::InfernoError;
+use std::net::SocketAddr;
 use std::time::Duration;
+
+use inferno_shared::test_utils::get_random_port_addr;
 
 #[tokio::test]
 async fn test_server_with_metrics_integration() {
@@ -71,11 +74,11 @@ async fn test_concurrent_server_creation() {
     // Test that multiple servers can be created concurrently without issues
     let mut handles = vec![];
 
-    for i in 0..5 {
+    for _i in 0..5 {
         let handle = tokio::spawn(async move {
             let config = ProxyConfig {
-                listen_addr: format!("127.0.0.1:{}", 9000 + i).parse().unwrap(),
-                backend_addr: format!("127.0.0.1:{}", 3000 + i).parse().unwrap(),
+                listen_addr: get_random_port_addr(),
+                backend_addr: get_random_port_addr(),
                 ..Default::default()
             };
 

@@ -480,7 +480,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_bootstrap_creation() {
-        let local_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8500);
+        let local_addr = crate::test_utils::get_random_port_addr();
         let config = BootstrapConfig::default();
 
         let bootstrap = SwimBootstrap::new("test-node".to_string(), local_addr, config);

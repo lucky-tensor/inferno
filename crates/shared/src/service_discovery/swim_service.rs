@@ -288,12 +288,12 @@ pub async fn create_service_discovery(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::{IpAddr, Ipv4Addr};
+    use crate::test_utils::get_random_port_addr;
     use std::time::SystemTime;
 
     #[tokio::test]
     async fn test_swim_service_discovery_creation() {
-        let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8000);
+        let bind_addr = get_random_port_addr();
         let config = ServiceDiscoveryConfig::default();
 
         let service_discovery =
@@ -306,7 +306,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_service_discovery_factory() {
-        let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8001);
+        let bind_addr = get_random_port_addr();
         let config = ServiceDiscoveryConfig::default();
 
         // Test with large cluster size
@@ -324,7 +324,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_backend_operations() {
-        let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8002);
+        let bind_addr = get_random_port_addr();
         let config = ServiceDiscoveryConfig::default();
 
         let service_discovery =
@@ -372,7 +372,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cluster_health_check() {
-        let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8003);
+        let bind_addr = get_random_port_addr();
         let config = ServiceDiscoveryConfig::default();
 
         let service_discovery =
@@ -407,7 +407,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_scale_recommendations() {
-        let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8004);
+        let bind_addr = get_random_port_addr();
         let config = ServiceDiscoveryConfig::default();
 
         let service_discovery =

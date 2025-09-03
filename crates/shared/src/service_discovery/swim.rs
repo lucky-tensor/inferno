@@ -20,20 +20,34 @@
 //!
 //! # Usage
 //!
-//! ```rust
-//! use crate::service_discovery::swim::{SwimCluster, SwimConfig10k};
-//!
+//! ```rust,no_run
+//! use inferno_shared::service_discovery::swim::{SwimCluster, SwimConfig10k};
+//! use inferno_shared::service_discovery::types::{PeerInfo, NodeType};
+//! use std::net::SocketAddr;
+//! use std::time::SystemTime;
+//! 
+//! # tokio_test::block_on(async {
 //! let config = SwimConfig10k::default();
-//! let mut cluster = SwimCluster::new("node-1".to_string(), config).await?;
+//! let bind_addr = "127.0.0.1:8000".parse::<SocketAddr>().unwrap();
+//! let (mut cluster, _events) = SwimCluster::new("node-1".to_string(), bind_addr, config).await.unwrap();
 //!
 //! // Start SWIM protocol
-//! cluster.start().await?;
+//! cluster.start().await.unwrap();
 //!
 //! // Add members
-//! cluster.add_member(member_info).await?;
+//! let member_info = PeerInfo {
+//!     id: "node-2".to_string(),
+//!     address: "127.0.0.1:8001".to_string(),
+//!     metrics_port: 9090,
+//!     node_type: NodeType::Backend,
+//!     is_load_balancer: false,
+//!     last_updated: SystemTime::now(),
+//! };
+//! cluster.add_member(member_info).await.unwrap();
 //!
 //! // Get live members for service discovery
 //! let live_members = cluster.get_live_members().await;
+//! # });
 //! ```
 
 use super::errors::{ServiceDiscoveryError, ServiceDiscoveryResult};

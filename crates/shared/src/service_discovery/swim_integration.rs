@@ -657,12 +657,12 @@ impl ServiceDiscoveryCompat for ServiceDiscovery {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::{IpAddr, Ipv4Addr};
+    use crate::test_utils::get_random_port_addr;
     use tokio::time::{sleep, Duration};
 
     #[tokio::test]
     async fn test_swim_service_discovery_creation() {
-        let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9000);
+        let bind_addr = get_random_port_addr();
         let swim_config = SwimConfig10k::default();
         let integration_config = SwimIntegrationConfig::default();
 
@@ -680,7 +680,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_backend_registration() {
-        let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9001);
+        let bind_addr = get_random_port_addr();
         let swim_config = SwimConfig10k::default();
         let integration_config = SwimIntegrationConfig::default();
 
@@ -714,7 +714,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_integration_statistics() {
-        let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 9002);
+        let bind_addr = get_random_port_addr();
         let swim_config = SwimConfig10k::default();
         let integration_config = SwimIntegrationConfig::default();
 

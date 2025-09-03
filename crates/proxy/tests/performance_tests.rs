@@ -5,7 +5,10 @@
 
 use inferno_proxy::{ProxyConfig, ProxyServer};
 use inferno_shared::{InfernoError, MetricsCollector};
+use std::net::SocketAddr;
 use std::time::{Duration, Instant};
+
+use inferno_shared::test_utils::get_random_port_addr;
 
 #[test]
 fn test_config_creation_performance() {
@@ -66,10 +69,10 @@ fn test_error_creation_performance() {
 async fn test_server_creation_performance() {
     let start = Instant::now();
 
-    for i in 0..10 {
+    for _i in 0..10 {
         let config = ProxyConfig {
-            listen_addr: format!("127.0.0.1:{}", 8000 + i).parse().unwrap(),
-            backend_addr: format!("127.0.0.1:{}", 3000 + i).parse().unwrap(),
+            listen_addr: get_random_port_addr(),
+            backend_addr: get_random_port_addr(),
             ..Default::default()
         };
 

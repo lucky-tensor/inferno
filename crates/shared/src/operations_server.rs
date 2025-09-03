@@ -1345,12 +1345,27 @@ mod tests {
     #[tokio::test]
     async fn test_server_bind_error() {
         let metrics = Arc::new(MetricsCollector::new());
-        // Try to bind to a port that's likely to be unavailable (port 1 requires root)
-        let addr: SocketAddr = "127.0.0.1:1".parse().unwrap();
-        let server = MetricsServer::new(metrics, addr);
+        
+        // Use a non-routable IP address that should always fail to bind
+        let invalid_addr: SocketAddr = "192.0.2.1:8080".parse().unwrap(); // Test network, should fail
+        let server = MetricsServer::new(metrics, invalid_addr);
+        
+        // Add a timeout to prevent hanging - should fail immediately
+        let result = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            server.start()
+        ).await;
 
-        let result = server.start().await;
-        assert!(result.is_err()); // Server start should fail due to permission denied
+        match result {
+            Ok(server_result) => {
+                // Server should have failed immediately with an error
+                assert!(server_result.is_err(), "Server start should fail with non-routable IP address");
+            }
+            Err(_timeout) => {
+                // If we hit timeout, something is wrong with error handling
+                panic!("Test timed out - server.start() should fail immediately with invalid address");
+            }
+        }
     }
 
     #[tokio::test]

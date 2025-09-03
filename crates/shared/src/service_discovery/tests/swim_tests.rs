@@ -9,15 +9,15 @@ use super::super::{
     SwimCluster, SwimConfig10k, SwimFailureDetector, SwimGossipManager, SwimIntegrationConfig,
     SwimMembershipEvent, SwimServiceDiscovery,
 };
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::{Duration, SystemTime};
 use tokio::sync::mpsc;
 use tokio::time::{sleep, timeout};
+use crate::test_utils::get_random_port_addr;
 
 /// Tests basic SWIM cluster functionality
 #[tokio::test]
 async fn test_swim_cluster_basic_operations() {
-    let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 7000);
+    let bind_addr = get_random_port_addr();
     let config = SwimConfig10k::default();
 
     let (mut cluster, mut events) = SwimCluster::new("test-node".to_string(), bind_addr, config)
@@ -47,7 +47,7 @@ async fn test_swim_cluster_basic_operations() {
 /// Tests SWIM cluster startup and background tasks
 #[tokio::test]
 async fn test_swim_cluster_startup() {
-    let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 7001);
+    let bind_addr = get_random_port_addr();
     let config = SwimConfig10k::default();
 
     let (mut cluster, _events) = SwimCluster::new("startup-test".to_string(), bind_addr, config)
@@ -147,7 +147,7 @@ async fn test_swim_gossip_dissemination() {
 /// Tests service discovery integration
 #[tokio::test]
 async fn test_swim_service_discovery_integration() {
-    let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 7002);
+    let bind_addr = get_random_port_addr();
     let swim_config = SwimConfig10k::default();
     let integration_config = SwimIntegrationConfig::default();
 
@@ -188,7 +188,7 @@ async fn test_swim_service_discovery_integration() {
 /// Tests SWIM protocol at medium scale
 #[tokio::test]
 async fn test_swim_medium_scale() {
-    let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 7003);
+    let bind_addr = get_random_port_addr();
     let config = SwimConfig10k::default();
 
     let (mut cluster, _events) =
@@ -244,7 +244,7 @@ async fn test_swim_10k_configuration() {
 /// Tests memory efficiency of SWIM implementation
 #[tokio::test]
 async fn test_swim_memory_efficiency() {
-    let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 7004);
+    let bind_addr = get_random_port_addr();
     let config = SwimConfig10k::default();
 
     let (mut cluster, _events) = SwimCluster::new("memory-test".to_string(), bind_addr, config)
@@ -284,7 +284,7 @@ async fn test_swim_memory_efficiency() {
 /// Tests error handling in SWIM operations
 #[tokio::test]
 async fn test_swim_error_handling() {
-    let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 7005);
+    let bind_addr = get_random_port_addr();
     let config = SwimConfig10k::default();
 
     let (mut cluster, _events) = SwimCluster::new("error-test".to_string(), bind_addr, config)
@@ -308,7 +308,7 @@ async fn test_swim_error_handling() {
 /// Tests concurrent operations safety
 #[tokio::test]
 async fn test_swim_concurrent_operations() {
-    let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 7006);
+    let bind_addr = get_random_port_addr();
     let config = SwimConfig10k::default();
 
     let (cluster, _events) = SwimCluster::new("concurrent-test".to_string(), bind_addr, config)
@@ -371,7 +371,7 @@ async fn test_swim_vs_consensus_comparison() {
     let consensus_time = start.elapsed();
 
     // SWIM behavior
-    let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 7007);
+    let bind_addr = get_random_port_addr();
     let config = SwimConfig10k::default();
 
     let start = std::time::Instant::now();
@@ -427,7 +427,7 @@ mod integration {
     /// Tests full SWIM system integration
     #[tokio::test]
     async fn test_full_system_integration() {
-        let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 7100);
+        let bind_addr = get_random_port_addr();
         let swim_config = SwimConfig10k::default();
         let integration_config = SwimIntegrationConfig::default();
 
@@ -494,7 +494,7 @@ mod load_tests {
     /// Tests SWIM at 1000 node scale
     #[tokio::test]
     async fn test_swim_1000_nodes() {
-        let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 7200);
+        let bind_addr = get_random_port_addr();
         let config = SwimConfig10k {
             probe_interval: Duration::from_millis(50),
             gossip_fanout: 10,
@@ -544,7 +544,7 @@ mod load_tests {
     /// Stress test for SWIM protocol
     #[tokio::test]
     async fn test_swim_stress() {
-        let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 7300);
+        let bind_addr = get_random_port_addr();
         let config = SwimConfig10k::default();
 
         let (mut cluster, _events) = SwimCluster::new("stress-test".to_string(), bind_addr, config)
