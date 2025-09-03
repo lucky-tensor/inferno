@@ -8,6 +8,35 @@
 
 Inferno Proxy is a self-healing cloud platform for AI inference, designed for high-performance, reliability, and observability. It demonstrates best practices for distributed systems, with comprehensive testing and robust error recovery for AI workloads.
 
+## Community vs Enterprise
+
+### Community Edition (Free)
+**The fastest setup time for inference clusters among all free options, optimized for pure performance.**
+
+- ⚡ **Fastest deployment**: Zero-configuration startup with optimal defaults
+- 🏆 **Performance-first**: Highly coupled architecture prioritizing speed over flexibility  
+- 🔧 **Simplified stack**: Rust-native implementation without Python extensibility layers
+- 📈 **Best-in-class throughput**: Outperforms other free inference solutions
+- ⚖️ **Design tradeoff**: Less customizable than Python-based alternatives, but significantly faster
+
+Perfect for teams prioritizing performance and quick deployment over extensive customization.
+
+### Enterprise Edition
+**Ultimate performance with intelligent cluster management and cost optimization.**
+
+- 🚀 **Superior performance**: Further optimized binaries with hardware-specific tuning
+- 🧠 **Governator AI**: Closed-source diagnostics engine that automatically:
+  - Analyzes GPU hardware configurations
+  - Determines optimal model placement and parameters
+  - Adjusts request load distribution per hardware capability
+- 💰 **Cost optimization**: Intelligent cluster management that:
+  - Monitors $/token efficiency across nodes
+  - Automatically scales up high-performing instances
+  - Powers down suboptimal nodes to reduce costs
+- 📊 **Advanced analytics**: Real-time cost and performance insights
+
+Enterprise delivers maximum ROI through automated optimization and cost management.
+
 ## Features
 
 - 🚀 **High Performance**: Zero-allocation request handling patterns where possible
