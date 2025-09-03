@@ -10,19 +10,19 @@ use std::sync::atomic::{AtomicU16, Ordering};
 static GLOBAL_TEST_PORT_COUNTER: AtomicU16 = AtomicU16::new(50000);
 
 /// Generate a unique random port address for testing to avoid conflicts
-/// 
+///
 /// This function uses a global atomic counter starting at port 50000
 /// and wrapping back to 50000 at 65000 to ensure unique port allocation
 /// across all test files and concurrent test execution.
 pub fn get_random_port_addr() -> SocketAddr {
     let port = GLOBAL_TEST_PORT_COUNTER.fetch_add(1, Ordering::SeqCst);
-    let port = if port > 64000 { 
+    let port = if port > 64000 {
         GLOBAL_TEST_PORT_COUNTER.store(50000, Ordering::SeqCst);
-        50000 
-    } else { 
-        port 
+        50000
+    } else {
+        port
     };
-    
+
     format!("127.0.0.1:{}", port).parse().unwrap()
 }
 

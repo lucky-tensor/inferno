@@ -25,7 +25,7 @@
 //! use inferno_shared::service_discovery::types::{PeerInfo, NodeType};
 //! use std::net::SocketAddr;
 //! use std::time::SystemTime;
-//! 
+//!
 //! # tokio_test::block_on(async {
 //! let config = SwimConfig10k::default();
 //! let bind_addr = "127.0.0.1:8000".parse::<SocketAddr>().unwrap();

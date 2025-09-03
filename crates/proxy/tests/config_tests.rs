@@ -249,7 +249,7 @@ fn test_proxy_cli_to_config_conversion() {
     let listen_addr = get_random_port_addr();
     let backend_addr = get_random_port_addr();
     let operations_addr = get_random_port_addr();
-    
+
     let cli = ProxyCliOptions {
         listen_addr,
         backend_addr: Some(backend_addr),
@@ -293,7 +293,7 @@ fn test_proxy_cli_to_config_conversion() {
 #[test]
 fn test_proxy_cli_to_config_with_defaults() {
     let listen_addr = get_random_port_addr();
-    
+
     let cli = ProxyCliOptions {
         listen_addr,
         backend_addr: None,

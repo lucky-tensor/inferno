@@ -9,10 +9,10 @@ use super::super::{
     SwimCluster, SwimConfig10k, SwimFailureDetector, SwimGossipManager, SwimIntegrationConfig,
     SwimMembershipEvent, SwimServiceDiscovery,
 };
+use crate::test_utils::get_random_port_addr;
 use std::time::{Duration, SystemTime};
 use tokio::sync::mpsc;
 use tokio::time::{sleep, timeout};
-use crate::test_utils::get_random_port_addr;
 
 /// Tests basic SWIM cluster functionality
 #[tokio::test]
@@ -346,7 +346,6 @@ async fn test_swim_concurrent_operations() {
     let members = cluster_guard.get_live_members().await;
     assert_eq!(members.len(), 10);
 }
-
 
 // Helper function
 fn create_test_peer_info(id: usize) -> PeerInfo {
