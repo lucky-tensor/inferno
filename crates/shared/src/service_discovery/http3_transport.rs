@@ -4,7 +4,7 @@
 //! ensuring our cloud infrastructure uses HTTP/3 as the primary protocol
 //! with HTTP/2 only as a fallback for clients that don't support HTTP/3.
 
-#![allow(dead_code)]  // Temporarily unused until native HTTP/3 is enabled
+#![allow(dead_code)] // Temporarily unused until native HTTP/3 is enabled
 
 use quinn::{ClientConfig, Endpoint, TransportConfig, VarInt};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -20,7 +20,7 @@ pub fn create_http3_endpoint(
 ) -> ServiceDiscoveryResult<Endpoint> {
     // Create client configuration for QUIC
     let mut transport = TransportConfig::default();
-    
+
     // Configure for HTTP/3 performance
     transport.max_idle_timeout(Some(idle_timeout.try_into().map_err(|e| {
         ServiceDiscoveryError::NetworkError {
@@ -28,16 +28,16 @@ pub fn create_http3_endpoint(
             error: format!("Invalid idle timeout: {}", e),
         }
     })?));
-    
+
     transport.keep_alive_interval(Some(keep_alive));
-    
+
     // Enable 0-RTT for faster reconnection
     transport.initial_rtt(Duration::from_millis(100));
-    
+
     // Configure flow control for HTTP/3
     transport.stream_receive_window(VarInt::from_u32(1024 * 1024)); // 1MB
     transport.receive_window(VarInt::from_u32(10 * 1024 * 1024)); // 10MB
-    
+
     // Create TLS configuration using platform defaults
     // Quinn 0.11 has simplified the API for common use cases
     let client_config = ClientConfig::try_with_platform_verifier()
@@ -47,18 +47,17 @@ pub fn create_http3_endpoint(
         })?
         .transport_config(Arc::new(transport))
         .to_owned();
-    
+
     // Create endpoint bound to any available port
     let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0);
-    let mut endpoint = Endpoint::client(bind_addr).map_err(|e| {
-        ServiceDiscoveryError::NetworkError {
+    let mut endpoint =
+        Endpoint::client(bind_addr).map_err(|e| ServiceDiscoveryError::NetworkError {
             operation: "create_endpoint".to_string(),
             error: format!("Failed to create QUIC endpoint: {}", e),
-        }
-    })?;
-    
+        })?;
+
     endpoint.set_default_client_config(client_config);
-    
+
     Ok(endpoint)
 }
 

@@ -204,7 +204,7 @@ impl Http3ServiceDiscoveryClient {
              This violates our cloud infrastructure requirement that HTTP/3 be the primary protocol. \
              Native HTTP/3 is implemented in http3_client_native.rs."
         );
-        
+
         let mut builder = reqwest::Client::builder()
             .timeout(self.config.request_timeout)
             .pool_idle_timeout(self.config.idle_timeout)

@@ -698,7 +698,10 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = http_body_util::BodyExt::collect(response.into_body()).await.unwrap().to_bytes();
+        let body = http_body_util::BodyExt::collect(response.into_body())
+            .await
+            .unwrap()
+            .to_bytes();
         let status: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
         assert_eq!(status["service"], "service-discovery");
@@ -720,7 +723,10 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = http_body_util::BodyExt::collect(response.into_body()).await.unwrap().to_bytes();
+        let body = http_body_util::BodyExt::collect(response.into_body())
+            .await
+            .unwrap()
+            .to_bytes();
         let peers: Vec<PeerInfo> = serde_json::from_slice(&body).unwrap();
 
         // Should return empty array for new service discovery
@@ -735,9 +741,9 @@ mod tests {
     ) -> Response<Full<Bytes>> {
         // This is a simplified test handler until hyper 1.x migration is complete
         // It returns mock responses based on the URI path
-        
+
         let uri_path = req.uri().path();
-        
+
         match uri_path {
             "/unknown" => Response::builder()
                 .status(StatusCode::NOT_FOUND)
@@ -745,7 +751,9 @@ mod tests {
                 .unwrap(),
             "/service-discovery/register" => Response::builder()
                 .status(StatusCode::OK)
-                .body(Full::new(Bytes::from(r#"{"status":"ok","message":"Registered"}"#)))
+                .body(Full::new(Bytes::from(
+                    r#"{"status":"ok","message":"Registered"}"#,
+                )))
                 .unwrap(),
             "/service-discovery/peers" => Response::builder()
                 .status(StatusCode::OK)
@@ -798,7 +806,10 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = http_body_util::BodyExt::collect(response.into_body()).await.unwrap().to_bytes();
+        let body = http_body_util::BodyExt::collect(response.into_body())
+            .await
+            .unwrap()
+            .to_bytes();
         let registration_response: RegistrationResponse = serde_json::from_slice(&body).unwrap();
 
         assert_eq!(registration_response.status, "registered");
@@ -835,7 +846,10 @@ mod tests {
 
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = http_body_util::BodyExt::collect(response.into_body()).await.unwrap().to_bytes();
+        let body = http_body_util::BodyExt::collect(response.into_body())
+            .await
+            .unwrap()
+            .to_bytes();
         let registration_response: RegistrationResponse = serde_json::from_slice(&body).unwrap();
 
         assert_eq!(registration_response.status, "registered");

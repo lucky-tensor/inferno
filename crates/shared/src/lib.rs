@@ -33,9 +33,9 @@ pub use metrics::{MetricsCollector, MetricsSnapshot};
 // pub use operations_server::OperationsServer;
 // Backward compatibility alias - provide stub until hyper 1.x migration complete
 
-use std::sync::Arc;
 use std::net::SocketAddr;
 use std::sync::atomic::AtomicUsize;
+use std::sync::Arc;
 
 /// Temporary stub for MetricsServer until hyper 1.x migration is complete
 pub struct MetricsServer {
@@ -54,7 +54,7 @@ impl MetricsServer {
             connected_peers: Arc::new(AtomicUsize::new(0)),
         }
     }
-    
+
     /// Stub for with_service_discovery (old API with 5 params for compatibility)
     #[allow(clippy::too_many_arguments)]
     pub fn with_service_discovery(
@@ -68,7 +68,7 @@ impl MetricsServer {
             connected_peers: Arc::new(AtomicUsize::new(0)),
         }
     }
-    
+
     /// Stub for start
     pub async fn start(self) -> Result<()> {
         // TODO: Implement once operations_server is migrated to hyper 1.x
@@ -77,12 +77,12 @@ impl MetricsServer {
             None,
         ))
     }
-    
+
     /// Stub for run
     pub async fn run(self) -> Result<()> {
         self.start().await
     }
-    
+
     /// Stub for connected_peers_handle
     pub fn connected_peers_handle(&self) -> Arc<AtomicUsize> {
         Arc::clone(&self.connected_peers)

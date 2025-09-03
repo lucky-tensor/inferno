@@ -252,10 +252,10 @@ impl ServiceDiscoveryClient {
     /// let client = ServiceDiscoveryClient::with_config(config);
     /// ```
     pub fn with_config(config: ClientConfig) -> Self {
-        // Build HTTP client with connection pooling  
+        // Build HTTP client with connection pooling
         use hyper_util::client::legacy::connect::HttpConnector;
         let connector = HttpConnector::new();
-        
+
         let client = Client::builder(hyper_util::rt::TokioExecutor::new())
             .pool_idle_timeout(config.connection_pool_idle_timeout)
             .pool_max_idle_per_host(config.max_connections)
@@ -468,12 +468,15 @@ impl ServiceDiscoveryClient {
         }
 
         // Read response body
-        let body_bytes = response.into_body().collect()
+        let body_bytes = response
+            .into_body()
+            .collect()
             .await
             .map_err(|e| ServiceDiscoveryError::NetworkError {
                 operation: format!("operation to {}", url),
                 error: format!("Failed to read response body: {}", e),
-            })?.to_bytes();
+            })?
+            .to_bytes();
 
         // Parse JSON response
         let registration_response: RegistrationResponse = serde_json::from_slice(&body_bytes)
@@ -570,12 +573,15 @@ impl ServiceDiscoveryClient {
         }
 
         // Read response body
-        let body_bytes = response.into_body().collect()
+        let body_bytes = response
+            .into_body()
+            .collect()
             .await
             .map_err(|e| ServiceDiscoveryError::NetworkError {
                 operation: format!("operation to {}", url),
                 error: format!("Failed to read response body: {}", e),
-            })?.to_bytes();
+            })?
+            .to_bytes();
 
         // Parse JSON response
         let peers: Vec<PeerInfo> = serde_json::from_slice(&body_bytes).map_err(|e| {
