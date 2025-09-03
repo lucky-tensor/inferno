@@ -5,18 +5,18 @@
 //! This is the new default service discovery implementation for large-scale
 //! AI inference clusters.
 
-use super::swim_integration::{SwimServiceDiscovery, SwimIntegrationConfig, SwimIntegrationStats};
-use super::swim::{SwimConfig10k, SwimStats};
-use super::types::{PeerInfo, NodeType};
-use super::errors::{ServiceDiscoveryError, ServiceDiscoveryResult};
 use super::config::ServiceDiscoveryConfig;
+use super::errors::ServiceDiscoveryResult;
+use super::swim::{SwimConfig10k, SwimStats};
+use super::swim_integration::{SwimIntegrationConfig, SwimIntegrationStats, SwimServiceDiscovery};
+use super::types::{NodeType, PeerInfo};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{info, instrument};
 
 /// Production-ready service discovery using SWIM protocol
-/// 
+///
 /// This replaces the previous consensus-based implementation and is
 /// optimized for 10,000+ node AI inference clusters.
 pub struct SwimBasedServiceDiscovery {
@@ -62,7 +62,8 @@ impl SwimBasedServiceDiscovery {
             bind_addr,
             swim_config,
             integration_config,
-        ).await?;
+        )
+        .await?;
 
         let inner = Arc::new(RwLock::new(service_discovery));
 
@@ -84,12 +85,12 @@ impl SwimBasedServiceDiscovery {
     pub async fn start(&self) -> ServiceDiscoveryResult<()> {
         let mut service = self.inner.write().await;
         service.start().await?;
-        
+
         info!(
             node_id = %self.local_node_id,
             "SWIM-based service discovery started and ready for 10k+ nodes"
         );
-        
+
         Ok(())
     }
 
@@ -123,7 +124,7 @@ impl SwimBasedServiceDiscovery {
     pub async fn get_backends_by_type(&self, node_type: NodeType) -> Vec<PeerInfo> {
         let service = self.inner.read().await;
         let all_backends = service.get_live_backends().await;
-        
+
         all_backends
             .into_iter()
             .filter(|backend| backend.node_type == node_type)
@@ -134,7 +135,7 @@ impl SwimBasedServiceDiscovery {
     pub async fn get_load_balancers(&self) -> Vec<PeerInfo> {
         let service = self.inner.read().await;
         let all_backends = service.get_live_backends().await;
-        
+
         all_backends
             .into_iter()
             .filter(|backend| backend.is_load_balancer)
@@ -181,9 +182,7 @@ impl SwimBasedServiceDiscovery {
         // - At least 90% of members are alive
         // - Event failure rate is less than 5%
         // - No excessive pending events
-        member_ratio >= 0.9 &&
-        event_failure_rate < 0.05 &&
-        integration_stats.events_pending < 1000
+        member_ratio >= 0.9 && event_failure_rate < 0.05 && integration_stats.events_pending < 1000
     }
 
     /// Gets cluster scale recommendations
@@ -194,7 +193,8 @@ impl SwimBasedServiceDiscovery {
 
         // Large cluster recommendations
         if swim_stats.total_members > 5000 {
-            recommendations.push("Consider regional clustering for better network efficiency".to_string());
+            recommendations
+                .push("Consider regional clustering for better network efficiency".to_string());
         }
 
         if swim_stats.total_members > 8000 {
@@ -204,14 +204,17 @@ impl SwimBasedServiceDiscovery {
 
         // Performance recommendations
         if integration_stats.events_pending > 5000 {
-            recommendations.push("High event backlog - consider increasing processing capacity".to_string());
+            recommendations
+                .push("High event backlog - consider increasing processing capacity".to_string());
         }
 
         if integration_stats.events_failed > 0 {
-            let failure_rate = integration_stats.events_failed as f64 / 
-                integration_stats.events_processed.max(1) as f64;
+            let failure_rate = integration_stats.events_failed as f64
+                / integration_stats.events_processed.max(1) as f64;
             if failure_rate > 0.01 {
-                recommendations.push("Event processing failure rate is high - check system resources".to_string());
+                recommendations.push(
+                    "Event processing failure rate is high - check system resources".to_string(),
+                );
             }
         }
 
@@ -219,7 +222,7 @@ impl SwimBasedServiceDiscovery {
     }
 
     /// Legacy compatibility methods
-    
+    ///
     /// Legacy register_backend for API compatibility
     pub async fn legacy_register_backend(&self, peer_info: PeerInfo) -> ServiceDiscoveryResult<()> {
         self.register_backend(peer_info).await
@@ -250,7 +253,7 @@ pub async fn create_service_discovery(
                 expected_size = size,
                 "Small cluster detected - using SWIM with conservative settings"
             );
-            
+
             // For small clusters, we could use different settings, but SWIM
             // handles small clusters fine too, so we use SWIM consistently
             SwimBasedServiceDiscovery::new(local_node_id, bind_addr, config).await
@@ -260,7 +263,7 @@ pub async fn create_service_discovery(
                 expected_size = size,
                 "Medium cluster detected - using SWIM with standard settings"
             );
-            
+
             SwimBasedServiceDiscovery::new(local_node_id, bind_addr, config).await
         }
         Some(size) => {
@@ -268,13 +271,13 @@ pub async fn create_service_discovery(
                 expected_size = size,
                 "Large cluster detected - using SWIM with high-performance settings"
             );
-            
+
             // Large clusters get the full SWIM implementation
             SwimBasedServiceDiscovery::new(local_node_id, bind_addr, config).await
         }
         None => {
             info!("No cluster size hint - defaulting to SWIM for scalability");
-            
+
             // Default to SWIM since it handles all scales
             SwimBasedServiceDiscovery::new(local_node_id, bind_addr, config).await
         }
@@ -291,12 +294,11 @@ mod tests {
     async fn test_swim_service_discovery_creation() {
         let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8000);
         let config = ServiceDiscoveryConfig::default();
-        
-        let service_discovery = SwimBasedServiceDiscovery::new(
-            "test-node".to_string(),
-            bind_addr,
-            config,
-        ).await.unwrap();
+
+        let service_discovery =
+            SwimBasedServiceDiscovery::new("test-node".to_string(), bind_addr, config)
+                .await
+                .unwrap();
 
         assert_eq!(service_discovery.local_node_id, "test-node");
     }
@@ -305,14 +307,16 @@ mod tests {
     async fn test_service_discovery_factory() {
         let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8001);
         let config = ServiceDiscoveryConfig::default();
-        
+
         // Test with large cluster size
         let service_discovery = create_service_discovery(
             "large-cluster-node".to_string(),
             bind_addr,
             config,
             Some(5000),
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
 
         assert_eq!(service_discovery.local_node_id, "large-cluster-node");
     }
@@ -321,12 +325,11 @@ mod tests {
     async fn test_backend_operations() {
         let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8002);
         let config = ServiceDiscoveryConfig::default();
-        
-        let mut service_discovery = SwimBasedServiceDiscovery::new(
-            "ops-test-node".to_string(),
-            bind_addr,
-            config,
-        ).await.unwrap();
+
+        let mut service_discovery =
+            SwimBasedServiceDiscovery::new("ops-test-node".to_string(), bind_addr, config)
+                .await
+                .unwrap();
 
         service_discovery.start().await.unwrap();
 
@@ -355,10 +358,14 @@ mod tests {
         assert_eq!(count, 1);
 
         // Test filtering by type
-        let backend_nodes = service_discovery.get_backends_by_type(NodeType::Backend).await;
+        let backend_nodes = service_discovery
+            .get_backends_by_type(NodeType::Backend)
+            .await;
         assert_eq!(backend_nodes.len(), 1);
 
-        let proxy_nodes = service_discovery.get_backends_by_type(NodeType::Proxy).await;
+        let proxy_nodes = service_discovery
+            .get_backends_by_type(NodeType::Proxy)
+            .await;
         assert_eq!(proxy_nodes.len(), 0);
     }
 
@@ -366,12 +373,11 @@ mod tests {
     async fn test_cluster_health_check() {
         let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8003);
         let config = ServiceDiscoveryConfig::default();
-        
-        let mut service_discovery = SwimBasedServiceDiscovery::new(
-            "health-test-node".to_string(),
-            bind_addr,
-            config,
-        ).await.unwrap();
+
+        let mut service_discovery =
+            SwimBasedServiceDiscovery::new("health-test-node".to_string(), bind_addr, config)
+                .await
+                .unwrap();
 
         service_discovery.start().await.unwrap();
 
@@ -390,7 +396,7 @@ mod tests {
         };
 
         service_discovery.register_backend(peer_info).await.unwrap();
-        
+
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         // Should still be healthy with one alive member
@@ -402,12 +408,11 @@ mod tests {
     async fn test_scale_recommendations() {
         let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8004);
         let config = ServiceDiscoveryConfig::default();
-        
-        let service_discovery = SwimBasedServiceDiscovery::new(
-            "scale-test-node".to_string(),
-            bind_addr,
-            config,
-        ).await.unwrap();
+
+        let service_discovery =
+            SwimBasedServiceDiscovery::new("scale-test-node".to_string(), bind_addr, config)
+                .await
+                .unwrap();
 
         // Initially no recommendations for empty cluster
         let recommendations = service_discovery.get_scale_recommendations().await;

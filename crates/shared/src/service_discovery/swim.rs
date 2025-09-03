@@ -1,6 +1,6 @@
 //! SWIM Protocol Implementation for Massive Scale Service Discovery
 //!
-//! This module implements the SWIM (Scalable Weakly-consistent Infection-style Process Group 
+//! This module implements the SWIM (Scalable Weakly-consistent Infection-style Process Group
 //! Membership) protocol optimized for 10,000+ node AI inference clusters. It replaces the
 //! previous majority-rule consensus system which cannot scale beyond ~50 nodes.
 //!
@@ -25,7 +25,7 @@
 //!
 //! let config = SwimConfig10k::default();
 //! let mut cluster = SwimCluster::new("node-1".to_string(), config).await?;
-//! 
+//!
 //! // Start SWIM protocol
 //! cluster.start().await?;
 //!
@@ -37,16 +37,16 @@
 //! ```
 
 use super::errors::{ServiceDiscoveryError, ServiceDiscoveryResult};
-use super::types::{NodeInfo, NodeType, PeerInfo};
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use super::types::{NodeType, PeerInfo};
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 use tokio::sync::{mpsc, RwLock};
-use tokio::time::{interval, timeout};
-use tracing::{debug, error, info, instrument, warn};
-use serde::{Deserialize, Serialize};
+use tokio::time::interval;
+use tracing::{debug, info, instrument};
 
 /// SWIM member state enumeration
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -65,7 +65,7 @@ impl MemberState {
     pub fn as_str(&self) -> &'static str {
         match self {
             MemberState::Alive => "alive",
-            MemberState::Suspected => "suspected", 
+            MemberState::Suspected => "suspected",
             MemberState::Dead => "dead",
             MemberState::Left => "left",
         }
@@ -89,23 +89,28 @@ pub struct SwimMember {
     pub metrics_port: u16,
     pub node_type: NodeType,
     pub is_load_balancer: bool,
-    /// Timing information
+    /// Timing information (not serialized)
+    #[serde(skip, default = "Instant::now")]
     pub last_probe_time: Instant,
+    #[serde(skip, default = "Instant::now")]
     pub state_change_time: Instant,
     /// Failure detection metadata
     pub failed_probe_count: u32,
+    #[serde(skip)]
     pub suspicion_timeout: Option<Instant>,
 }
 
 impl SwimMember {
     /// Creates new SWIM member from PeerInfo
     pub fn from_peer_info(peer_info: PeerInfo) -> ServiceDiscoveryResult<Self> {
-        let addr: SocketAddr = peer_info.address.parse()
+        let addr: SocketAddr = peer_info
+            .address
+            .parse()
             .map_err(|_| ServiceDiscoveryError::InvalidAddress(peer_info.address.clone()))?;
-        
+
         // Hash node ID for efficient storage
         let id = Self::hash_node_id(&peer_info.id);
-        
+
         Ok(Self {
             id,
             node_id: peer_info.id,
@@ -141,19 +146,20 @@ impl SwimMember {
 
     /// Updates member state with incarnation conflict resolution
     pub fn update_state(&mut self, new_state: MemberState, incarnation: u32) -> bool {
-        if incarnation > self.incarnation || 
-           (incarnation == self.incarnation && new_state as u8 > self.state as u8) {
+        if incarnation > self.incarnation
+            || (incarnation == self.incarnation && new_state as u8 > self.state as u8)
+        {
             self.state = new_state;
             self.incarnation = incarnation;
             self.state_change_time = Instant::now();
-            
+
             // Set suspicion timeout for suspected members
             if new_state == MemberState::Suspected {
                 self.suspicion_timeout = Some(Instant::now() + Duration::from_secs(10));
             } else {
                 self.suspicion_timeout = None;
             }
-            
+
             true
         } else {
             false
@@ -164,7 +170,7 @@ impl SwimMember {
     fn hash_node_id(node_id: &str) -> u32 {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
-        
+
         let mut hasher = DefaultHasher::new();
         node_id.hash(&mut hasher);
         hasher.finish() as u32
@@ -172,7 +178,7 @@ impl SwimMember {
 }
 
 /// SWIM protocol configuration optimized for 10k node clusters
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SwimConfig10k {
     /// How often to send probes (faster for large clusters)
     pub probe_interval: Duration,
@@ -201,17 +207,17 @@ pub struct SwimConfig10k {
 impl Default for SwimConfig10k {
     fn default() -> Self {
         Self {
-            probe_interval: Duration::from_millis(100),     // 10 probes/second
-            probe_timeout: Duration::from_millis(50),       // Fast timeout
-            suspicion_timeout: Duration::from_secs(10),     // Quick confirmation
-            k_indirect_probes: 5,                           // Sufficient verification
-            gossip_fanout: 15,                              // Tuned for 10k nodes
-            max_gossip_per_message: 20,                     // Batch updates
+            probe_interval: Duration::from_millis(100), // 10 probes/second
+            probe_timeout: Duration::from_millis(50),   // Fast timeout
+            suspicion_timeout: Duration::from_secs(10), // Quick confirmation
+            k_indirect_probes: 5,                       // Sufficient verification
+            gossip_fanout: 15,                          // Tuned for 10k nodes
+            max_gossip_per_message: 20,                 // Batch updates
             dead_member_gossip_time: Duration::from_secs(30), // Quick cleanup
             membership_sync_interval: Duration::from_secs(60), // Anti-entropy
-            max_packet_size: 1400,                          // Single UDP packet
-            enable_compression: true,                       // Reduce bandwidth
-            message_rate_limit: 1000,                       // Prevent storms
+            max_packet_size: 1400,                      // Single UDP packet
+            enable_compression: true,                   // Reduce bandwidth
+            message_rate_limit: 1000,                   // Prevent storms
         }
     }
 }
@@ -281,25 +287,26 @@ pub struct SwimCluster {
     /// Cluster membership (optimized storage)
     members: Arc<RwLock<BTreeMap<u32, SwimMember>>>,
     /// Local incarnation counter
+    #[allow(dead_code)]
     local_incarnation: AtomicU32,
     /// Protocol configuration
     config: SwimConfig10k,
-    
+
     /// Failure detection state
     probe_target_queue: Arc<RwLock<VecDeque<u32>>>,
     pending_probes: Arc<RwLock<HashMap<u32, Instant>>>,
     suspicion_timers: Arc<RwLock<HashMap<u32, Instant>>>,
-    
+
     /// Gossip dissemination
     gossip_buffer: Arc<RwLock<VecDeque<GossipUpdate>>>,
     gossip_generation: AtomicU32,
-    
+
     /// Event notification
     event_sender: mpsc::UnboundedSender<SwimMembershipEvent>,
-    
+
     /// Protocol statistics
     stats: Arc<RwLock<SwimStats>>,
-    
+
     /// Background task handles
     tasks: Vec<tokio::task::JoinHandle<()>>,
 }
@@ -315,15 +322,15 @@ impl SwimCluster {
         let local_peer_info = PeerInfo {
             id: node_id,
             address: bind_addr.to_string(),
-            metrics_port: 9090, // Default
+            metrics_port: 9090,           // Default
             node_type: NodeType::Backend, // Default
             is_load_balancer: false,
             last_updated: SystemTime::now(),
         };
-        
+
         let local_member = SwimMember::from_peer_info(local_peer_info)?;
         let (event_sender, event_receiver) = mpsc::unbounded_channel();
-        
+
         let cluster = Self {
             local_member,
             members: Arc::new(RwLock::new(BTreeMap::new())),
@@ -338,7 +345,7 @@ impl SwimCluster {
             stats: Arc::new(RwLock::new(SwimStats::default())),
             tasks: Vec::new(),
         };
-        
+
         Ok((cluster, event_receiver))
     }
 
@@ -355,7 +362,7 @@ impl SwimCluster {
         let probe_task = self.spawn_probe_task().await;
         self.tasks.push(probe_task);
 
-        // Start gossip task  
+        // Start gossip task
         let gossip_task = self.spawn_gossip_task().await;
         self.tasks.push(gossip_task);
 
@@ -367,7 +374,10 @@ impl SwimCluster {
         let sync_task = self.spawn_sync_task().await;
         self.tasks.push(sync_task);
 
-        info!("SWIM protocol started with {} background tasks", self.tasks.len());
+        info!(
+            "SWIM protocol started with {} background tasks",
+            self.tasks.len()
+        );
         Ok(())
     }
 
@@ -377,15 +387,15 @@ impl SwimCluster {
         let member = SwimMember::from_peer_info(peer_info)?;
         let member_id = member.id;
         let node_id = member.node_id.clone();
-        
+
         debug!(node_id = %node_id, "Adding new member to SWIM cluster");
-        
+
         // Add to membership
         self.members.write().await.insert(member_id, member.clone());
-        
+
         // Add to probe queue
         self.probe_target_queue.write().await.push_back(member_id);
-        
+
         // Create gossip update
         let gossip = GossipUpdate {
             node_id: member_id,
@@ -394,17 +404,19 @@ impl SwimCluster {
             member_info: Some(member.clone()),
             generation: self.gossip_generation.fetch_add(1, Ordering::Relaxed),
         };
-        
+
         self.gossip_buffer.write().await.push_back(gossip);
-        
+
         // Notify service discovery
-        let _ = self.event_sender.send(SwimMembershipEvent::MemberJoined(member));
-        
+        let _ = self
+            .event_sender
+            .send(SwimMembershipEvent::MemberJoined(member));
+
         // Update stats
         let mut stats = self.stats.write().await;
         stats.total_members += 1;
         stats.alive_members += 1;
-        
+
         info!(node_id = %node_id, total_members = stats.total_members, "Member added to cluster");
         Ok(())
     }
@@ -423,13 +435,22 @@ impl SwimCluster {
     pub async fn get_stats(&self) -> SwimStats {
         let mut stats = self.stats.write().await;
         let members = self.members.read().await;
-        
+
         // Update member counts
         stats.total_members = members.len();
-        stats.alive_members = members.values().filter(|m| m.state == MemberState::Alive).count();
-        stats.suspected_members = members.values().filter(|m| m.state == MemberState::Suspected).count();
-        stats.dead_members = members.values().filter(|m| m.state == MemberState::Dead).count();
-        
+        stats.alive_members = members
+            .values()
+            .filter(|m| m.state == MemberState::Alive)
+            .count();
+        stats.suspected_members = members
+            .values()
+            .filter(|m| m.state == MemberState::Suspected)
+            .count();
+        stats.dead_members = members
+            .values()
+            .filter(|m| m.state == MemberState::Dead)
+            .count();
+
         stats.clone()
     }
 
@@ -443,7 +464,11 @@ impl SwimCluster {
             SwimMessage::ProbeAck { from, sequence } => {
                 self.handle_probe_ack(from, sequence).await?;
             }
-            SwimMessage::IndirectProbe { from, target, sequence } => {
+            SwimMessage::IndirectProbe {
+                from,
+                target,
+                sequence,
+            } => {
                 self.handle_indirect_probe(from, target, sequence).await?;
             }
             SwimMessage::Gossip { updates } => {
@@ -456,19 +481,19 @@ impl SwimCluster {
     // Private implementation methods
 
     async fn spawn_probe_task(&self) -> tokio::task::JoinHandle<()> {
-        let members = Arc::clone(&self.members);
+        let _members = Arc::clone(&self.members);
         let probe_queue = Arc::clone(&self.probe_target_queue);
         let pending_probes = Arc::clone(&self.pending_probes);
         let stats = Arc::clone(&self.stats);
         let config = self.config.clone();
         let local_id = self.local_member.id;
-        
+
         tokio::spawn(async move {
             let mut interval = interval(config.probe_interval);
-            
+
             loop {
                 interval.tick().await;
-                
+
                 // Select next probe target
                 let target_id = {
                     let mut queue = probe_queue.write().await;
@@ -481,14 +506,17 @@ impl SwimCluster {
                         None => None,
                     }
                 };
-                
+
                 if let Some(target_id) = target_id {
                     // Send probe
-                    pending_probes.write().await.insert(target_id, Instant::now());
-                    
+                    pending_probes
+                        .write()
+                        .await
+                        .insert(target_id, Instant::now());
+
                     // TODO: Send actual probe message over network
                     debug!(target_id = target_id, "Sending probe");
-                    
+
                     stats.write().await.probes_sent += 1;
                 }
             }
@@ -500,27 +528,27 @@ impl SwimCluster {
         let members = Arc::clone(&self.members);
         let stats = Arc::clone(&self.stats);
         let config = self.config.clone();
-        
+
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_millis(200)); // 5 gossip rounds/sec
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let updates: Vec<GossipUpdate> = {
                     let mut buffer = gossip_buffer.write().await;
                     let count = std::cmp::min(config.max_gossip_per_message, buffer.len());
                     buffer.drain(..count).collect()
                 };
-                
+
                 if !updates.is_empty() {
                     // Select gossip targets
                     let targets = Self::select_gossip_targets(&members, config.gossip_fanout).await;
-                    
+
                     for _target in targets {
                         // TODO: Send gossip message over network
                         debug!(updates = updates.len(), "Sending gossip updates");
-                        
+
                         stats.write().await.gossip_messages_sent += 1;
                     }
                 }
@@ -532,13 +560,13 @@ impl SwimCluster {
         let members = Arc::clone(&self.members);
         let suspicion_timers = Arc::clone(&self.suspicion_timers);
         let event_sender = self.event_sender.clone();
-        
+
         tokio::spawn(async move {
             let mut interval = interval(Duration::from_secs(1));
-            
+
             loop {
                 interval.tick().await;
-                
+
                 let now = Instant::now();
                 let expired: Vec<u32> = {
                     let timers = suspicion_timers.read().await;
@@ -548,22 +576,21 @@ impl SwimCluster {
                         .map(|(&id, _)| id)
                         .collect()
                 };
-                
+
                 for member_id in expired {
                     // Move from suspected to dead
                     let mut members_guard = members.write().await;
                     if let Some(member) = members_guard.get_mut(&member_id) {
                         if member.state == MemberState::Suspected {
                             member.update_state(MemberState::Dead, member.incarnation + 1);
-                            
-                            let _ = event_sender.send(SwimMembershipEvent::MemberDied(
-                                member.node_id.clone()
-                            ));
-                            
+
+                            let _ = event_sender
+                                .send(SwimMembershipEvent::MemberDied(member.node_id.clone()));
+
                             info!(node_id = %member.node_id, "Member confirmed dead after suspicion timeout");
                         }
                     }
-                    
+
                     // Remove from suspicion timers
                     suspicion_timers.write().await.remove(&member_id);
                 }
@@ -572,18 +599,18 @@ impl SwimCluster {
     }
 
     async fn spawn_sync_task(&self) -> tokio::task::JoinHandle<()> {
-        let members = Arc::clone(&self.members);
+        let _members = Arc::clone(&self.members);
         let config = self.config.clone();
-        
+
         tokio::spawn(async move {
             let mut interval = interval(config.membership_sync_interval);
-            
+
             loop {
                 interval.tick().await;
-                
+
                 // Periodic anti-entropy sync
                 debug!("Performing anti-entropy membership sync");
-                
+
                 // TODO: Implement full membership sync with random peers
                 // This helps recover from gossip message loss
             }
@@ -600,13 +627,13 @@ impl SwimCluster {
             .filter(|m| m.state == MemberState::Alive)
             .map(|m| m.id)
             .collect();
-            
+
         // Select random subset for gossip
         let mut targets = Vec::new();
         for i in 0..std::cmp::min(fanout, alive_members.len()) {
             targets.push(alive_members[i % alive_members.len()]);
         }
-        
+
         targets
     }
 
@@ -619,19 +646,19 @@ impl SwimCluster {
     async fn handle_probe_ack(&mut self, from: u32, _sequence: u32) -> ServiceDiscoveryResult<()> {
         // Remove from pending probes
         self.pending_probes.write().await.remove(&from);
-        
+
         // Mark as alive if suspected
         let mut members = self.members.write().await;
         if let Some(member) = members.get_mut(&from) {
             if member.state == MemberState::Suspected {
                 member.update_state(MemberState::Alive, member.incarnation + 1);
-                
-                let _ = self.event_sender.send(SwimMembershipEvent::MemberRecovered(
-                    member.node_id.clone()
-                ));
+
+                let _ = self
+                    .event_sender
+                    .send(SwimMembershipEvent::MemberRecovered(member.node_id.clone()));
             }
         }
-        
+
         Ok(())
     }
 
@@ -646,30 +673,37 @@ impl SwimCluster {
         Ok(())
     }
 
-    async fn handle_gossip_updates(&mut self, updates: Vec<GossipUpdate>) -> ServiceDiscoveryResult<()> {
+    async fn handle_gossip_updates(
+        &mut self,
+        updates: Vec<GossipUpdate>,
+    ) -> ServiceDiscoveryResult<()> {
         self.stats.write().await.gossip_messages_received += 1;
-        
+
         for update in updates {
             let mut members = self.members.write().await;
-            
+
             if let Some(member) = members.get_mut(&update.node_id) {
                 let old_state = member.state;
                 if member.update_state(update.state, update.incarnation) {
                     // State changed, notify service discovery
-                    let _ = self.event_sender.send(SwimMembershipEvent::MemberStateChanged {
-                        node_id: member.node_id.clone(),
-                        old_state,
-                        new_state: update.state,
-                    });
+                    let _ = self
+                        .event_sender
+                        .send(SwimMembershipEvent::MemberStateChanged {
+                            node_id: member.node_id.clone(),
+                            old_state,
+                            new_state: update.state,
+                        });
                 }
             } else if let Some(new_member) = update.member_info {
                 // New member from gossip
                 members.insert(update.node_id, new_member.clone());
-                
-                let _ = self.event_sender.send(SwimMembershipEvent::MemberJoined(new_member));
+
+                let _ = self
+                    .event_sender
+                    .send(SwimMembershipEvent::MemberJoined(new_member));
             }
         }
-        
+
         Ok(())
     }
 }
@@ -678,15 +712,9 @@ impl SwimCluster {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SwimMessage {
     /// Direct probe message
-    Probe {
-        from: u32,
-        sequence: u32,
-    },
+    Probe { from: u32, sequence: u32 },
     /// Probe acknowledgment
-    ProbeAck {
-        from: u32,
-        sequence: u32,
-    },
+    ProbeAck { from: u32, sequence: u32 },
     /// Indirect probe request
     IndirectProbe {
         from: u32,
@@ -694,9 +722,7 @@ pub enum SwimMessage {
         sequence: u32,
     },
     /// Gossip membership updates
-    Gossip {
-        updates: Vec<GossipUpdate>,
-    },
+    Gossip { updates: Vec<GossipUpdate> },
 }
 
 impl Drop for SwimCluster {
@@ -717,13 +743,11 @@ mod tests {
     async fn test_swim_cluster_creation() {
         let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8000);
         let config = SwimConfig10k::default();
-        
-        let (cluster, _events) = SwimCluster::new(
-            "test-node".to_string(),
-            bind_addr,
-            config,
-        ).await.unwrap();
-        
+
+        let (cluster, _events) = SwimCluster::new("test-node".to_string(), bind_addr, config)
+            .await
+            .unwrap();
+
         assert_eq!(cluster.local_member.node_id, "test-node");
         assert_eq!(cluster.local_member.addr, bind_addr);
     }
@@ -732,12 +756,10 @@ mod tests {
     async fn test_member_addition() {
         let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8001);
         let config = SwimConfig10k::default();
-        
-        let (mut cluster, _events) = SwimCluster::new(
-            "test-node".to_string(),
-            bind_addr,
-            config,
-        ).await.unwrap();
+
+        let (mut cluster, _events) = SwimCluster::new("test-node".to_string(), bind_addr, config)
+            .await
+            .unwrap();
 
         let peer_info = PeerInfo {
             id: "remote-node".to_string(),
@@ -759,12 +781,10 @@ mod tests {
     async fn test_swim_statistics() {
         let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8003);
         let config = SwimConfig10k::default();
-        
-        let (cluster, _events) = SwimCluster::new(
-            "test-node".to_string(),
-            bind_addr,
-            config,
-        ).await.unwrap();
+
+        let (cluster, _events) = SwimCluster::new("test-node".to_string(), bind_addr, config)
+            .await
+            .unwrap();
 
         let stats = cluster.get_stats().await;
         assert_eq!(stats.total_members, 0);

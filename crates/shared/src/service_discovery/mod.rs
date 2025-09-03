@@ -86,9 +86,11 @@ pub mod retry;
 pub mod server;
 pub mod service;
 pub mod swim;
+pub mod swim_bootstrap;
 pub mod swim_detector;
 pub mod swim_gossip;
 pub mod swim_integration;
+pub mod swim_network;
 pub mod swim_optimizations;
 pub mod swim_service;
 pub mod types;
@@ -111,12 +113,17 @@ pub use registration::{
 pub use retry::{RetryConfig, RetryManager, RetryMetrics};
 pub use server::ServiceDiscoveryServer;
 pub use service::ServiceDiscovery;
-pub use swim::{SwimCluster, SwimConfig10k, SwimMember, SwimMembershipEvent, SwimStats, MemberState};
-pub use swim_detector::{SwimFailureDetector, FailureDetectorConfig, FailureDetectorStats};
-pub use swim_gossip::{SwimGossipManager, GossipConfig, GossipStats, GossipPriority};
-pub use swim_integration::{SwimServiceDiscovery, SwimIntegrationConfig, SwimIntegrationStats};
-pub use swim_optimizations::{CompactMemberStorage, CompactMember, HighThroughputGossipBuffer, MessagePacker, AdaptiveTimeoutCalculator, ScalePerformanceMonitor};
-pub use swim_service::{SwimBasedServiceDiscovery, create_service_discovery};
+pub use swim::{
+    MemberState, SwimCluster, SwimConfig10k, SwimMember, SwimMembershipEvent, SwimStats,
+};
+pub use swim_detector::{FailureDetectorConfig, FailureDetectorStats, SwimFailureDetector};
+pub use swim_gossip::{GossipConfig, GossipPriority, GossipStats, SwimGossipManager};
+pub use swim_integration::{SwimIntegrationConfig, SwimIntegrationStats, SwimServiceDiscovery};
+pub use swim_optimizations::{
+    AdaptiveTimeoutCalculator, CompactMember, CompactMemberStorage, HighThroughputGossipBuffer,
+    MessagePacker, ScalePerformanceMonitor,
+};
+pub use swim_service::{create_service_discovery, SwimBasedServiceDiscovery};
 pub use types::{BackendRegistration, NodeInfo, NodeType, PeerInfo};
 pub use updates::{NodeUpdate, UpdatePropagator, UpdateResult};
 pub use validation::{

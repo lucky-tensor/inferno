@@ -20,7 +20,7 @@ async-trait = { workspace = true }
 futures = "0.3"
 hyper = { workspace = true }
 http = { workspace = true }
-uuid = { version = "1.0", features = ["v4"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
 fastrand = "2.0"
 # SWIM protocol dependencies
 bincode = "1.3"
