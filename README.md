@@ -85,7 +85,7 @@ After years of deploying AI inference systems in production, we witnessed the sa
 ### **Security Nightmares**
 **Ollama**: Multiple critical RCE vulnerabilities discovered in 2024 (CVE-2024-37032, etc.). Research found **9,831 exposed instances** on the internet without authentication, with 1 in 4 servers considered vulnerable. No built-in authentication means every deployment requires reverse proxy setup.
 
-**Solution**: Inferno includes secure defaults, built-in authentication, and follows security-first design principles from day one.
+**Solution**: Inferno includes secure defaults, built-in authentication, and follows security-first design principles from day one. Built in Rust, we eliminate entire classes of vulnerabilities (buffer overflows, use-after-free, memory corruption) that plague C/C++ implementations used by competitors.
 
 ### **Deployment Complexity Hell**
 **NVIDIA Dynamo**: Alpha-stage software requiring NATS, etcd, and complex distributed setup. AWS EKS deployments frequently fail with image pull errors and pod failures. Manual memory tuning and GPU visibility management required.
@@ -99,7 +99,7 @@ After years of deploying AI inference systems in production, we witnessed the sa
 
 **All Competitors**: Multi-language stacks (Rust→Python→C++) create serialization overhead and performance bottlenecks. Manual failover requires human intervention during outages.
 
-**Solution**: Inferno provides true cloud-native design with SWIM consensus for self-healing, pure Rust stack eliminates performance penalties, and comprehensive observability built-in.
+**Solution**: Inferno provides true cloud-native design with SWIM consensus for self-healing, pure Rust stack eliminates both performance penalties and memory safety vulnerabilities, and comprehensive observability built-in.
 
 ### **The Enterprise Tax**
 Every existing solution forces a choice: use inadequate open-source tools or pay expensive enterprise licenses for basic functionality. IT departments need production-ready solutions without enterprise lock-in.
