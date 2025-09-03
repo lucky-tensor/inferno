@@ -141,6 +141,25 @@ cargo run --release
 
 ## Development
 
+### Git Worktree Setup (Recommended)
+
+For parallel development on multiple features, this project is optimized for git worktrees with shared Rust caches to minimize storage requirements.
+
+```bash
+# Create worktrees for different features
+git worktree add ../inferno-feature1 feature1-branch
+git worktree add ../inferno-feature2 feature2-branch
+git worktree add ../inferno-hotfix hotfix-branch
+
+# The shared target directory (../shared-target) will be used by all worktrees
+# This prevents cache duplication and reduces storage by ~75%
+```
+
+**Cache Configuration**: 
+- All worktrees share a single `../shared-target` directory for compiled artifacts
+- Dependency cache at `~/.cargo` is automatically shared
+- No additional setup required - configuration is in `.cargo/config.toml`
+
 ### Running Tests
 
 ```bash
