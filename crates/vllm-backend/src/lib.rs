@@ -1,0 +1,99 @@
+//! # Inferno VLLM Backend
+//!
+//! A high-performance VLLM backend implementation for the Inferno inference platform.
+//! This crate provides CUDA-accelerated inference with advanced batching, scheduling,
+//! and memory management capabilities.
+//!
+//! ## Features
+//!
+//! - **CUDA Acceleration**: GPU-accelerated inference with cudarc integration
+//! - **Advanced Batching**: Dynamic request batching with priority scheduling
+//! - **Memory Management**: Efficient GPU memory pooling and tracking
+//! - **FFI Integration**: C++/CUDA kernel integration for maximum performance
+//! - **Service Discovery**: Integration with Inferno's service discovery system
+//! - **Health Monitoring**: Comprehensive health checks and metrics
+//!
+//! ## Usage
+//!
+//! ```rust,no_run
+//! use inferno_vllm_backend::{VLLMBackend, VLLMConfig};
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let config = VLLMConfig::from_env()?;
+//!     let backend = VLLMBackend::new(config).await?;
+//!     backend.start().await?;
+//!     Ok(())
+//! }
+//! ```
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![warn(
+    missing_docs,
+    rust_2018_idioms,
+    unreachable_pub,
+    clippy::all,
+    clippy::pedantic,
+    clippy::nursery
+)]
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::missing_panics_doc,
+    clippy::module_name_repetitions,
+    clippy::similar_names
+)]
+
+// Core modules
+pub mod config;
+pub mod error;
+
+// Engine components
+pub mod engine;
+pub mod memory;
+
+// FFI layer - only available with CUDA feature
+#[cfg(feature = "cuda")]
+#[cfg_attr(docsrs, doc(cfg(feature = "cuda")))]
+pub mod ffi;
+
+// Service integration
+pub mod health;
+pub mod server;
+pub mod service;
+
+// Re-export core types and traits
+pub use config::{
+    HealthConfig, LoggingConfig, ServerConfig, ServiceDiscoveryConfig, VLLMConfig,
+    VLLMConfigBuilder,
+};
+pub use engine::{VLLMBackend, VLLMEngine};
+pub use error::{
+    AllocationError, ServiceRegistrationError, VLLMConfigError, VLLMEngineError, VLLMError,
+    VLLMResult,
+};
+pub use health::{HealthStatus, VLLMHealthChecker};
+pub use server::VLLMServer;
+pub use service::VLLMServiceRegistration;
+
+// FFI exports when available
+#[cfg(feature = "cuda")]
+#[cfg_attr(docsrs, doc(cfg(feature = "cuda")))]
+pub use ffi::{CudaHandle, VLLMHandle, VLLMWrapper};
+
+// Memory management exports
+pub use memory::{CudaMemoryPool, DeviceMemory, GpuAllocator, MemoryStats, MemoryTracker};
+
+/// Current version of the VLLM backend
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Minimum supported CUDA version
+pub const MIN_CUDA_VERSION: (u32, u32) = (11, 8);
+
+/// Default HTTP server port
+pub const DEFAULT_PORT: u16 = 8000;
+
+/// Default batch size for inference
+pub const DEFAULT_BATCH_SIZE: usize = 8;
+
+/// Default GPU memory pool size (in MB)
+pub const DEFAULT_MEMORY_POOL_SIZE_MB: usize = 4096;

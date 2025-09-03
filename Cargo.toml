@@ -5,6 +5,7 @@ members = [
     "crates/backend",
     "crates/governator",
     "crates/cli",
+    "crates/vllm-backend",
     "benchmarking",
     "testsuite",
 ]
