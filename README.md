@@ -63,7 +63,10 @@ Enterprise delivers maximum ROI through Governator AI automation, disaggregated 
 | **Observability** | 📊 Prometheus | 📊 Enhanced metrics | 🔄 Limited | 🔄 Limited | ❌ Basic logs |
 | **Protocol Support** | ✅ HTTP/3, QUIC | ✅ HTTP/3, QUIC | 🔄 HTTP/2 only | 🔄 HTTP/2 only | 🔄 HTTP/1.1 |
 | **Extensibility** | 🔒 Performance-first | 🔒 Performance-first | 🔧 Highly extensible | 🔧 Highly extensible | 🔧 Plugin system |
-| **License** | 🆓 Free | 💰 Commercial | 💰 Commercial | 💰 Commercial | 🆓 Open source |
+| **License** | 🆓 Free | 💰 Commercial | 🆓 Open source* | ❓ Unknown | 🆓 Open source (MIT) |
+
+*Nvidia Dynamo: Open source with optional enterprise support via NVIDIA AI Enterprise  
+**Google DLLM**: Could not verify existence of this product - may need clarification
 
 **Key Advantages:**
 - **Pure Rust stack** eliminates multi-language overhead (competitors: Rust→Python→C++)
