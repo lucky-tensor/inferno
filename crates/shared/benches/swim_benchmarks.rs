@@ -6,11 +6,11 @@
 //! gossip dissemination efficiency, and memory usage.
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use std::sync::Arc;
 use inferno_shared::service_discovery::{
     NodeType, PeerInfo, SwimCluster, SwimConfig10k, SwimIntegrationConfig, SwimServiceDiscovery,
 };
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tokio::runtime::Runtime;
 
@@ -77,7 +77,8 @@ fn bench_member_addition(c: &mut Criterion) {
 
                     // Benchmark adding one more member
                     let new_peer = create_test_peer_info(cluster_size + 1);
-                    black_box(cluster.add_member(new_peer).await.unwrap());
+                    cluster.add_member(new_peer).await.unwrap();
+                    black_box(());
                 });
             },
         );
@@ -191,7 +192,8 @@ fn bench_swim_integration(c: &mut Criterion) {
                     // Benchmark backend registration
                     for i in 0..size {
                         let peer_info = create_test_peer_info(i);
-                        black_box(service_discovery.register_backend(peer_info).await.unwrap());
+                        service_discovery.register_backend(peer_info).await.unwrap();
+                        black_box(());
                     }
                 });
             },
@@ -269,7 +271,7 @@ fn bench_concurrent_operations(c: &mut Criterion) {
                     let cluster = Arc::new(cluster);
                     let mut handles = Vec::new();
                     for i in 0..concurrency {
-                        let cluster_clone = Arc::clone(&cluster);
+                        let _cluster_clone = Arc::clone(&cluster);
                         let handle = tokio::spawn(async move {
                             let peer_info = create_test_peer_info(i);
                             // Note: This would require Arc<Mutex<SwimCluster>> for true concurrency
