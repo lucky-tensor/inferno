@@ -29,15 +29,13 @@ tower-http = { version = "0.5", features = ["cors", "trace", "request-id"] }
 hyper = { workspace = true }
 http = { workspace = true }
 
-# GPU/CUDA dependencies  
-cudarc = { version = "0.11", features = ["std", "cublas", "cudnn"], optional = true }
-candle-core = { version = "0.6", features = ["cuda"], optional = true }
-candle-nn = { version = "0.6", optional = true }
+# Tensor operations (commented out until needed)
+# candle-core = { version = "0.6", optional = true }
+# candle-nn = { version = "0.6", optional = true }
 half = "2.3"
 
 # FFI and build dependencies
 libc = "0.2"
-bindgen = { version = "0.69", optional = true }
 
 # Configuration and environment
 config = "0.14"
@@ -81,8 +79,8 @@ rstest = "0.18"
 
 [features]
 default = ["cpu-only"]
-cuda = ["cudarc", "candle-core/cuda", "candle-nn", "bindgen", "ndarray"]
 cpu-only = ["ndarray"]
+cuda = []
 
 # Benchmarks will be added in later phases
 # [[bench]]

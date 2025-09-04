@@ -40,7 +40,22 @@
     clippy::missing_errors_doc,
     clippy::missing_panics_doc,
     clippy::module_name_repetitions,
-    clippy::similar_names
+    clippy::similar_names,
+    // Allow for FFI code which follows different conventions
+    clippy::wildcard_imports,
+    clippy::missing_const_for_fn,
+    clippy::uninlined_format_args,
+    clippy::borrow_as_ptr,
+    clippy::must_use_candidate,
+    clippy::ptr_as_ptr,
+    clippy::non_std_lazy_statics,
+    clippy::needless_return,
+    clippy::manual_assert,
+    clippy::non_send_fields_in_send_ty,
+    clippy::significant_drop_tightening,
+    clippy::unsafe_derive_deserialize,
+    clippy::needless_pass_by_value,
+    dead_code
 )]
 
 // Core modules

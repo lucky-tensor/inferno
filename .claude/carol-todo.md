@@ -1,10 +1,158 @@
 # Carol's Comprehensive VLLM Backend Implementation Checklist
 
-## Current Sprint: VLLM Backend Prototype Development
+## Current Sprint: Progressive CPU Inference Implementation & Testing
 
-### 🚧 In Progress  
+### 🎯 NEW: Progressive Testing Strategy (Hello World First)
+- **Goal**: Build minimal working inference pipeline before complex optimizations
+- **Philosophy**: Start with deterministic, simple models for reliable testing
+- **Progression**: CPU → Batching → Caching → VLLM → **Disagregated VLLM**
+
+### 🚀 ULTIMATE VISION: Disagregated VLLM (LLM-D Architecture)
+**Inspired by**: NVIDIA Dynamo, Meta's Disagregated Inference, Google's Pathways
+- **Compute/Memory Separation**: Decouple inference compute from model storage/KV cache
+- **Cross-Node Attention**: Attention mechanisms work across network boundaries  
+- **Shared Memory Pools**: Global KV cache accessible from any compute node
+- **Dynamic Scheduling**: Intelligent workload distribution based on model locality
+- **Elastic Scaling**: Add/remove compute nodes without affecting memory nodes
+- **Goal**: Handle models too large for single-node memory with near-native performance
+
+### 🚧 Active Sprint Tasks
+- [🔄] **Research and identify baseline CPU inference model for testing** (4h)
+  - Find small, deterministic model (e.g., DistilBERT, TinyLlama, or math-specific model)
+  - Model requirements: <500MB, CPU-friendly, deterministic outputs for "2+2" queries
+  - Evaluate: GGML format models, Candle-compatible models, or simple transformer
+  - **Success Criteria**: Model produces consistent "4" output for "2+2" prompt
+  
+  **Model Candidates to Evaluate:**
+  - **TinyLlama-1.1B** (~2.2GB, good math performance, deterministic with temperature=0)
+  - **DistilGPT-2** (~250MB, fast, but limited math capability)  
+  - **Phi-1.5** (~1.3GB, Microsoft's math-focused model, excellent for arithmetic)
+  - **CodeT5-small** (~242MB, code/math focused, good for deterministic outputs)
+  - **GGML format models** (llama.cpp compatible, optimized for CPU inference)
+  - **Custom fine-tuned model** (arithmetic-only, <100MB, maximum determinism)
+  
+  **Integration Strategy:**
+  1. Start with Hugging Face transformers library via Python bindings
+  2. Move to Candle (Rust-native) for better integration
+  3. Eventually integrate with actual VLLM Python library
+  
+- [ ] **Implement basic CPU inference pipeline without caching** (8h)  
+  - Replace stub C++ implementation with actual model loading
+  - Create minimal tokenizer integration (tiktoken or similar)
+  - Implement synchronous inference without optimizations
+  - **Files**: `cpp/src/vllm_wrapper.cpp`, `src/engine/inference.rs`
+  
+- [ ] **Create hello world inference test with deterministic outputs** (4h)
+  - Test: "What is 2+2? Answer with number only" → "4"  
+  - Verify deterministic behavior (same input → same output)
+  - Add assertion tests for response consistency
+  - **Files**: `tests/inference_hello_world.rs`
+
+- [ ] **Add basic request batching support** (12h)
+  - Implement request queueing without priority
+  - Basic batch formation (fixed batch size)
+  - Parallel processing of batched requests  
+  - **Performance Target**: 2-4x throughput improvement
+
+- [ ] **Implement KV caching layer for performance optimization** (16h)
+  - Add attention key-value caching
+  - Implement cache eviction policies
+  - Cache hit/miss metrics collection
+  - **Performance Target**: 50% latency reduction on repeated prefixes
+
+- [ ] **Integrate full VLLM backend with attention optimization** (20h)
+  - Replace custom implementation with actual VLLM bindings
+  - Flash attention integration
+  - Production-ready error handling and monitoring
+
+- [ ] **Design disagregated VLLM architecture (DistServe/NVIDIA Dynamo style)** (40h)
+  - ✅ Research DistServe (OSDI'24) and NVIDIA Dynamo disaggregation patterns  
+  - **Phase 1: Prefill/Decode Separation** (16h)
+    - Implement separate prefill and decode GPU pools
+    - Design KV cache transfer protocol between phases
+    - Create phase-aware request scheduling
+  - **Phase 2: Smart Routing & Cache Management** (12h)  
+    - Build KV-cache-aware router to minimize re-computation
+    - Implement multi-tier cache offloading (GPU→CPU→Storage)
+    - Add cache locality optimization for request routing
+  - **Phase 3: Dynamic Resource Allocation** (12h)
+    - Create GPU Resource Planner for dynamic prefill/decode allocation
+    - Implement workload-aware scaling policies
+    - Add performance monitoring and SLO enforcement
+  - **Performance Targets**: 7.4x request capacity, 12.6x tighter SLO compliance
+
+### 🎯 Progressive Implementation Roadmap
+**Complete Milestone Progression** (Research-Informed):
+1. ✅ **CPU Inference Foundation** - Basic working pipeline  
+2. **Hello World Testing** - Deterministic "2+2=4" validation
+3. **Request Batching** - Traditional co-located prefill+decode batching
+4. **KV Caching Layer** - Single-node cache optimization  
+5. **Full VLLM Integration** - Production-grade monolithic serving
+6. **🚀 Disagregated VLLM** - **True Innovation**: Prefill/decode separation
+
+**Disaggregated Implementation Phases**:
+- **6a. Phase Separation**: Split prefill→decode with KV cache transfer
+- **6b. Smart Routing**: KV-cache-aware request distribution  
+- **6c. Dynamic Allocation**: Real-time GPU pool rebalancing
+- **6d. Multi-Tier Caching**: GPU→CPU→Storage cache hierarchy
+- **6e. SLO Optimization**: 7.4x capacity, 12.6x tighter SLO compliance
+
+**Disagregated Architecture Vision** (Research-Backed LLM-D Style):
+Based on DistServe (OSDI'24) and NVIDIA Dynamo architecture:
+
+**Core Disaggregation Principles**:
+- **Prefill/Decode Separation**: Split time-to-first-token (TTFT) and time-per-output-token (TPOT) phases
+- **Phase-Specialized Hardware**: Dedicated GPU pools for prefill vs decode operations  
+- **KV Cache Transfer**: High-speed cache migration between prefill→decode GPUs via NVLink/PCIe
+- **Independent Resource Scaling**: Scale prefill and decode capacity independently based on workload
+- **Interference Elimination**: No more prefill operations blocking decode tasks
+
+**Technical Components**:
+- **Smart Router**: KV-cache-aware request routing to minimize re-computation
+- **KV Cache Manager**: Multi-tier cache offloading (GPU→CPU→Storage)
+- **GPU Resource Planner**: Dynamic allocation of GPUs between prefill/decode phases
+- **Low Latency Communication**: Optimized inter-GPU cache transfer protocols
+
+**Performance Targets** (Based on Research):
+- **7.4x request capacity** improvement over monolithic systems
+- **12.6x tighter SLO** compliance (>90% requests meet latency targets)
+- **30-100%+ throughput/GPU** gains depending on model size and node count
+
+### 🔧 **Disaggregated Architecture Implementation Plan**
+
+**Technical Architecture** (Based on DistServe & NVIDIA Dynamo):
+```
+┌─────────────────┐    KV Cache     ┌─────────────────┐
+│  Prefill Pool   │ ─────Transfer──→ │  Decode Pool    │
+│ (TTFT-focused)  │   (NVLink/PCIe)  │ (TPOT-focused)  │
+│ - Batch optimal │                 │ - Stream optimal │
+│ - High compute  │                 │ - Low latency   │
+└─────────────────┘                 └─────────────────┘
+         ↕                                     ↕
+┌─────────────────────────────────────────────────────────┐
+│              Smart Router & Resource Planner             │
+│ • KV-cache-aware request routing                        │
+│ • Dynamic GPU allocation (prefill ↔ decode)             │
+│ • Multi-tier cache management (GPU→CPU→Storage)         │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Key Implementation Components**:
+1. **Phase Separation Engine**: Split requests into prefill→decode workflow
+2. **KV Cache Transfer Protocol**: High-speed inter-GPU cache migration  
+3. **Smart Request Router**: Route based on cache locality and phase requirements
+4. **Dynamic Resource Allocator**: Real-time GPU pool rebalancing
+5. **Multi-Tier Cache Manager**: Intelligent cache placement across memory hierarchy
+
+**Integration with Inferno Architecture**:
+- **Governator**: Manages disaggregated resource allocation and cost optimization
+- **Proxy**: Routes requests to appropriate prefill/decode pools
+- **Service Discovery**: Tracks prefill/decode pool capacity and health
+- **Metrics**: Monitor TTFT, TPOT, cache hit rates, and SLO compliance
+
+### 🚧 Previous Sprint Progress
 - [x] feat: Analyze existing codebase architecture and integration points
-- [x] feat: Create comprehensive VLLM implementation plan with FFI design
+- [x] feat: Create comprehensive VLLM implementation plan with FFI design  
 - [x] feat: Create detailed task breakdown with granular checklist items
 
 ### 📋 Phase 1: Foundation (Est. 80 hours)

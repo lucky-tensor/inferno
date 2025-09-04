@@ -149,7 +149,6 @@ fn generate_bindings(_cpp_dir: &Path, _out_dir: &str, _cuda_root: &Path) {
             .derive_default(true)
             .derive_debug(true)
             .derive_copy(true)
-            .derive_clone(true)
             .generate_comments(true)
             .layout_tests(false) // Disable layout tests for faster builds
             .generate()

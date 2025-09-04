@@ -4,6 +4,8 @@
 //! of VLLM inference engine. It handles memory safety, error conversion, and
 //! provides idiomatic Rust interfaces.
 
+#![allow(dead_code, missing_docs, clippy::all)]
+
 #[cfg(feature = "cuda")]
 pub mod bindings;
 #[cfg(feature = "cuda")]

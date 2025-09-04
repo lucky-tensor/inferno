@@ -3,8 +3,9 @@
 //! This module provides safe abstractions around potentially unsafe FFI operations,
 //! including automatic cleanup, RAII patterns, and error handling.
 
+#![allow(clippy::all, dead_code, unused_imports)]
+
 use super::bindings::*;
-use super::types::*;
 use crate::error::{VLLMError, VLLMResult};
 use parking_lot::Mutex;
 use std::collections::HashMap;

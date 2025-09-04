@@ -1,5 +1,7 @@
 //! Type definitions and conversions between Rust and C FFI
 
+#![allow(missing_docs)]
+
 use crate::error::{VLLMError, VLLMResult};
 use serde::{Deserialize, Serialize};
 use std::ffi::{CStr, CString};
@@ -93,6 +95,7 @@ impl Default for MemoryStats {
 #[cfg(feature = "cuda")]
 #[repr(C)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[allow(missing_docs, non_camel_case_types)]
 pub enum VLLMErrorCode {
     VLLM_SUCCESS = 0,
     VLLM_ERROR_INVALID_ARGUMENT = 1,
@@ -112,6 +115,7 @@ pub type VLLMRequestHandle = *mut std::ffi::c_void;
 
 #[cfg(feature = "cuda")]
 #[repr(C)]
+#[allow(missing_docs)]
 pub struct VLLMConfig {
     pub model_path: *const c_char,
     pub model_name: *const c_char,
@@ -151,6 +155,7 @@ impl Default for VLLMConfig {
 
 #[cfg(feature = "cuda")]
 impl VLLMConfig {
+    /// Convert from Rust config to FFI config
     pub fn from_rust_config(rust_config: &crate::config::VLLMConfig) -> VLLMResult<Self> {
         let model_path = CString::new(rust_config.model_path.as_str())
             .map_err(|_| VLLMError::InvalidArgument("Invalid model path".to_string()))?;
@@ -186,6 +191,7 @@ impl VLLMConfig {
 
 #[cfg(feature = "cuda")]
 #[repr(C)]
+#[allow(missing_docs)]
 pub struct VLLMInferenceRequest {
     pub prompt: *const c_char,
     pub max_tokens: usize,
@@ -215,6 +221,7 @@ impl Default for VLLMInferenceRequest {
 
 #[cfg(feature = "cuda")]
 impl VLLMInferenceRequest {
+    /// Convert from Rust request to FFI request
     pub fn from_rust_request(request: &InferenceRequest) -> VLLMResult<Self> {
         let prompt = CString::new(request.prompt.as_str())
             .map_err(|_| VLLMError::InvalidArgument("Invalid prompt".to_string()))?;
@@ -248,6 +255,7 @@ impl VLLMInferenceRequest {
 
 #[cfg(feature = "cuda")]
 #[repr(C)]
+#[allow(missing_docs)]
 pub struct VLLMInferenceResponse {
     pub request_id: u64,
     pub generated_text: *const c_char,
@@ -281,6 +289,7 @@ impl Default for VLLMInferenceResponse {
 
 #[cfg(feature = "cuda")]
 impl InferenceResponse {
+    /// Convert from FFI response to Rust response
     pub fn from_c_response(c_response: &VLLMInferenceResponse) -> VLLMResult<Self> {
         let generated_text = if c_response.generated_text.is_null() {
             String::new()
@@ -318,6 +327,7 @@ impl InferenceResponse {
 
 #[cfg(feature = "cuda")]
 #[repr(C)]
+#[allow(missing_docs)]
 pub struct VLLMMemoryStats {
     pub total_memory_bytes: usize,
     pub used_memory_bytes: usize,
@@ -345,6 +355,7 @@ impl Default for VLLMMemoryStats {
 
 #[cfg(feature = "cuda")]
 impl MemoryStats {
+    /// Convert from FFI stats to Rust stats
     pub fn from_c_stats(c_stats: &VLLMMemoryStats) -> Self {
         Self {
             total_memory_bytes: c_stats.total_memory_bytes,
