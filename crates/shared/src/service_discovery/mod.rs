@@ -35,7 +35,6 @@
 //! - `errors`: Specialized error types and comprehensive error handling
 //! - `health`: Health checking, vitals monitoring, and status reporting
 //! - `registration`: Enhanced registration protocol with peer information sharing
-//! - `consensus`: Consensus algorithms for distributed peer resolution
 //! - `client`: HTTP client for peer-to-peer communication
 //! - `server`: HTTP server endpoints and request handlers
 //! - `updates`: Self-sovereign update propagation with retry logic
@@ -78,7 +77,6 @@
 pub mod auth;
 pub mod client;
 pub mod config;
-pub mod consensus;
 pub mod errors;
 pub mod health;
 pub mod registration;
@@ -104,7 +102,6 @@ pub mod tests;
 pub use auth::AuthMode;
 pub use client::{ClientConfig, ServiceDiscoveryClient};
 pub use config::ServiceDiscoveryConfig;
-pub use consensus::{ConsensusMetrics, ConsensusResolver};
 pub use errors::{ServiceDiscoveryError, ServiceDiscoveryResult};
 pub use health::{HealthCheckResult, HealthChecker, HttpHealthChecker, NodeVitals};
 pub use registration::{

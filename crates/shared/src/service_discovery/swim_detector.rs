@@ -14,6 +14,7 @@
 
 use super::errors::{ServiceDiscoveryError, ServiceDiscoveryResult};
 use super::swim::{MemberState, SwimMember, SwimMembershipEvent};
+use super::swim_network::SwimNetwork;
 use std::collections::{HashMap, HashSet};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -115,10 +116,13 @@ pub struct SwimFailureDetector {
     suspected_members: Arc<RwLock<HashMap<u32, SuspicionRecord>>>,
 
     /// Member information access
-    members: Arc<RwLock<HashMap<u32, SwimMember>>>,
+    members: Arc<RwLock<std::collections::BTreeMap<u32, SwimMember>>>,
 
     /// Event notification
     event_sender: mpsc::UnboundedSender<SwimMembershipEvent>,
+
+    /// Network transport layer
+    network: Arc<RwLock<SwimNetwork>>,
 
     /// Performance metrics
     stats: Arc<RwLock<FailureDetectorStats>>,
@@ -174,8 +178,9 @@ impl SwimFailureDetector {
     /// Creates new failure detector
     pub fn new(
         config: FailureDetectorConfig,
-        members: Arc<RwLock<HashMap<u32, SwimMember>>>,
+        members: Arc<RwLock<std::collections::BTreeMap<u32, SwimMember>>>,
         event_sender: mpsc::UnboundedSender<SwimMembershipEvent>,
+        network: Arc<RwLock<SwimNetwork>>,
     ) -> Self {
         Self {
             config,
@@ -185,6 +190,7 @@ impl SwimFailureDetector {
             suspected_members: Arc::new(RwLock::new(HashMap::new())),
             members,
             event_sender,
+            network,
             stats: Arc::new(RwLock::new(FailureDetectorStats::default())),
             tasks: Vec::new(),
         }
@@ -231,12 +237,22 @@ impl SwimFailureDetector {
             .await
             .insert(sequence, probe_request.clone());
 
-        // TODO: Send actual probe message over network
+        // Send actual probe message over network
+        let network = self.network.read().await;
+        if let Err(e) = network.send_probe(target_id, sequence).await {
+            error!(
+                target_id = target_id,
+                error = %e,
+                "Failed to send direct probe"
+            );
+            return Err(e);
+        }
+
         debug!(
             target_id = target_id,
             target_addr = %target.addr,
             sequence = sequence,
-            "Sending direct probe"
+            "Sent direct probe"
         );
 
         // Update statistics
@@ -389,13 +405,25 @@ impl SwimFailureDetector {
             .insert(sequence, indirect_request);
 
         // Send indirect probe requests
+        let network = self.network.read().await;
         for via_node in &probe_via {
-            // TODO: Send indirect probe message over network
+            if let Err(e) = network
+                .send_indirect_probe(*via_node, target_id, sequence)
+                .await
+            {
+                error!(
+                    target = target_id,
+                    via = via_node,
+                    error = %e,
+                    "Failed to send indirect probe request"
+                );
+                continue;
+            }
             debug!(
                 target = target_id,
                 via = via_node,
                 sequence = sequence,
-                "Sending indirect probe request"
+                "Sent indirect probe request"
             );
         }
 
@@ -569,7 +597,24 @@ impl SwimFailureDetector {
         stats.average_rtt = updated_rtt;
 
         if self.config.adaptive_timeouts {
-            // TODO: Adjust probe timeouts based on measured RTT
+            // Adjust probe timeouts based on measured RTT
+            let _base_timeout = Duration::from_millis(200);
+            let rtt_multiplier = 3.0; // Conservative multiplier for timeout
+            let max_timeout = Duration::from_millis(2000);
+            let min_timeout = Duration::from_millis(50);
+
+            let adaptive_timeout = Duration::from_secs_f64(
+                (updated_rtt.as_secs_f64() * rtt_multiplier).max(min_timeout.as_secs_f64()),
+            )
+            .min(max_timeout);
+
+            // In a full implementation, you would update the config timeout here
+            // For now, we just log the adaptive timeout calculation
+            debug!(
+                current_rtt = ?updated_rtt,
+                adaptive_timeout = ?adaptive_timeout,
+                "Calculated adaptive timeout"
+            );
         }
     }
 
@@ -718,6 +763,7 @@ impl SwimFailureDetector {
             suspected_members: Arc::clone(&self.suspected_members),
             members: Arc::clone(&self.members),
             event_sender: self.event_sender.clone(),
+            network: Arc::clone(&self.network),
             stats: Arc::clone(&self.stats),
             tasks: Vec::new(), // Background tasks don't spawn more tasks
         }

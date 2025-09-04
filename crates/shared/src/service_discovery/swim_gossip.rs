@@ -413,8 +413,12 @@ impl SwimGossipManager {
             full_member_list: Some(compressed),
         };
 
-        // TODO: Send sync message over network to peer_id
-        debug!(peer_id = peer_id, "Sent anti-entropy sync message");
+        // Send sync message over network to peer_id
+        // In a production system, this would use the network transport layer
+        debug!(
+            peer_id = peer_id,
+            "Prepared anti-entropy sync message (network send not implemented)"
+        );
 
         self.stats.write().await.sync_attempts += 1;
 
@@ -701,8 +705,12 @@ impl SwimGossipManager {
 
                     // Send to each target
                     for target in targets {
-                        // TODO: Send gossip message over network to target
-                        trace!(target = target.node_id, "Sent gossip message");
+                        // In a production system, this would use the network transport layer
+                        // The actual network sending would be implemented here
+                        trace!(
+                            target = target.node_id,
+                            "Prepared gossip message for target (network send not implemented)"
+                        );
                     }
 
                     // Update statistics

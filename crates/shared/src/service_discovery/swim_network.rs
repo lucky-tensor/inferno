@@ -256,8 +256,8 @@ impl SwimNetwork {
         results
     }
 
-    /// Internal message sending implementation
-    async fn send_message<T: Serialize>(
+    /// Generic message sending method
+    pub async fn send_message<T: Serialize>(
         &self,
         target_id: u32,
         msg_type: MessageType,

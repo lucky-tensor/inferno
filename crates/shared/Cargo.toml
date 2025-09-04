@@ -26,6 +26,7 @@ fastrand = "2.0"
 bincode = "1.3"
 zstd = "0.13"
 rand = "0.8"
+toml = "0.8"
 
 [dev-dependencies]
 tokio-test = { workspace = true }
@@ -33,10 +34,6 @@ proptest = { workspace = true }
 wiremock = { workspace = true }
 criterion = { version = "0.5", features = ["html_reports", "async_tokio"] }
 futures = "0.3"
-
-[[bench]]
-name = "consensus_benchmarks"
-harness = false
 
 [[bench]]
 name = "update_benchmarks"

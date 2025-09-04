@@ -16,7 +16,7 @@ Inferno Proxy is a self-healing cloud platform for AI inference, designed for hi
 - ⚙️ **Flexible Configuration**: Environment variables, validation, and hot reloading support
 - 🧪 **Test-Driven Development**: Extensive unit tests, integration tests, and benchmarks
 - 🛡️ **Security-Focused**: Input validation, secure defaults, and security headers
-- 🌊 **SWIM Protocol**: Scalable membership protocol for 10,000+ node clusters (Alice Project)
+- 🌊 **SWIM Protocol**: Load balancer propagation for efficient backend discovery (Alice Project)
 
 ## Architecture
 

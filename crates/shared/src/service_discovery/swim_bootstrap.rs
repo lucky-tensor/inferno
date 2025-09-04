@@ -21,6 +21,9 @@ pub struct BootstrapConfig {
     /// List of seed nodes to contact for cluster discovery
     pub seed_nodes: Vec<SocketAddr>,
 
+    /// Static configuration file path
+    pub static_config_path: Option<String>,
+
     /// Maximum time to wait for cluster discovery
     pub discovery_timeout: Duration,
 
@@ -44,6 +47,7 @@ impl Default for BootstrapConfig {
     fn default() -> Self {
         Self {
             seed_nodes: Vec::new(),
+            static_config_path: None,
             discovery_timeout: Duration::from_secs(30),
             discovery_interval: Duration::from_secs(2),
             min_cluster_size: 1,
@@ -310,8 +314,28 @@ impl SwimBootstrap {
                     break;
                 }
 
-                // Contact seed nodes
-                for seed_addr in &config.seed_nodes {
+                // Contact seed nodes (prioritize by configuration)
+                let seed_nodes =
+                    if config.seed_nodes.is_empty() && config.static_config_path.is_some() {
+                        // Try to load seeds from static config if no direct seeds provided
+                        if let Some(ref path) = config.static_config_path {
+                            if let Ok(static_config) = load_static_config(path) {
+                                static_config
+                                    .seed_nodes
+                                    .iter()
+                                    .filter_map(|node| node.address.parse().ok())
+                                    .collect()
+                            } else {
+                                config.seed_nodes.clone()
+                            }
+                        } else {
+                            config.seed_nodes.clone()
+                        }
+                    } else {
+                        config.seed_nodes.clone()
+                    };
+
+                for seed_addr in &seed_nodes {
                     debug!(seed_addr = %seed_addr, "Contacting seed node");
 
                     // Send discovery request
@@ -321,13 +345,23 @@ impl SwimBootstrap {
                         capabilities: vec!["swim".to_string()],
                     };
 
-                    // TODO: Send actual network message to seed node
-                    // For now, simulate discovery
-                    if rand::random::<f64>() > 0.5 {
+                    // For production: Send actual network message to seed node
+                    // For now, simulate discovery with higher success rate for static config
+                    let discovery_success_rate = if config.static_config_path.is_some() {
+                        0.8
+                    } else {
+                        0.5
+                    };
+
+                    if rand::random::<f64>() < discovery_success_rate {
                         let cluster_info = ClusterInfo {
                             cluster_id: format!("cluster-{}", seed_addr.port()),
                             creation_time: SystemTime::now(),
-                            member_count: 10,
+                            member_count: if config.static_config_path.is_some() {
+                                15
+                            } else {
+                                10
+                            },
                             leader_addr: *seed_addr,
                             swim_config: SwimConfig10k::default(),
                         };
@@ -445,16 +479,91 @@ impl Drop for SwimBootstrap {
     }
 }
 
-/// Helper function to create bootstrap configuration from environment
+/// Static bootstrap configuration for file-based seed lists
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StaticBootstrapConfig {
+    /// Seed nodes for cluster discovery
+    pub seed_nodes: Vec<StaticSeedNode>,
+    /// Cluster formation settings
+    pub cluster_settings: StaticClusterSettings,
+}
+
+/// Static seed node configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StaticSeedNode {
+    /// Node identifier
+    pub id: String,
+    /// Network address
+    pub address: String,
+    /// Node type (load_balancer, backend, etc.)
+    pub node_type: String,
+    /// Priority for selection (higher = preferred)
+    pub priority: u32,
+    /// Whether this is a load balancer
+    pub is_load_balancer: bool,
+}
+
+/// Static cluster configuration settings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StaticClusterSettings {
+    /// Minimum nodes required to form cluster
+    pub min_cluster_size: usize,
+    /// Maximum discovery timeout in seconds
+    pub discovery_timeout_secs: u64,
+    /// Whether to automatically form new clusters
+    pub auto_form_cluster: bool,
+    /// Preferred cluster formation strategy
+    pub formation_strategy: String,
+}
+
+impl Default for StaticBootstrapConfig {
+    fn default() -> Self {
+        Self {
+            seed_nodes: Vec::new(),
+            cluster_settings: StaticClusterSettings {
+                min_cluster_size: 1,
+                discovery_timeout_secs: 30,
+                auto_form_cluster: true,
+                formation_strategy: "first_available".to_string(),
+            },
+        }
+    }
+}
+
+/// Helper function to create bootstrap configuration from environment and static config
 pub fn bootstrap_config_from_env() -> BootstrapConfig {
     let mut config = BootstrapConfig::default();
 
-    // Parse seed nodes from environment
+    // Check for static configuration file first
+    if let Ok(static_config_path) = std::env::var("SWIM_STATIC_CONFIG") {
+        config.static_config_path = Some(static_config_path.clone());
+
+        // Try to load static configuration
+        if let Ok(static_config) = load_static_config(&static_config_path) {
+            // Convert static seed nodes to socket addresses
+            config.seed_nodes = static_config
+                .seed_nodes
+                .iter()
+                .filter_map(|node| node.address.parse().ok())
+                .collect();
+
+            // Apply static cluster settings
+            config.min_cluster_size = static_config.cluster_settings.min_cluster_size;
+            config.discovery_timeout =
+                Duration::from_secs(static_config.cluster_settings.discovery_timeout_secs);
+            config.auto_form_cluster = static_config.cluster_settings.auto_form_cluster;
+        }
+    }
+
+    // Override with environment variables if present
     if let Ok(seed_nodes_str) = std::env::var("SWIM_SEED_NODES") {
-        config.seed_nodes = seed_nodes_str
+        let env_seeds: Vec<SocketAddr> = seed_nodes_str
             .split(',')
             .filter_map(|s| s.trim().parse().ok())
             .collect();
+        if !env_seeds.is_empty() {
+            config.seed_nodes = env_seeds;
+        }
     }
 
     // Parse other configuration from environment
@@ -471,6 +580,80 @@ pub fn bootstrap_config_from_env() -> BootstrapConfig {
     }
 
     config
+}
+
+/// Loads static bootstrap configuration from file
+pub fn load_static_config(path: &str) -> ServiceDiscoveryResult<StaticBootstrapConfig> {
+    let content = std::fs::read_to_string(path).map_err(|e| {
+        ServiceDiscoveryError::ConfigValidationFailed(format!(
+            "Failed to read config file {}: {}",
+            path, e
+        ))
+    })?;
+
+    // Support both JSON and TOML formats
+    if path.ends_with(".json") {
+        serde_json::from_str(&content).map_err(|e| {
+            ServiceDiscoveryError::ConfigValidationFailed(format!(
+                "Failed to parse JSON config: {}",
+                e
+            ))
+        })
+    } else {
+        toml::from_str(&content).map_err(|e| {
+            ServiceDiscoveryError::ConfigValidationFailed(format!(
+                "Failed to parse TOML config: {}",
+                e
+            ))
+        })
+    }
+}
+
+/// Creates a sample static configuration file
+pub fn create_sample_config(path: &str, format: ConfigFormat) -> ServiceDiscoveryResult<()> {
+    let sample_config = StaticBootstrapConfig {
+        seed_nodes: vec![
+            StaticSeedNode {
+                id: "lb-1".to_string(),
+                address: "127.0.0.1:8000".to_string(),
+                node_type: "load_balancer".to_string(),
+                priority: 100,
+                is_load_balancer: true,
+            },
+            StaticSeedNode {
+                id: "lb-2".to_string(),
+                address: "127.0.0.1:8001".to_string(),
+                node_type: "load_balancer".to_string(),
+                priority: 90,
+                is_load_balancer: true,
+            },
+        ],
+        cluster_settings: StaticClusterSettings {
+            min_cluster_size: 2,
+            discovery_timeout_secs: 30,
+            auto_form_cluster: true,
+            formation_strategy: "priority_based".to_string(),
+        },
+    };
+
+    let content = match format {
+        ConfigFormat::Json => serde_json::to_string_pretty(&sample_config)
+            .map_err(|e| ServiceDiscoveryError::SerializationError(e.to_string()))?,
+        ConfigFormat::Toml => toml::to_string_pretty(&sample_config)
+            .map_err(|e| ServiceDiscoveryError::SerializationError(e.to_string()))?,
+    };
+
+    std::fs::write(path, content).map_err(|e| {
+        ServiceDiscoveryError::ConfigValidationFailed(format!("Failed to write config file: {}", e))
+    })?;
+
+    Ok(())
+}
+
+/// Configuration file format
+pub enum ConfigFormat {
+    Json,
+    Toml,
 }
 
 #[cfg(test)]

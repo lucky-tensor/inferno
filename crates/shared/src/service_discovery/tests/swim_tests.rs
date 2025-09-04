@@ -4,6 +4,7 @@
 //! unit tests, integration tests, and scale testing for 10k+ nodes.
 
 use super::super::swim::GossipUpdate;
+use super::super::swim_network::{NetworkConfig, SwimNetwork};
 use super::super::{
     FailureDetectorConfig, GossipConfig, GossipPriority, MemberState, NodeType, PeerInfo,
     SwimCluster, SwimConfig10k, SwimFailureDetector, SwimGossipManager, SwimIntegrationConfig,
@@ -73,7 +74,7 @@ async fn test_swim_cluster_startup() {
 /// Tests failure detection mechanisms
 #[tokio::test]
 async fn test_swim_failure_detection() {
-    let members = std::sync::Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));
+    let members = std::sync::Arc::new(tokio::sync::RwLock::new(std::collections::BTreeMap::new()));
     let (event_sender, mut event_receiver) = mpsc::unbounded_channel();
 
     let config = FailureDetectorConfig {
@@ -82,12 +83,30 @@ async fn test_swim_failure_detection() {
         ..Default::default()
     };
 
-    let mut detector = SwimFailureDetector::new(config, members.clone(), event_sender);
+    // Create a mock network
+    let bind_addr = get_random_port_addr();
+    let network_config = NetworkConfig::default();
+    let network = std::sync::Arc::new(tokio::sync::RwLock::new(
+        SwimNetwork::new(bind_addr, 999, network_config)
+            .await
+            .unwrap(),
+    ));
+
+    let mut detector =
+        SwimFailureDetector::new(config, members.clone(), event_sender, network.clone());
     detector.start().await.unwrap();
 
     // Add a test member
     let test_member = super::super::SwimMember::from_peer_info(create_test_peer_info(1)).unwrap();
     let member_id = test_member.id;
+
+    // Register the test member's address with the network
+    network
+        .write()
+        .await
+        .update_node_address(member_id, test_member.addr)
+        .await;
+
     members.write().await.insert(member_id, test_member);
 
     // Initiate probe
