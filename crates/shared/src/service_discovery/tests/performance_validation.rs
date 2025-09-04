@@ -114,12 +114,11 @@ async fn test_health_check_cycle_performance() {
 }
 
 #[tokio::test]
+#[ignore] // Disabled - consensus removed in favor of SWIM
 async fn test_consensus_resolution_performance() {
     // Test consensus resolution performance
-    use crate::service_discovery::{ConsensusResolver, PeerInfo};
+    use crate::service_discovery::PeerInfo;
     use std::time::SystemTime;
-
-    let resolver = ConsensusResolver::new();
 
     // Create mock peer responses with varying sizes
     let mut peer_responses = Vec::new();
@@ -143,26 +142,7 @@ async fn test_consensus_resolution_performance() {
         } // Test with 5 peer responses
     }
 
-    let start = Instant::now();
-    let result = resolver.resolve_consensus(peer_responses).await;
-    let duration = start.elapsed();
-
-    assert!(result.is_ok(), "Consensus resolution should succeed");
-
-    // Consensus should be very fast for small peer counts
-    assert!(
-        duration < Duration::from_millis(50),
-        "Consensus resolution took {:?}, should be < 50ms for small peer sets",
-        duration
-    );
-
-    let (peers, metrics) = result.unwrap();
-    assert_eq!(peers.len(), 10, "Should resolve to 10 unique peers");
-
-    println!(
-        "✓ Consensus resolution: {:?} (< 50ms for {} peer responses)",
-        duration, metrics.peer_count
-    );
+    // Disabled - consensus functionality removed
 }
 
 #[tokio::test]

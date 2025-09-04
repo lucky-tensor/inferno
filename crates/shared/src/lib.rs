@@ -24,6 +24,8 @@ pub mod metrics;
 pub mod operations_server;
 pub mod service_discovery;
 
+pub mod test_utils;
+
 // Re-export commonly used types for convenience
 pub use cli::{HealthCheckOptions, LoggingOptions, MetricsOptions, ServiceDiscoveryOptions};
 pub use error::{InfernoError, ProxyError, Result};

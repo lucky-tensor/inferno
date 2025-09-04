@@ -35,7 +35,6 @@
 //! - `errors`: Specialized error types and comprehensive error handling
 //! - `health`: Health checking, vitals monitoring, and status reporting
 //! - `registration`: Enhanced registration protocol with peer information sharing
-//! - `consensus`: Consensus algorithms for distributed peer resolution
 //! - `client`: HTTP client for peer-to-peer communication
 //! - `server`: HTTP server endpoints and request handlers
 //! - `updates`: Self-sovereign update propagation with retry logic
@@ -78,13 +77,20 @@
 pub mod auth;
 pub mod client;
 pub mod config;
-pub mod consensus;
 pub mod errors;
 pub mod health;
 pub mod registration;
 pub mod retry;
 pub mod server;
 pub mod service;
+pub mod swim;
+pub mod swim_bootstrap;
+pub mod swim_detector;
+pub mod swim_gossip;
+pub mod swim_integration;
+pub mod swim_network;
+pub mod swim_optimizations;
+pub mod swim_service;
 pub mod types;
 pub mod updates;
 pub mod validation;
@@ -96,7 +102,6 @@ pub mod tests;
 pub use auth::AuthMode;
 pub use client::{ClientConfig, ServiceDiscoveryClient};
 pub use config::ServiceDiscoveryConfig;
-pub use consensus::{ConsensusMetrics, ConsensusResolver};
 pub use errors::{ServiceDiscoveryError, ServiceDiscoveryResult};
 pub use health::{HealthCheckResult, HealthChecker, HttpHealthChecker, NodeVitals};
 pub use registration::{
@@ -105,6 +110,17 @@ pub use registration::{
 pub use retry::{RetryConfig, RetryManager, RetryMetrics};
 pub use server::ServiceDiscoveryServer;
 pub use service::ServiceDiscovery;
+pub use swim::{
+    MemberState, SwimCluster, SwimConfig10k, SwimMember, SwimMembershipEvent, SwimStats,
+};
+pub use swim_detector::{FailureDetectorConfig, FailureDetectorStats, SwimFailureDetector};
+pub use swim_gossip::{GossipConfig, GossipPriority, GossipStats, SwimGossipManager};
+pub use swim_integration::{SwimIntegrationConfig, SwimIntegrationStats, SwimServiceDiscovery};
+pub use swim_optimizations::{
+    AdaptiveTimeoutCalculator, CompactMember, CompactMemberStorage, HighThroughputGossipBuffer,
+    MessagePacker, ScalePerformanceMonitor,
+};
+pub use swim_service::{create_service_discovery, SwimBasedServiceDiscovery};
 pub use types::{BackendRegistration, NodeInfo, NodeType, PeerInfo};
 pub use updates::{NodeUpdate, UpdatePropagator, UpdateResult};
 pub use validation::{

@@ -33,7 +33,8 @@ For detailed documentation on each component, see:
    - Default values optimized for development and production
 
 2. **Service Discovery Integration**
-   - Minimalist registration protocol for backend discovery
+   - SWIM protocol for load balancer propagation
+   - Direct backend registration (not through SWIM)
    - Health checking via metrics port monitoring
    - Automatic backend pool management
    - Circuit breaker patterns for failed backends
@@ -59,7 +60,8 @@ For detailed documentation on each component, see:
    - GPU benchmarking function for hardware sampling and metrics
 
 3. **Service Registration**
-   - Automatic registration with load balancers
+   - SWIM query for available load balancers
+   - Direct registration with nearest load balancer
    - Periodic health announcements
    - Graceful shutdown notifications
 

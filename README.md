@@ -16,6 +16,7 @@ Inferno is a self-healing cloud platform for AI inference, designed for high-per
 - ⚙️ **Flexible Configuration**: Environment variables, validation, and hot reloading support
 - 🧪 **Test-Driven Development**: Extensive unit tests, integration tests, and benchmarks
 - 🛡️ **Security-Focused**: Input validation, secure defaults, and security headers
+- 🌊 **SWIM Protocol**: Load balancer propagation for efficient backend discovery (Alice Project)
 
 ## Quick Start
 
