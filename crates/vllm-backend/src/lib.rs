@@ -62,8 +62,9 @@
 pub mod config;
 pub mod error;
 
-// Engine components
+// Engine components  
 pub mod engine;
+pub mod inference;
 pub mod memory;
 
 // FFI layer - only available with CUDA feature
@@ -87,6 +88,13 @@ pub use error::{
     VLLMResult,
 };
 pub use health::{HealthStatus, VLLMHealthChecker};
+pub use inference::{
+    create_engine, create_math_test_request, CpuInferenceEngine, EngineStats, InferenceEngine,
+    InferenceRequest, InferenceResponse,
+};
+
+#[cfg(feature = "lmrs")]
+pub use inference::LlamaInferenceEngine;
 pub use server::VLLMServer;
 pub use service::VLLMServiceRegistration;
 

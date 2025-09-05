@@ -29,10 +29,12 @@ tower-http = { version = "0.5", features = ["cors", "trace", "request-id"] }
 hyper = { workspace = true }
 http = { workspace = true }
 
-# Tensor operations (commented out until needed)
-# candle-core = { version = "0.6", optional = true }
-# candle-nn = { version = "0.6", optional = true }
+# Lightweight CPU inference with real model support
 half = "2.3"
+# For HTTP downloads of models and tokenization
+reqwest = { version = "0.12", optional = true }
+# For actual Llama 3.2 1B inference (git dependency)
+lmrs = { git = "https://github.com/samuel-vitorino/lm.rs", optional = true }
 
 # FFI and build dependencies
 libc = "0.2"
@@ -79,7 +81,7 @@ rstest = "0.18"
 
 [features]
 default = ["cpu-only"]
-cpu-only = ["ndarray"]
+cpu-only = ["ndarray", "reqwest", "lmrs"]
 cuda = []
 
 # Benchmarks will be added in later phases
