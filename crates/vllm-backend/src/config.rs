@@ -478,9 +478,8 @@ impl VLLMConfig {
         let content = toml::to_string_pretty(self)
             .map_err(|e| VLLMConfigError::Parse(format!("Failed to serialize TOML: {e}")))?;
 
-        fs::write(path.as_ref(), content).map_err(|e| {
-            VLLMConfigError::FileRead(format!("Failed to write config file: {e}"))
-        })?;
+        fs::write(path.as_ref(), content)
+            .map_err(|e| VLLMConfigError::FileRead(format!("Failed to write config file: {e}")))?;
 
         Ok(())
     }

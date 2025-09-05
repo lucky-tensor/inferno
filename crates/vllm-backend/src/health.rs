@@ -42,7 +42,8 @@ pub struct VLLMHealthChecker {
 
 impl VLLMHealthChecker {
     /// Create a new health checker
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self {
             config: HealthConfig::default(),
             memory_pool: None,
@@ -52,7 +53,8 @@ impl VLLMHealthChecker {
     }
 
     /// Create a new health checker with configuration
-    #[must_use] pub const fn with_config(config: HealthConfig) -> Self {
+    #[must_use]
+    pub const fn with_config(config: HealthConfig) -> Self {
         Self {
             config,
             memory_pool: None,

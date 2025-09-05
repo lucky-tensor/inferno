@@ -4,7 +4,12 @@
 //! C++ header files. In a real implementation, these would be generated
 //! by bindgen during the build process.
 
-#![allow(non_camel_case_types, missing_docs, clippy::wildcard_imports, non_upper_case_globals)]
+#![allow(
+    non_camel_case_types,
+    missing_docs,
+    clippy::wildcard_imports,
+    non_upper_case_globals
+)]
 
 use super::types::*;
 use std::os::raw::{c_char, c_int};

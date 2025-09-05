@@ -250,7 +250,10 @@ impl From<validator::ValidationErrors> for VLLMError {
                     format!(
                         "{}: {}",
                         field,
-                        error.message.as_ref().unwrap_or(&std::borrow::Cow::Borrowed("validation error"))
+                        error
+                            .message
+                            .as_ref()
+                            .unwrap_or(&std::borrow::Cow::Borrowed("validation error"))
                     )
                 })
             })
@@ -298,12 +301,11 @@ impl VLLMError {
     }
 
     /// Get user-friendly error message
-    #[must_use] pub fn user_message(&self) -> String {
+    #[must_use]
+    pub fn user_message(&self) -> String {
         match self {
             Self::InvalidArgument(msg) => format!("Invalid request: {msg}"),
-            Self::OutOfMemory(_) => {
-                "Server is out of memory. Please try again later.".to_string()
-            }
+            Self::OutOfMemory(_) => "Server is out of memory. Please try again later.".to_string(),
             Self::Timeout(_) => "Request timed out. Please try again.".to_string(),
             Self::Engine(VLLMEngineError::QueueFull) => {
                 "Server is busy. Please try again later.".to_string()

@@ -33,7 +33,8 @@ pub enum RegistrationStatus {
 
 impl VLLMServiceRegistration {
     /// Create a new service registration
-    #[must_use] pub fn new(config: VLLMConfig) -> Self {
+    #[must_use]
+    pub fn new(config: VLLMConfig) -> Self {
         Self {
             config: config.service_discovery,
             health_checker: None,

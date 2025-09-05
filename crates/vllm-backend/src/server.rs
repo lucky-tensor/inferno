@@ -10,7 +10,8 @@ pub struct VLLMServer {
 
 impl VLLMServer {
     /// Create a new server
-    #[must_use] pub fn new(config: VLLMConfig) -> Self {
+    #[must_use]
+    pub fn new(config: VLLMConfig) -> Self {
         Self {
             config: config.server,
         }

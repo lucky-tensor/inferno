@@ -209,7 +209,8 @@ pub struct MemoryTracker {
 
 impl MemoryTracker {
     /// Create a new memory tracker
-    #[must_use] pub const fn new(device_id: i32) -> Self {
+    #[must_use]
+    pub const fn new(device_id: i32) -> Self {
         Self {
             device_id,
             active_allocations: AtomicU64::new(0),

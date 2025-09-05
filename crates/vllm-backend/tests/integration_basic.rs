@@ -60,7 +60,7 @@ fn test_config_from_env() {
 async fn test_engine_lifecycle() {
     let config = VLLMConfig {
         model_path: "/tmp/fake_model".to_string(), // Non-existent is OK for this test
-        device_id: -1, // CPU-only mode
+        device_id: -1,                             // CPU-only mode
         ..Default::default()
     };
 

@@ -85,32 +85,38 @@ impl VLLMBackend {
     }
 
     /// Get the engine reference
-    #[must_use] pub fn engine(&self) -> &VLLMEngine {
+    #[must_use]
+    pub fn engine(&self) -> &VLLMEngine {
         &self.engine
     }
 
     /// Get the configuration
-    #[must_use] pub const fn config(&self) -> &VLLMConfig {
+    #[must_use]
+    pub const fn config(&self) -> &VLLMConfig {
         &self.config
     }
 
     /// Get the memory pool
-    #[must_use] pub const fn memory_pool(&self) -> &Arc<CudaMemoryPool> {
+    #[must_use]
+    pub const fn memory_pool(&self) -> &Arc<CudaMemoryPool> {
         &self.memory_pool
     }
 
     /// Get the memory tracker
-    #[must_use] pub const fn memory_tracker(&self) -> &Arc<MemoryTracker> {
+    #[must_use]
+    pub const fn memory_tracker(&self) -> &Arc<MemoryTracker> {
         &self.memory_tracker
     }
 
     /// Get the health checker
-    #[must_use] pub const fn health_checker(&self) -> &Arc<VLLMHealthChecker> {
+    #[must_use]
+    pub const fn health_checker(&self) -> &Arc<VLLMHealthChecker> {
         &self.health_checker
     }
 
     /// Get the service registration
-    #[must_use] pub const fn service_registration(&self) -> &Arc<VLLMServiceRegistration> {
+    #[must_use]
+    pub const fn service_registration(&self) -> &Arc<VLLMServiceRegistration> {
         &self.service_registration
     }
 }

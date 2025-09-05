@@ -62,7 +62,7 @@
 pub mod config;
 pub mod error;
 
-// Engine components  
+// Engine components
 pub mod engine;
 pub mod inference;
 pub mod memory;
