@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "MultiEdit",
+      "Edit",
+      "WebFetch(domain:github.com)",
+      "Bash(git:*)",
+      "Bash(rustc:*)",
+      "Bash(cargo:*)",
+      "Bash(npm:update:*)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "includeCoAuthoredBy": false
+}

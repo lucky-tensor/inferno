@@ -44,7 +44,7 @@ impl LlamaInferenceEngine {
 
     /// Download Llama 3.2 1B model if not present
     #[allow(clippy::cognitive_complexity)]
-    async fn ensure_model_files(&mut self, base_path: &str) -> VLLMResult<()> {
+    async fn ensure_model_files(&mut self, model_dir: &str) -> VLLMResult<()> {
         // Skip actual downloads in test mode or when explicitly disabled
         if std::env::var("SKIP_MODEL_DOWNLOAD").is_ok() || cfg!(test) {
             info!("Skipping model download in test mode");
@@ -54,14 +54,11 @@ impl LlamaInferenceEngine {
             return Ok(());
         }
 
-        let model_dir = Path::new(base_path)
-            .parent()
-            .unwrap_or_else(|| Path::new("."))
-            .join("llama3.2-1b");
+        let model_dir = Path::new(model_dir);
 
         // Create model directory
         if !model_dir.exists() {
-            std::fs::create_dir_all(&model_dir).map_err(|e| {
+            std::fs::create_dir_all(model_dir).map_err(|e| {
                 VLLMError::InvalidArgument(format!("Failed to create model directory: {}", e))
             })?;
         }
@@ -154,12 +151,13 @@ impl LlamaInferenceEngine {
 
     /// Load and initialize the Llama model
     #[allow(clippy::cognitive_complexity)]
-    async fn load_model(&mut self, model_path: &str) -> VLLMResult<()> {
+    async fn load_model(&mut self, model_path: &str, models_dir: &str) -> VLLMResult<()> {
         info!("Loading Llama 3.2 1B model: {}", model_path);
 
         // Ensure model files are available
         if model_path.contains("llama") || model_path.contains("3.2") {
-            self.ensure_model_files(model_path).await?;
+            let full_model_dir = format!("{}/llama3.2-1b", models_dir);
+            self.ensure_model_files(&full_model_dir).await?;
         }
 
         // For now, we'll simulate model loading
@@ -248,7 +246,7 @@ impl Default for LlamaInferenceEngine {
 
 #[async_trait::async_trait]
 impl InferenceEngine for LlamaInferenceEngine {
-    async fn initialize(&mut self, config: &VLLMConfig) -> VLLMResult<()> {
+    async fn initialize(&mut self, config: &VLLMConfig, models_dir: &str) -> VLLMResult<()> {
         info!("Initializing Llama 3.2 1B inference engine");
 
         if self.initialized {
@@ -267,7 +265,7 @@ impl InferenceEngine for LlamaInferenceEngine {
         self.config = Some(config.clone());
 
         // Load model
-        self.load_model(&config.model_path).await?;
+        self.load_model(&config.model_path, models_dir).await?;
 
         self.initialized = true;
         info!("Llama 3.2 1B inference engine initialized successfully");
@@ -359,7 +357,7 @@ mod tests {
             return;
         }
 
-        let result = engine.initialize(&config).await;
+        let result = engine.initialize(&config, "./models").await;
         assert!(
             result.is_ok(),
             "Engine initialization should succeed: {:?}",
@@ -383,7 +381,7 @@ mod tests {
         std::env::set_var("SKIP_MODEL_DOWNLOAD", "1");
 
         // This will use pattern matching fallback
-        engine.initialize(&config).await.unwrap();
+        engine.initialize(&config, "./models").await.unwrap();
 
         let request = InferenceRequest {
             request_id: 1,

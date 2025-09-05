@@ -80,7 +80,7 @@ impl CpuInferenceEngine {
 
     /// Load model (pattern matching for now, lm.rs integration planned)
     #[allow(clippy::cognitive_complexity)]
-    async fn load_model(&mut self, model_path: &str) -> VLLMResult<()> {
+    async fn load_model(&mut self, model_path: &str, _models_dir: &str) -> VLLMResult<()> {
         info!("Loading CPU model: {}", model_path);
 
         // Current: Pattern matching for immediate deterministic testing
@@ -116,7 +116,7 @@ impl Default for CpuInferenceEngine {
 
 #[async_trait::async_trait]
 impl InferenceEngine for CpuInferenceEngine {
-    async fn initialize(&mut self, config: &VLLMConfig) -> VLLMResult<()> {
+    async fn initialize(&mut self, config: &VLLMConfig, models_dir: &str) -> VLLMResult<()> {
         info!("Initializing CPU inference engine");
 
         if self.initialized {
@@ -135,7 +135,7 @@ impl InferenceEngine for CpuInferenceEngine {
         self.config = Some(config.clone());
 
         // Load model
-        self.load_model(&config.model_path).await?;
+        self.load_model(&config.model_path, models_dir).await?;
 
         self.initialized = true;
         info!("CPU inference engine initialized successfully");
@@ -218,7 +218,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = engine.initialize(&config).await;
+        let result = engine.initialize(&config, "./models").await;
         assert!(result.is_ok());
         assert!(engine.is_ready());
     }
@@ -231,7 +231,7 @@ mod tests {
             ..Default::default()
         };
 
-        engine.initialize(&config).await.unwrap();
+        engine.initialize(&config, "./models").await.unwrap();
 
         let request = InferenceRequest {
             request_id: 1,
@@ -256,7 +256,7 @@ mod tests {
             ..Default::default()
         };
 
-        engine.initialize(&config).await.unwrap();
+        engine.initialize(&config, "./models").await.unwrap();
 
         let request = InferenceRequest {
             request_id: 1,

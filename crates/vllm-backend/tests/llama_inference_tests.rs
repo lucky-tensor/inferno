@@ -31,7 +31,7 @@ async fn test_llama_engine_initialization() {
 
     // Note: This test may download the actual model (~1GB) on first run
     // Set SKIP_MODEL_DOWNLOAD=1 to test without downloading
-    let result = engine.initialize(&config).await;
+    let result = engine.initialize(&config, "./models").await;
     assert!(
         result.is_ok(),
         "Engine initialization should succeed: {:?}",
@@ -223,7 +223,7 @@ async fn test_llama_model_download_simulation() {
     };
 
     let mut engine = LlamaInferenceEngine::new();
-    let result = engine.initialize(&config).await;
+    let result = engine.initialize(&config, "./models").await;
 
     // Should succeed even without actual download due to fallback
     assert!(

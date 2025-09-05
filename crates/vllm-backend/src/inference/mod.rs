@@ -89,7 +89,7 @@ impl Default for InferenceResponse {
 #[async_trait::async_trait]
 pub trait InferenceEngine: Send + Sync {
     /// Initialize the engine with a model
-    async fn initialize(&mut self, config: &VLLMConfig) -> VLLMResult<()>;
+    async fn initialize(&mut self, config: &VLLMConfig, models_dir: &str) -> VLLMResult<()>;
 
     /// Check if the engine is ready for inference
     fn is_ready(&self) -> bool;
@@ -136,7 +136,7 @@ pub async fn create_engine(config: &VLLMConfig) -> VLLMResult<Arc<RwLock<dyn Inf
         if config.model_path.contains("llama") || config.model_path.contains("3.2") {
             info!("Creating Llama 3.2 1B inference engine");
             let mut engine = LlamaInferenceEngine::new();
-            engine.initialize(config).await?;
+            engine.initialize(config, "./models").await?;
             return Ok(Arc::new(RwLock::new(engine)));
         }
     }
@@ -146,7 +146,7 @@ pub async fn create_engine(config: &VLLMConfig) -> VLLMResult<Arc<RwLock<dyn Inf
     {
         info!("Creating CPU-based inference engine (pattern matching)");
         let mut engine = CpuInferenceEngine::new();
-        engine.initialize(config).await?;
+        engine.initialize(config, "./models").await?;
         Ok(Arc::new(RwLock::new(engine)))
     }
 

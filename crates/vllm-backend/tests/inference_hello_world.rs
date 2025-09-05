@@ -24,7 +24,7 @@ async fn test_cpu_engine_creation() {
         ..Default::default()
     };
 
-    let result = engine.initialize(&config).await;
+    let result = engine.initialize(&config, "./models").await;
     assert!(result.is_ok(), "Engine initialization should succeed");
     assert!(
         engine.is_ready(),
@@ -213,7 +213,7 @@ async fn test_error_handling() {
         ..Default::default()
     };
 
-    let result = engine.initialize(&invalid_config).await;
+    let result = engine.initialize(&invalid_config, "./models").await;
     assert!(result.is_err(), "Should fail with empty model path");
 
     // Test inference on uninitialized engine
