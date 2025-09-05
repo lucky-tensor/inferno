@@ -16,14 +16,14 @@ use tracing::info;
 #[cfg(feature = "cpu-only")]
 mod cpu_engine;
 
-#[cfg(feature = "lmrs")]
-mod llama_engine;
+#[cfg(feature = "burn-cpu")]
+mod burn_engine;
 
 #[cfg(feature = "cpu-only")]
 pub use cpu_engine::*;
 
-#[cfg(feature = "lmrs")]
-pub use llama_engine::*;
+#[cfg(feature = "burn-cpu")]
+pub use burn_engine::*;
 
 /// Request for inference
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -129,33 +129,29 @@ impl Default for EngineStats {
 }
 
 /// Create a new inference engine based on configuration
-pub async fn create_engine(config: &VLLMConfig) -> VLLMResult<Arc<RwLock<dyn InferenceEngine>>> {
-    // Prefer Llama 3.2 1B engine when available
-    #[cfg(feature = "lmrs")]
+pub async fn create_engine(_config: &VLLMConfig) -> VLLMResult<Arc<RwLock<dyn InferenceEngine>>> {
+    // Priority 1: Burn-compatible engine (real model inference with Candle)
+    #[cfg(feature = "burn-cpu")]
     {
-        if config.model_path.contains("llama") || config.model_path.contains("3.2") {
-            info!("Creating Llama 3.2 1B inference engine");
-            let mut engine = LlamaInferenceEngine::new();
-            engine.initialize(config, "./models").await?;
-            return Ok(Arc::new(RwLock::new(engine)));
-        }
+        info!("Creating Burn-compatible Llama inference engine with real model loading");
+        let mut engine = BurnInferenceEngine::new();
+        engine.initialize(_config, "./models").await?;
+        return Ok(Arc::new(RwLock::new(engine)));
     }
 
-    // Fallback to pattern matching engine
+    // Priority 2: Fallback to pattern matching engine (no real model)
     #[cfg(feature = "cpu-only")]
     {
-        info!("Creating CPU-based inference engine (pattern matching)");
+        info!("Creating CPU-based inference engine (pattern matching fallback)");
         let mut engine = CpuInferenceEngine::new();
-        engine.initialize(config, "./models").await?;
-        Ok(Arc::new(RwLock::new(engine)))
+        engine.initialize(_config, "./models").await?;
+        return Ok(Arc::new(RwLock::new(engine)));
     }
 
-    #[cfg(not(feature = "cpu-only"))]
-    {
-        Err(VLLMError::InvalidArgument(
-            "No inference engine available. Enable cpu-only or cuda feature".to_string(),
-        ))
-    }
+    // No engine available
+    Err(VLLMError::InvalidArgument(
+        "No inference engine available. Enable burn-cpu or cpu-only feature".to_string(),
+    ))
 }
 
 /// Utility function to create a deterministic math test request

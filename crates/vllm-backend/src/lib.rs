@@ -89,12 +89,16 @@ pub use error::{
 };
 pub use health::{HealthStatus, VLLMHealthChecker};
 pub use inference::{
-    create_engine, create_math_test_request, CpuInferenceEngine, EngineStats, InferenceEngine,
+    create_engine, create_math_test_request, EngineStats, InferenceEngine,
     InferenceRequest, InferenceResponse,
 };
 
-#[cfg(feature = "lmrs")]
-pub use inference::LlamaInferenceEngine;
+#[cfg(feature = "cpu-only")]
+pub use inference::CpuInferenceEngine;
+
+#[cfg(feature = "burn-cpu")]
+pub use inference::BurnInferenceEngine;
+
 pub use server::VLLMServer;
 pub use service::VLLMServiceRegistration;
 
