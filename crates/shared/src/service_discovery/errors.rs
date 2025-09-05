@@ -49,6 +49,23 @@ pub enum ServiceDiscoveryError {
     /// - Health check request timeout
     HealthCheckFailed { backend_id: String, reason: String },
 
+    /// SWIM protocol specific errors
+    ///
+    /// Member not found in SWIM cluster
+    MemberNotFound(String),
+
+    /// Invalid network address
+    InvalidAddress(String),
+
+    /// Serialization/deserialization error
+    SerializationError(String),
+
+    /// Compression/decompression error
+    CompressionError(String),
+
+    /// SWIM cluster operation failed
+    SwimOperationFailed { operation: String, reason: String },
+
     /// Backend not found in the registry
     ///
     /// This error occurs when:
@@ -96,13 +113,12 @@ pub enum ServiceDiscoveryError {
     /// - Timeout during network operations
     NetworkError { operation: String, error: String },
 
-    /// Serialization/deserialization error
+    /// Internal error
     ///
     /// This error occurs when:
-    /// - Invalid JSON in requests/responses
-    /// - Schema mismatch between nodes
-    /// - Malformed protocol messages
-    SerializationError(String),
+    /// - Internal state inconsistency
+    /// - Unexpected conditions in implementation
+    InternalError(String),
 
     /// Generic service discovery error
     ///
@@ -269,13 +285,18 @@ impl ServiceDiscoveryError {
             Self::AuthenticationFailed(_) => false,
             Self::RegistrationFailed { .. } => true,
             Self::HealthCheckFailed { .. } => true,
+            Self::MemberNotFound(_) => false,
+            Self::InvalidAddress(_) => false,
+            Self::SerializationError(_) => false,
+            Self::CompressionError(_) => false,
+            Self::SwimOperationFailed { .. } => true,
             Self::BackendNotFound(_) => false,
             Self::InvalidNodeInfo { .. } => false,
             Self::ConsensusFailed { .. } => true,
             Self::ConsensusError { .. } => true,
             Self::ConfigValidationFailed(_) => false,
             Self::NetworkError { .. } => true,
-            Self::SerializationError(_) => false,
+            Self::InternalError(_) => false,
             Self::Other(_) => false,
         }
     }
@@ -299,13 +320,18 @@ impl ServiceDiscoveryError {
             Self::AuthenticationFailed(_) => "authentication",
             Self::RegistrationFailed { .. } => "registration",
             Self::HealthCheckFailed { .. } => "health_check",
+            Self::MemberNotFound(_) => "swim_member",
+            Self::InvalidAddress(_) => "address_validation",
+            Self::SerializationError(_) => "serialization",
+            Self::CompressionError(_) => "compression",
+            Self::SwimOperationFailed { .. } => "swim_operation",
             Self::BackendNotFound(_) => "backend_lookup",
             Self::InvalidNodeInfo { .. } => "validation",
             Self::ConsensusFailed { .. } => "consensus",
             Self::ConsensusError { .. } => "consensus",
             Self::ConfigValidationFailed(_) => "configuration",
             Self::NetworkError { .. } => "network",
-            Self::SerializationError(_) => "serialization",
+            Self::InternalError(_) => "internal",
             Self::Other(_) => "other",
         }
     }
@@ -331,6 +357,21 @@ impl fmt::Display for ServiceDiscoveryError {
                     backend_id, reason
                 )
             }
+            Self::MemberNotFound(member_id) => {
+                write!(f, "SWIM member not found: {}", member_id)
+            }
+            Self::InvalidAddress(addr) => {
+                write!(f, "Invalid network address: {}", addr)
+            }
+            Self::SerializationError(reason) => {
+                write!(f, "Serialization error: {}", reason)
+            }
+            Self::CompressionError(reason) => {
+                write!(f, "Compression error: {}", reason)
+            }
+            Self::SwimOperationFailed { operation, reason } => {
+                write!(f, "SWIM operation '{}' failed: {}", operation, reason)
+            }
             Self::BackendNotFound(backend_id) => {
                 write!(f, "Backend not found: {}", backend_id)
             }
@@ -353,8 +394,8 @@ impl fmt::Display for ServiceDiscoveryError {
             Self::NetworkError { operation, error } => {
                 write!(f, "Network error during {}: {}", operation, error)
             }
-            Self::SerializationError(reason) => {
-                write!(f, "Serialization error: {}", reason)
+            Self::InternalError(reason) => {
+                write!(f, "Internal error: {}", reason)
             }
             Self::Other(reason) => {
                 write!(f, "Service discovery error: {}", reason)

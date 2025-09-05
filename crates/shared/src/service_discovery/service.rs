@@ -5,12 +5,11 @@
 
 use super::client::ServiceDiscoveryClient;
 use super::config::ServiceDiscoveryConfig;
-use super::consensus::ConsensusResolver;
 use super::errors::{ServiceDiscoveryError, ServiceDiscoveryResult};
 use super::health::{HealthChecker, HttpHealthChecker};
 use super::registration::RegistrationResponse;
 use super::retry::RetryManager;
-use super::types::{BackendRegistration, NodeInfo, PeerInfo};
+use super::types::{BackendRegistration, NodeInfo};
 use super::updates::{UpdatePropagator, UpdateResult};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -48,7 +47,6 @@ pub struct ServiceDiscovery {
     client: ServiceDiscoveryClient,
 
     /// Consensus resolver for peer information
-    consensus_resolver: ConsensusResolver,
 
     /// Known peer URLs for registration
     peer_urls: Arc<RwLock<Vec<String>>>,
@@ -91,7 +89,6 @@ impl ServiceDiscovery {
             registration_times: Arc::new(RwLock::new(HashMap::new())),
             health_checker,
             client,
-            consensus_resolver: ConsensusResolver::new(),
             peer_urls: Arc::new(RwLock::new(Vec::new())),
             registration_failures: Arc::new(RwLock::new(HashMap::new())),
             update_propagator: UpdatePropagator::new(),
@@ -128,7 +125,6 @@ impl ServiceDiscovery {
             registration_times: Arc::new(RwLock::new(HashMap::new())),
             health_checker,
             client,
-            consensus_resolver: ConsensusResolver::new(),
             peer_urls: Arc::new(RwLock::new(Vec::new())),
             registration_failures: Arc::new(RwLock::new(HashMap::new())),
             update_propagator: UpdatePropagator::new(),
@@ -671,66 +667,6 @@ impl ServiceDiscovery {
                 }
             }
         }
-    }
-
-    /// Resolves consensus from peer registration responses
-    ///
-    /// This method implements Phase 3.2 consensus algorithm with majority rule
-    /// logic, timestamp-based tie-breaking, and comprehensive conflict detection.
-    ///
-    /// # Arguments
-    ///
-    /// * `registration_responses` - Registration responses from multiple peers
-    ///
-    /// # Returns
-    ///
-    /// Returns the consensus peer list and consensus metrics, or an error
-    /// if consensus cannot be achieved.
-    ///
-    /// # Algorithm
-    ///
-    /// 1. Extract peer lists from all registration responses
-    /// 2. Apply majority rule logic for conflicting peer information
-    /// 3. Use timestamp-based tie-breaking for equal vote counts
-    /// 4. Log consensus discrepancies and statistics
-    /// 5. Validate consistency of final result
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use inferno_shared::service_discovery::ServiceDiscovery;
-    /// # use inferno_shared::service_discovery::registration::RegistrationResponse;
-    ///
-    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-    /// let discovery = ServiceDiscovery::new();
-    /// let responses: Vec<RegistrationResponse> = vec![]; // From register_with_peers
-    ///
-    /// let (consensus_peers, metrics) = discovery.resolve_consensus(responses).await?;
-    /// println!("Consensus: {} peers, {} conflicts detected",
-    ///     consensus_peers.len(), metrics.conflicts_detected);
-    /// # Ok(())
-    /// # }
-    /// ```
-    #[instrument(skip(self, registration_responses), fields(response_count = registration_responses.len()))]
-    pub async fn resolve_consensus(
-        &self,
-        registration_responses: Vec<RegistrationResponse>,
-    ) -> ServiceDiscoveryResult<(Vec<PeerInfo>, super::consensus::ConsensusMetrics)> {
-        debug!(
-            response_count = registration_responses.len(),
-            "Starting consensus resolution from registration responses"
-        );
-
-        // Extract peer lists from registration responses
-        let peer_responses: Vec<Vec<PeerInfo>> = registration_responses
-            .into_iter()
-            .map(|response| response.peers)
-            .collect();
-
-        // Use consensus resolver to resolve conflicts
-        self.consensus_resolver
-            .resolve_consensus(peer_responses)
-            .await
     }
 
     /// Broadcasts a self-sovereign update to all known peers

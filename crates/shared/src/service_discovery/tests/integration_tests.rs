@@ -54,6 +54,8 @@ async fn test_complete_service_discovery_workflow() {
 }
 
 #[tokio::test]
+#[ignore] // Disabled - consensus removed in favor of SWIM
+#[allow(clippy::useless_vec)]
 async fn test_multi_peer_registration_with_consensus() {
     let discovery = ServiceDiscovery::new();
 
@@ -86,17 +88,13 @@ async fn test_multi_peer_registration_with_consensus() {
         last_updated: SystemTime::now(),
     };
 
-    let mock_responses = vec![RegistrationResponse {
+    let _mock_responses = vec![RegistrationResponse {
         status: "registered".to_string(),
         message: Some("Success".to_string()),
         peers: vec![peer_info.clone()],
     }];
 
-    let result = discovery.resolve_consensus(mock_responses).await;
-    assert!(result.is_ok());
-    let (consensus_peers, consensus_metrics) = result.unwrap();
-    assert_eq!(consensus_peers.len(), 1);
-    assert_eq!(consensus_metrics.peer_count, 1);
+    // Disabled - consensus functionality removed
 }
 
 #[tokio::test]
@@ -206,8 +204,10 @@ async fn test_health_checker_functionality() {
 }
 
 #[tokio::test]
+#[ignore] // Disabled - consensus removed in favor of SWIM
+#[allow(clippy::useless_vec)]
 async fn test_peer_discovery_and_consensus() {
-    let discovery = ServiceDiscovery::new();
+    let _discovery = ServiceDiscovery::new();
 
     // Create mock peer responses for consensus testing
     use crate::service_discovery::{PeerInfo, RegistrationResponse};
@@ -231,7 +231,7 @@ async fn test_peer_discovery_and_consensus() {
         last_updated: SystemTime::now(),
     };
 
-    let responses = vec![
+    let _responses = vec![
         RegistrationResponse {
             status: "registered".to_string(),
             message: Some("Successfully registered".to_string()),
@@ -244,13 +244,7 @@ async fn test_peer_discovery_and_consensus() {
         },
     ];
 
-    let result = discovery.resolve_consensus(responses).await;
-    assert!(result.is_ok());
-    let (consensus_peers, metrics) = result.unwrap();
-
-    assert_eq!(consensus_peers.len(), 2);
-    assert_eq!(metrics.peer_count, 2);
-    assert_eq!(metrics.conflicts_detected, 0); // No conflicts since peers agree
+    // Disabled - consensus functionality removed
 }
 
 #[tokio::test]

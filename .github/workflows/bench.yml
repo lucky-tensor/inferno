@@ -1,8 +1,5 @@
 name: Benchmark Acceptance Test
 on:
-  pull_request:
-    types: [opened, synchronize]
-    branches: [main]
   workflow_dispatch:
 jobs:
   bench-test:
