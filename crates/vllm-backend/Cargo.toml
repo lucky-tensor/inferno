@@ -13,56 +13,40 @@ tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
 thiserror = { workspace = true }
 async-trait = { workspace = true }
-bytes = { workspace = true }
 chrono = { workspace = true }
 
 # Local dependencies
 inferno-shared = { path = "../shared" }
 
 # HTTP server
-axum = { version = "0.7", features = ["macros"] }
-tower = { version = "0.4", features = ["full"] }
-tower-http = { version = "0.5", features = ["cors", "trace", "request-id"] }
-hyper = { workspace = true }
-http = { workspace = true }
 
 # Lightweight CPU inference with real model support
-half = "2.3"
 # For HTTP downloads of models and tokenization
 reqwest = { version = "0.12", optional = true }
 # For actual Llama 3.2 1B inference (git dependency)
 lmrs = { git = "https://github.com/samuel-vitorino/lm.rs", optional = true }
 
 # FFI and build dependencies
-libc = "0.2"
 
 # Configuration and environment
 config = "0.14"
-envy = "0.4"
 toml = "0.8"
 num_cpus = "1.16"
 
 # Async utilities
-futures = "0.3"
-futures-util = "0.3"
 
 # Memory management
-dashmap = "5.5"
 parking_lot = "0.12"
 once_cell = "1.19"
 
 # Performance monitoring
-metrics = "0.23"
-metrics-exporter-prometheus = "0.15"
 
 # JSON and validation
 validator = { version = "0.18", features = ["derive"] }
 
 # Tensor operations (for host-side work)
-ndarray = { version = "0.15", optional = true }
 
 [build-dependencies]
 cmake = "0.1"
@@ -81,7 +65,7 @@ rstest = "0.18"
 
 [features]
 default = ["cpu-only"]
-cpu-only = ["ndarray", "reqwest", "lmrs"]
+cpu-only = ["reqwest", "lmrs"]
 cuda = []
 
 # Benchmarks will be added in later phases
