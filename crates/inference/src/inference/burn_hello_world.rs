@@ -216,7 +216,7 @@ impl HelloWorldBurnEngine {
 
         // Efficient Burn tensor operations - only create float tensor once and clone strategically
         let float_tensor = input_tensor.float();
-        
+
         // Compute essential statistics - we need to clone for multiple aggregation operations
         // This is the correct approach in Burn due to move semantics for performance
         let mean_val = float_tensor.clone().mean().into_scalar();
