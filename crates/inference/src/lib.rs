@@ -8,7 +8,7 @@
 //!
 //! - **Burn Framework**: Multi-backend inference (CPU/CUDA/ROCm/Metal/WebGPU)
 //! - **Real Model Support**: Actual LLM inference with Hugging Face model downloads
-//! - **Memory Management**: Efficient memory pooling and tracking  
+//! - **Memory Management**: Efficient memory pooling and tracking
 //! - **Service Discovery**: Integration with Inferno's service discovery system
 //! - **Health Monitoring**: Comprehensive health checks and metrics
 //! - **No Mocking**: Only real model inference, no pattern matching fallbacks
@@ -66,11 +66,6 @@ pub mod engine;
 pub mod inference;
 pub mod memory;
 
-// FFI layer - only available with CUDA feature
-#[cfg(feature = "cuda")]
-#[cfg_attr(docsrs, doc(cfg(feature = "cuda")))]
-pub mod ffi;
-
 // Service integration
 pub mod health;
 pub mod server;
@@ -97,11 +92,6 @@ pub use inference::BurnInferenceEngine;
 
 pub use server::VLLMServer;
 pub use service::VLLMServiceRegistration;
-
-// FFI exports when available
-#[cfg(feature = "cuda")]
-#[cfg_attr(docsrs, doc(cfg(feature = "cuda")))]
-pub use ffi::{CudaHandle, VLLMHandle, VLLMWrapper};
 
 // Memory management exports
 pub use memory::{CudaMemoryPool, DeviceMemory, GpuAllocator, MemoryStats, MemoryTracker};
