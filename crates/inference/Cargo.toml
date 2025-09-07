@@ -45,7 +45,6 @@ validator = { workspace = true }
 
 # Burn ML Framework for real model inference
 burn = { workspace = true, optional = true }
-burn-import = { workspace = true, optional = true }
 tokenizers = { workspace = true, optional = true }
 hf-hub = { workspace = true, optional = true }
 
@@ -67,7 +66,7 @@ default = ["burn-cpu"]
 burn-cpu = [
     "reqwest",
     "burn/ndarray",
-    "burn/autodiff", 
+    "burn/autodiff",
     "burn-import",
     "tokenizers",
     "hf-hub/tokio"
@@ -75,7 +74,7 @@ burn-cpu = [
 burn-cuda = [
     "reqwest",
     "burn",
-    "burn-import", 
+    "burn-import",
     "tokenizers",
     "hf-hub"
 ]  # Same as CPU for now (future acceleration)
@@ -83,7 +82,7 @@ cuda = []  # Reserved for future use
 
 # Benchmarks will be added in later phases
 # [[bench]]
-# name = "latency" 
+# name = "latency"
 # harness = false
 
 # [[bench]]

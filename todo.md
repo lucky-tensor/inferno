@@ -1,93 +1,259 @@
-# SmolLM2-135M Burn CPU Inference Implementation - IN PROGRESS ⚠️
+# SmolLM2-135M Burn CPU Inference Implementation Plan
 
-## ⚠️ CURRENT STATUS: SafeTensors Downloaded, Real Inference NOT Yet Implemented
+## Current Status: Infrastructure Ready - Real Inference Implementation Required
 
-**Goal**: Complete real Burn-based CPU inference using SmolLM2-135M model with actual text generation.
+**Goal**: Replace stub implementation with production-quality SmolLM2-135M inference using Burn framework and SafeTensors weights.
 
-## Phase 1: Model & Dependencies Setup ✅ COMPLETED
-- [x] ✅ SafeTensors Model Downloaded: 257MB `model.safetensors` ✅ VERIFIED
-- [x] ✅ Tokenizer Downloaded: 2MB `tokenizer.json` ✅ VERIFIED 
-- [x] ✅ Config Downloaded: 4KB `config.json` ✅ VERIFIED
-- [x] ✅ Location: `./models/smollm2-135m/` ✅ VERIFIED IN PROJECT ROOT
-- [x] ✅ Burn framework integration with CPU backend (NdArray) ✅ WORKING
-- [x] ✅ Real tokenizer from Hugging Face (direct HTTP download) ✅ WORKING
+### Model Architecture Details (SmolLM2-135M)
+- **Architecture**: LlamaForCausalLM (Llama-based transformer)
+- **Layers**: 30 transformer blocks
+- **Hidden Size**: 576
+- **Attention Heads**: 9 (with 3 key-value heads for grouped-query attention)
+- **Intermediate Size**: 1536 (MLP feedforward)
+- **Vocabulary Size**: 49152
+- **Max Context**: 8192 tokens
+- **Weights**: 269MB SafeTensors (bfloat16 → f32 conversion needed)
 
-## Phase 2: Basic Infrastructure ✅ COMPLETED  
-- [x] ✅ SafeTensors file verification and path storage ✅ WORKING
-- [x] ✅ Real tokenization using `tokenizers` crate ✅ WORKING
-- [x] ✅ Basic Burn tensor operations: mean, sum, variance ✅ WORKING
-- [x] ✅ cargo lint passes ✅ VERIFIED
-- [x] ✅ cargo machete clean (no unused dependencies) ✅ VERIFIED
+---
 
-## Phase 3: Inference Implementation ❌ NOT YET IMPLEMENTED
-- [ ] ❌ **MISSING**: Llama model architecture implementation in Burn
-- [ ] ❌ **MISSING**: SafeTensors weight loading into Burn model
-- [ ] ❌ **MISSING**: Model forward pass through transformer layers
-- [ ] ❌ **MISSING**: Autoregressive text generation loop
-- [ ] ❌ **MISSING**: Real prompt processing and text generation
-- [ ] ❌ **CURRENT**: Only doing tokenization + basic tensor stats (not real inference)
+## Phase 1: Model Architecture Implementation ⚠️ CRITICAL PATH
 
-## Phase 4: Real Text Generation Testing ❌ NOT YET IMPLEMENTED
-- [ ] ❌ **MISSING**: Test real text generation with loaded model weights
-- [ ] ❌ **MISSING**: Autoregressive generation: "Hello" → "Hello world, how are you?"
-- [ ] ❌ **MISSING**: Math reasoning: "What is 2+2?" → actual LLM response using model
-- [ ] ❌ **CURRENT**: Only hardcoded responses based on token statistics
+### 1.1 Core Model Configuration
+- [ ] **Create `LlamaConfig` struct** matching SmolLM2-135M architecture
+  - Map config.json parameters to Burn-compatible structure
+  - Handle hidden_size=576, num_layers=30, num_heads=9, etc.
+  - Add validation for architecture consistency
 
-## REMAINING WORK TO COMPLETE CPU INFERENCE DEMO
+### 1.2 Attention Mechanism Implementation
+- [ ] **Implement Multi-Head Attention with Grouped-Query Attention**
+  - Support 9 query heads, 3 key-value heads (GQA optimization)
+  - Efficient attention computation with proper scaling
+  - Memory-optimized attention pattern for CPU inference
+  
+- [ ] **Add Rotary Positional Encoding (RoPE)**
+  - Implement RoPE with theta=100000 from config
+  - Support interleaved=false setting
+  - Efficient sin/cos computation and caching
 
-### Critical Missing Components:
-1. **Llama Model Architecture in Burn** 
-   - Need to implement Llama transformer layers (30 layers for SmolLM2-135M)
-   - Attention mechanism, feed-forward networks, RMSNorm
-   - Rotary positional encoding (RoPE)
+### 1.3 Transformer Block Components
+- [ ] **Implement RMSNorm Layer**
+  - RMS normalization with eps=1e-05
+  - Efficient variance computation for CPU
+  - Proper gradient flow for potential fine-tuning
 
-2. **SafeTensors Weight Loading**
-   - Load 257MB `model.safetensors` into Burn model
-   - Map HuggingFace weight names to Burn model parameters
-   - Handle weight format conversions (bfloat16 → f32)
+- [ ] **Create SwiGLU MLP Layer**
+  - SiLU (Swish) activation function
+  - Gate mechanism: `SiLU(xW1) ⊙ xW2`
+  - Hidden size 576 → intermediate 1536 → output 576
 
-3. **Text Generation Pipeline**
-   - Implement autoregressive generation loop
-   - Add temperature/sampling controls
-   - Implement proper stop token handling
+### 1.4 Complete Model Architecture
+- [ ] **Build Transformer Block**
+  - Combine attention + MLP with residual connections
+  - Pre-norm architecture (RMSNorm before attention/MLP)
+  - Efficient memory layout for 30 layer stack
 
-### Success Criteria ❌ INCOMPLETE
-- [x] ✅ `cargo lint` ✅ PASSES
-- [x] ✅ SafeTensors files downloaded (257MB model + tokenizer + config) ✅ VERIFIED
-- [ ] ❌ **MISSING**: Real model forward pass through 30 transformer layers
-- [ ] ❌ **MISSING**: Text generation: "Hello" → actual continuation from model
-- [ ] ❌ **MISSING**: Uses loaded SafeTensors weights for predictions
+- [ ] **Create Full Llama Model**
+  - Token embedding layer (vocab_size=49152, hidden_size=576)
+  - Stack of 30 transformer blocks
+  - Final RMSNorm and language modeling head
+  - Tie input/output embeddings (tie_word_embeddings=true)
+
+---
+
+## Phase 2: SafeTensors Integration ⚠️ CRITICAL PATH
+
+### 2.1 Weight Loading Infrastructure
+- [ ] **Implement SafeTensors Reader**
+  - Load 269MB model.safetensors file
+  - Handle bfloat16 → f32 conversion for CPU inference
+  - Memory-efficient loading without full duplication
+
+### 2.2 Weight Mapping and Initialization
+- [ ] **Create HuggingFace → Burn weight mapper**
+  - Map tensor names: `model.embed_tokens.weight` → embedding layer
+  - Transform attention weights: `q_proj`, `k_proj`, `v_proj`, `o_proj`
+  - Handle MLP weights: `gate_proj`, `up_proj`, `down_proj`
+  - Load normalization weights: `input_layernorm`, `post_attention_layernorm`
+
+- [ ] **Add Model Initialization**
+  - Initialize Burn model with correct tensor shapes
+  - Load and assign SafeTensors weights to model parameters
+  - Validate weight shapes match model architecture
+
+---
+
+## Phase 3: Text Generation Pipeline ⚠️ CRITICAL PATH
+
+### 3.1 Autoregressive Generation
+- [ ] **Implement Text Generation Loop**
+  - Token-by-token generation with model forward pass
+  - Proper logit computation and sampling
+  - Stop token handling (eos_token_id=0)
+
+### 3.2 Sampling Strategies
+- [ ] **Add Temperature and Top-P Sampling**
+  - Temperature scaling for logit distribution
+  - Nucleus (top-p) sampling implementation
+  - Deterministic sampling for testing (temperature=0.0)
+
+### 3.3 Performance Optimizations
+- [ ] **Implement KV-Cache**
+  - Cache key-value tensors for efficient sequential generation
+  - Memory management for long sequences
+  - Sliding window for max context length
+
+---
+
+## Phase 4: Integration and Testing ⚠️ CRITICAL PATH
+
+### 4.1 Replace Stub Implementation
+- [ ] **Update `burn_hello_world.rs`**
+  - Remove hardcoded response generation
+  - Integrate real Llama model inference
+  - Use loaded SafeTensors weights for predictions
+
+### 4.2 Comprehensive Testing
+- [ ] **Unit Tests for Model Components**
+  - Test each layer: attention, MLP, RMSNorm individually
+  - Verify tensor shapes and mathematical correctness
+  - Compare outputs with known reference implementations
+
+- [ ] **Integration Tests**
+  - End-to-end inference: "Hello" → actual model continuation
+  - Math reasoning: "What is 2+2?" → contextual response
+  - Long sequence handling within 8192 token limit
+
+### 4.3 Performance Benchmarks
+- [ ] **Criterion Benchmarks**
+  - Single token inference latency
+  - Full sequence generation throughput
+  - Memory usage profiling
+  - CPU utilization optimization
+
+---
+
+## Code Organization Strategy
+
+### Module Structure
+```
+crates/inference/src/
+├── models/
+│   ├── llama/
+│   │   ├── mod.rs              # Public API
+│   │   ├── config.rs           # LlamaConfig struct
+│   │   ├── model.rs            # Full LlamaModel
+│   │   ├── transformer.rs      # TransformerBlock
+│   │   ├── attention.rs        # MultiHeadAttention + RoPE
+│   │   ├── mlp.rs             # SwiGLU MLP
+│   │   ├── norm.rs            # RMSNorm
+│   │   └── generation.rs      # Text generation pipeline
+│   └── safetensors_loader.rs   # SafeTensors integration
+└── inference/
+    └── burn_hello_world.rs     # Updated engine
+```
+
+### Key Burn APIs to Use
+- **Model Definition**: `burn::nn::*` for layers
+- **SafeTensors**: `burn::import::onnx::*` or custom loader
+- **Tensor Operations**: `burn::tensor::Tensor`
+- **Backend**: `burn::backend::ndarray::NdArray<f32>`
+- **Device**: `burn::backend::ndarray::NdArrayDevice`
+
+---
+
+## Error Handling Strategy
+
+### Comprehensive Error Types
+- **ModelLoadError**: SafeTensors loading, weight shape mismatches
+- **InferenceError**: Forward pass failures, numerical instabilities  
+- **GenerationError**: Sampling failures, context length exceeded
+- **ConfigError**: Invalid model configuration parameters
+
+### Validation Points
+- Pre-inference: Validate input token sequences
+- Runtime: Check tensor shapes at each layer
+- Post-inference: Verify output logits and sampling results
+- Memory: Monitor allocation limits for CPU inference
+
+---
+
+## Performance Optimization Targets
+
+### CPU Inference Optimizations
+- **Memory Layout**: Contiguous tensors, minimal allocations
+- **SIMD**: Leverage `burn-ndarray` SIMD optimizations
+- **Batching**: Single sequence optimization (typical CPU use case)
+- **Precision**: f32 precision balance (accuracy vs performance)
+
+### Performance Baselines (Target)
+- **Single Token**: <50ms latency on modern CPU
+- **Short Sequence** (10 tokens): <200ms total time
+- **Memory Usage**: <1GB peak for model + intermediate tensors
+- **Cold Start**: <2s model loading time
+
+---
+
+## Testing Strategy
+
+### Test-Driven Development Approach
+1. **Write tests first** for each component before implementation
+2. **Property-based testing** using `proptest` for tensor operations
+3. **Integration testing** with real model weights and known outputs
+4. **Performance regression tests** with `criterion`
+
+### Validation Approach
+- **Mathematical Correctness**: Compare with reference PyTorch implementation
+- **Deterministic Testing**: Fixed seeds for reproducible outputs
+- **Edge Cases**: Empty prompts, maximum context length, special tokens
+- **Memory Safety**: No leaks, proper tensor lifetime management
+
+---
+
+## Success Criteria
+
+### Functional Requirements ✅ MUST PASS
+- [ ] **Real Text Generation**: "Hello" → contextual continuation (not hardcoded)
+- [ ] **Math Reasoning**: "What is 2+2?" → model-generated response
+- [ ] **Long Context**: Handle sequences up to 8192 tokens
+- [ ] **Deterministic**: Same input + seed → identical output
+
+### Performance Requirements ✅ MUST PASS
+- [ ] **Latency**: Single token inference <50ms
+- [ ] **Memory**: Peak usage <1GB for full pipeline
+- [ ] **Accuracy**: Generated text quality comparable to reference implementation
+- [ ] **Stability**: No crashes or numerical instabilities
+
+### Code Quality Requirements ✅ MUST PASS
+- [ ] **Linting**: `cargo clippy --all-targets --all-features -- -D warnings`
+- [ ] **Formatting**: `cargo fmt --check`
+- [ ] **Dependencies**: `cargo machete` (no unused deps)
+- [ ] **Testing**: `cargo test` (90%+ coverage)
+
+---
 
 ## Current Implementation Status
-- **SafeTensors Model**: `./models/smollm2-135m/model.safetensors` (257MB) ✅ EXISTS
-- **Tokenizer**: `./models/smollm2-135m/tokenizer.json` (2MB) ✅ VERIFIED WORKING
-- **Config**: `./models/smollm2-135m/config.json` (4KB) ✅ VERIFIED
-- **Real Tokenization**: "Hello" → token ID 19556 ✅ WORKING
-- **Burn Tensor Ops**: Basic operations (mean, variance) ✅ WORKING
-- **Linting**: cargo lint passes ✅ VERIFIED
 
-## Current Testing Commands
-```bash
-# ✅ PASSES - Basic infrastructure works
-cargo lint
-cargo test --features burn-cpu test_hello_world_engine_creation
+### ✅ COMPLETED - Infrastructure Ready
+- [x] SafeTensors model downloaded (269MB)
+- [x] Tokenizer working with real HuggingFace tokenizer
+- [x] Basic Burn tensor operations tested
+- [x] Build system and dependencies configured
+- [x] Test infrastructure in place
 
-# ❌ NOT REAL INFERENCE - Only tokenization + hardcoded responses
-cargo test --features burn-cpu -- --ignored test_safetensors_inference
-```
+### ❌ NOT IMPLEMENTED - Critical Missing Components
+- [ ] Llama model architecture (30 transformer layers)
+- [ ] SafeTensors weight loading into Burn model  
+- [ ] Autoregressive text generation loop
+- [ ] Real inference replacing hardcoded responses
 
-## Current Test Output (NOT Real Inference)
-```
-Testing SmolLM2-135M SafeTensors inference...
-SafeTensors Hello response: 'Hello! SmolLM2-135M SafeTensors analysis: 1 tokens, mean=19556.0, var=0.00'
-SafeTensors math response: '4'  # ← HARDCODED, not from model predictions
-```
+### Next Immediate Steps (Priority Order)
+1. **Start with model configuration and basic layers** (RMSNorm, SwiGLU)
+2. **Implement attention mechanism with RoPE**
+3. **Build complete transformer block and full model**
+4. **Add SafeTensors loading and weight mapping**
+5. **Implement text generation pipeline**
+6. **Replace stub implementation with real inference**
 
-**CURRENT STATUS**: ⚠️ **Infrastructure Ready - Real Inference NOT Implemented**
+---
 
-## Next Steps to Complete Demo:
-1. Study Burn Llama implementation from tracel-ai/models
-2. Implement SmolLM2-135M Llama architecture in Burn
-3. Load SafeTensors weights into model  
-4. Replace hardcoded responses with real autoregressive generation
-5. Test: "Hello" should generate actual model continuation, not hardcoded stats
+**CRITICAL**: This is a production-quality implementation requiring proper abstractions, comprehensive error handling, and performance optimization. Every component must have extensive tests and documentation before integration.
