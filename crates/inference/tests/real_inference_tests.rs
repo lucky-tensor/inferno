@@ -5,7 +5,7 @@
 
 #[cfg(feature = "burn-cpu")]
 use inferno_inference::{
-    create_engine, create_math_test_request, BurnInferenceEngine, InferenceEngine,
+    create_engine, create_math_test_request, HelloWorldBurnEngine, InferenceEngine,
     InferenceRequest, VLLMConfig,
 };
 #[cfg(feature = "burn-cpu")]
@@ -19,7 +19,7 @@ use tokio::time::timeout;
 #[tokio::test]
 #[cfg(feature = "burn-cpu")]
 async fn test_burn_engine_creation() {
-    let engine = BurnInferenceEngine::new();
+    let engine = HelloWorldBurnEngine::new();
     assert!(!engine.is_ready(), "Engine should not be ready initially");
 }
 
@@ -29,7 +29,7 @@ async fn test_burn_engine_creation() {
 #[cfg(feature = "burn-cpu")]
 #[ignore = "downloads real model - run with --ignored to test real inference"]
 async fn test_real_model_initialization() {
-    let mut engine = BurnInferenceEngine::new();
+    let mut engine = HelloWorldBurnEngine::new();
     let config = VLLMConfig {
         model_path: "llama3.2-1b".to_string(),
         model_name: "llama-3.2-1b-real-test".to_string(),
@@ -118,7 +118,7 @@ async fn test_real_math_inference() {
     let response = response.unwrap();
     println!("Real model response: '{}'", response.generated_text);
 
-    // The real model may not give exactly "4" but should provide a reasonable response
+    // Verify real model inference results
     assert!(
         !response.generated_text.is_empty(),
         "Should generate non-empty response"
@@ -137,6 +137,13 @@ async fn test_real_math_inference() {
         response.generated_tokens > 0,
         "Should generate tokens: {}",
         response.generated_tokens
+    );
+    
+    // For math query, should contain "4" in the response
+    assert!(
+        response.generated_text.contains("4"),
+        "Math response should contain '4': '{}'",
+        response.generated_text
     );
 
     println!(

@@ -65,11 +65,11 @@ rstest = "0.18"
 # Workspace shared dependencies
 inferno-shared = { path = "crates/shared" }
 
-# Burn ML Framework dependencies (stable versions compatible with Rust 2021)
-burn = "0.14"
-burn-core = "0.14"
-burn-ndarray = "0.14"
-burn-tensor = "0.14"
+# Burn ML Framework dependencies (latest stable versions)
+burn = "0.18"
+burn-core = "0.18"
+burn-ndarray = "0.18"
+burn-tensor = "0.18"
 tokenizers = "0.15"
 hf-hub = "0.3"
 

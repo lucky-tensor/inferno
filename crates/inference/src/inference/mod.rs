@@ -14,11 +14,15 @@ use tokio::sync::RwLock;
 #[cfg(feature = "burn-cpu")]
 use tracing::info;
 
-#[cfg(feature = "burn-cpu")]
-mod burn_engine;
+// Commented out for now - complex module with compilation issues
+// #[cfg(feature = "burn-cpu")]
+// mod burn_engine;
 
 #[cfg(feature = "burn-cpu")]
-pub use burn_engine::*;
+mod burn_hello_world;
+
+#[cfg(feature = "burn-cpu")]
+pub use burn_hello_world::*;
 
 /// Request for inference
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -128,8 +132,8 @@ pub async fn create_engine(config: &VLLMConfig) -> VLLMResult<Arc<RwLock<dyn Inf
     // Only Burn framework engine (real model inference)
     #[cfg(feature = "burn-cpu")]
     {
-        info!("Creating Burn framework Llama inference engine with real model loading");
-        let mut engine = BurnInferenceEngine::new();
+        info!("Creating Hello World Burn framework SmolLM3 inference engine");
+        let mut engine = HelloWorldBurnEngine::new();
         engine.initialize(config, "./models").await?;
         return Ok(Arc::new(RwLock::new(engine)));
     }

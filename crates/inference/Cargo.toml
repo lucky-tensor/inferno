@@ -70,12 +70,13 @@ default = ["burn-cpu"]
 burn-cpu = [
     "rand", 
     "reqwest",
-    "burn",
+    "burn/ndarray",
+    "burn/autodiff", 
     "burn-core",
     "burn-ndarray",
     "burn-tensor",
     "tokenizers",
-    "hf-hub"
+    "hf-hub/tokio"
 ]  # Real deterministic SmolLM3 model inference
 burn-cuda = [
     "rand", 
