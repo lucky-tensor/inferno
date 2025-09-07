@@ -51,6 +51,7 @@ burn = { workspace = true, optional = true }
 burn-core = { workspace = true, optional = true }
 burn-ndarray = { workspace = true, optional = true }
 burn-tensor = { workspace = true, optional = true }
+burn-import = { workspace = true, optional = true }
 tokenizers = { workspace = true, optional = true }
 hf-hub = { workspace = true, optional = true }
 
@@ -80,7 +81,7 @@ burn-cpu = [
     "burn-import",
     "tokenizers",
     "hf-hub/tokio"
-]  # Real deterministic SmolLM2 model inference with ONNX support
+]  # Real deterministic SmolLM2 model inference with SafeTensors support
 burn-cuda = [
     "rand", 
     "reqwest",
