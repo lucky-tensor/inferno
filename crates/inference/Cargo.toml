@@ -18,7 +18,7 @@ async-trait = { workspace = true }
 chrono = { workspace = true }
 
 # Local dependencies
-inferno-shared = { path = "../shared" }
+inferno-shared = { workspace = true }
 
 # HTTP server
 
@@ -26,25 +26,25 @@ inferno-shared = { path = "../shared" }
 rand = { version = "0.8", optional = true }
 
 # HTTP client for model downloads
-reqwest = { version = "0.11", optional = true }
+reqwest = { workspace = true, optional = true }
 
 # FFI and build dependencies
 
 # Configuration and environment
-config = "0.14"
-toml = "0.8"
-num_cpus = "1.16"
+config = { workspace = true }
+toml = { workspace = true }
+num_cpus = { workspace = true }
 
 # Async utilities
 
 # Memory management
-parking_lot = "0.12"
-once_cell = "1.19"
+parking_lot = { workspace = true }
+once_cell = { workspace = true }
 
 # Performance monitoring
 
 # JSON and validation
-validator = { version = "0.18", features = ["derive"] }
+validator = { workspace = true }
 
 # Tensor operations (for host-side work)
 
@@ -56,8 +56,8 @@ criterion = { workspace = true }
 proptest = { workspace = true }
 serial_test = { workspace = true }
 reqwest = { workspace = true }
-tempfile = "3.8"
-rstest = "0.18"
+tempfile = { workspace = true }
+rstest = { workspace = true }
 
 [features]
 default = ["burn-cpu"]

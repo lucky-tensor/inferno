@@ -52,6 +52,19 @@ cargo-llvm-cov = "0.6"
 # Backend-specific dependencies
 sqlx = { version = "0.6", features = ["postgres", "chrono", "runtime-tokio-native-tls"] }
 
+# Additional shared dependencies
+config = "0.14"
+toml = "0.8"
+num_cpus = "1.16"
+parking_lot = "0.12"
+once_cell = "1.19"
+validator = { version = "0.18", features = ["derive"] }
+tempfile = "3.8"
+rstest = "0.18"
+
+# Workspace shared dependencies
+inferno-shared = { path = "crates/shared" }
+
 [workspace.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
