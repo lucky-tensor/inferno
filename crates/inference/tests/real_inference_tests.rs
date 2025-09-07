@@ -138,7 +138,7 @@ async fn test_real_math_inference() {
         "Should generate tokens: {}",
         response.generated_tokens
     );
-    
+
     // For math query, should contain "4" in the response
     assert!(
         response.generated_text.contains('4'),

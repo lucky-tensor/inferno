@@ -23,7 +23,6 @@ inferno-shared = { workspace = true }
 # HTTP server
 
 # Minimal dependencies for real CPU inference
-rand = { version = "0.8", optional = true }
 
 # HTTP client for model downloads
 reqwest = { workspace = true, optional = true }
@@ -38,8 +37,6 @@ num_cpus = { workspace = true }
 # Async utilities
 
 # Memory management
-parking_lot = { workspace = true }
-once_cell = { workspace = true }
 
 # Performance monitoring
 
@@ -48,9 +45,6 @@ validator = { workspace = true }
 
 # Burn ML Framework for real model inference
 burn = { workspace = true, optional = true }
-burn-core = { workspace = true, optional = true }
-burn-ndarray = { workspace = true, optional = true }
-burn-tensor = { workspace = true, optional = true }
 burn-import = { workspace = true, optional = true }
 tokenizers = { workspace = true, optional = true }
 hf-hub = { workspace = true, optional = true }
@@ -71,24 +65,17 @@ rstest = { workspace = true }
 [features]
 default = ["burn-cpu"]
 burn-cpu = [
-    "rand", 
     "reqwest",
     "burn/ndarray",
     "burn/autodiff", 
-    "burn-core",
-    "burn-ndarray",
-    "burn-tensor",
     "burn-import",
     "tokenizers",
     "hf-hub/tokio"
 ]  # Real deterministic SmolLM2 model inference with SafeTensors support
 burn-cuda = [
-    "rand", 
     "reqwest",
     "burn",
-    "burn-core",
-    "burn-ndarray", 
-    "burn-tensor",
+    "burn-import", 
     "tokenizers",
     "hf-hub"
 ]  # Same as CPU for now (future acceleration)

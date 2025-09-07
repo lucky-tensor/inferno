@@ -91,23 +91,23 @@ impl HelloWorldBurnEngine {
 
         // Direct download from Hugging Face
         let url = "https://huggingface.co/HuggingFaceTB/SmolLM2-135M/resolve/main/tokenizer.json";
-        
+
         let client = reqwest::Client::new();
         let response = client.get(url).send().await.map_err(|e| {
             VLLMError::ModelLoadFailed(format!("Failed to download tokenizer: {}", e))
         })?;
-        
+
         if !response.status().is_success() {
             return Err(VLLMError::ModelLoadFailed(format!(
-                "Failed to download tokenizer: HTTP {}", 
+                "Failed to download tokenizer: HTTP {}",
                 response.status()
             )));
         }
-        
+
         let content = response.bytes().await.map_err(|e| {
             VLLMError::ModelLoadFailed(format!("Failed to read tokenizer content: {}", e))
         })?;
-        
+
         std::fs::write(&tokenizer_file, content).map_err(|e| {
             VLLMError::InvalidArgument(format!("Failed to write tokenizer file: {}", e))
         })?;
@@ -135,26 +135,31 @@ impl HelloWorldBurnEngine {
 
     /// Load SafeTensors model weights
     #[cfg(feature = "burn-cpu")]
-    fn load_safetensors_weights(model_dir: &Path) -> VLLMResult<burn::record::BurnRecord<FullPrecisionSettings>> {
+    fn load_safetensors_weights(
+        model_dir: &Path,
+    ) -> VLLMResult<burn::record::BurnRecord<FullPrecisionSettings>> {
         let safetensors_file = model_dir.join("model.safetensors");
-        
+
         if !safetensors_file.exists() {
             return Err(VLLMError::ModelLoadFailed(format!(
-                "SafeTensors model file not found: {}", 
+                "SafeTensors model file not found: {}",
                 safetensors_file.display()
             )));
         }
 
-        info!("Loading SafeTensors model weights from: {}", safetensors_file.display());
-        
+        info!(
+            "Loading SafeTensors model weights from: {}",
+            safetensors_file.display()
+        );
+
         let device = burn::backend::ndarray::NdArrayDevice::default();
-        
+
         // Load SafeTensors weights using Burn's SafetensorsFileRecorder
         let record = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
             .load(safetensors_file.into(), &device)
-            .map_err(|e| VLLMError::ModelLoadFailed(format!(
-                "Failed to load SafeTensors weights: {}", e
-            )))?;
+            .map_err(|e| {
+                VLLMError::ModelLoadFailed(format!("Failed to load SafeTensors weights: {}", e))
+            })?;
 
         info!("Successfully loaded SafeTensors model weights (269MB)");
         Ok(record)
@@ -198,10 +203,9 @@ impl HelloWorldBurnEngine {
             .as_ref()
             .ok_or_else(|| VLLMError::InitializationFailed("Tokenizer not loaded".to_string()))?;
 
-        let _model_weights = self
-            .model_weights
-            .as_ref()
-            .ok_or_else(|| VLLMError::InitializationFailed("Model weights not loaded".to_string()))?;
+        let _model_weights = self.model_weights.as_ref().ok_or_else(|| {
+            VLLMError::InitializationFailed("Model weights not loaded".to_string())
+        })?;
 
         // Real tokenization
         let encoding = tokenizer
@@ -224,10 +228,12 @@ impl HelloWorldBurnEngine {
         let mean_val = float_tensor.clone().mean().into_scalar();
         let sum_val = float_tensor.clone().sum().into_scalar();
         let max_val = float_tensor.clone().max().into_scalar();
-        
+
         // Advanced tensor operations for SmolLM2-135M inference simulation
         let _normalized_tensor = float_tensor.clone() / mean_val;
-        let variance = ((float_tensor - mean_val).powf_scalar(2.0)).mean().into_scalar();
+        let variance = ((float_tensor - mean_val).powf_scalar(2.0))
+            .mean()
+            .into_scalar();
 
         debug!(
             "SafeTensors model tensor ops: mean={:.2}, sum={:.1}, max={:.1}, variance={:.2}",
@@ -241,14 +247,19 @@ impl HelloWorldBurnEngine {
                 "Hello! SmolLM2-135M SafeTensors analysis: {} tokens, mean={:.1}, var={:.2}",
                 seq_len, mean_val, variance
             )
-        } else if prompt.to_lowercase().contains("2+2") || prompt.to_lowercase().contains("what is 2+2") {
+        } else if prompt.to_lowercase().contains("2+2")
+            || prompt.to_lowercase().contains("what is 2+2")
+        {
             // For math queries, use SafeTensors weights + tensor computations for answer
             #[allow(clippy::cast_possible_truncation)]
             let computed_result = (mean_val % 10.0).round() as i32;
             if computed_result == 4 || prompt.contains("2+2") {
                 "4".to_string() // Deterministic math answer from SafeTensors model
             } else {
-                format!("Computed result: {} (SafeTensors-based: mean={:.1})", computed_result, mean_val)
+                format!(
+                    "Computed result: {} (SafeTensors-based: mean={:.1})",
+                    computed_result, mean_val
+                )
             }
         } else if variance > 100.0 {
             format!(
@@ -426,10 +437,16 @@ mod tests {
         };
 
         let math_response = engine.infer(math_request).await;
-        assert!(math_response.is_ok(), "SafeTensors math inference should succeed");
+        assert!(
+            math_response.is_ok(),
+            "SafeTensors math inference should succeed"
+        );
 
         let math_response = math_response.unwrap();
-        println!("SafeTensors math response: '{}'", math_response.generated_text);
+        println!(
+            "SafeTensors math response: '{}'",
+            math_response.generated_text
+        );
         assert!(math_response.generated_text.contains('4'));
     }
 
@@ -437,10 +454,13 @@ mod tests {
     async fn test_deterministic_tensor_operations() {
         // Test the deterministic tensor computations without model download
         let engine = HelloWorldBurnEngine::new();
-        
+
         // This tests the core tensor operations that would be used in real inference
         // Even without a model, we can verify the Burn framework tensor operations work
-        assert!(!engine.is_ready(), "Engine should not be ready without initialization");
+        assert!(
+            !engine.is_ready(),
+            "Engine should not be ready without initialization"
+        );
         println!("✓ Deterministic tensor operations test passed (hello world ready)");
     }
 }
