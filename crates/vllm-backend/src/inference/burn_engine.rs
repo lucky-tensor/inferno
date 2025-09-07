@@ -134,7 +134,10 @@ impl BurnInferenceEngine {
                     _ => "placeholder",
                 };
                 std::fs::write(&local_file, placeholder_content).map_err(|e| {
-                    VLLMError::InvalidArgument(format!("Failed to create placeholder {}: {}", file_name, e))
+                    VLLMError::InvalidArgument(format!(
+                        "Failed to create placeholder {}: {}",
+                        file_name, e
+                    ))
                 })?;
                 info!("Created placeholder {}", file_name);
             }
@@ -211,10 +214,7 @@ impl BurnInferenceEngine {
     }
 
     /// Perform real inference using Burn framework
-    fn burn_framework_inference(
-        prompt: &str,
-        _max_tokens: usize,
-    ) -> String {
+    fn burn_framework_inference(prompt: &str, _max_tokens: usize) -> String {
         #[cfg(feature = "burn-cpu")]
         {
             // TODO: Real tokenization when dependencies are compatible
