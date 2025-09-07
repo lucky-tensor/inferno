@@ -2,7 +2,7 @@
 //!
 //! These tests verify core functionality without requiring CUDA.
 
-use inferno_vllm_backend::{VLLMBackend, VLLMConfig, VLLMConfigBuilder, VLLMEngine, VLLMServer};
+use inferno_inference::{VLLMBackend, VLLMConfig, VLLMConfigBuilder, VLLMEngine, VLLMServer};
 use std::env;
 
 #[test]
@@ -132,7 +132,7 @@ fn test_server_configuration() {
 
 #[test]
 fn test_memory_allocator_interface() {
-    use inferno_vllm_backend::{CudaMemoryPool, MemoryTracker};
+    use inferno_inference::{CudaMemoryPool, MemoryTracker};
 
     // Test memory pool creation
     let pool = CudaMemoryPool::new(-1); // CPU-only device

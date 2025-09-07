@@ -4,7 +4,7 @@
 //! to perform real inference on CPU. No mocking or simulation.
 
 #[cfg(feature = "burn-cpu")]
-use inferno_vllm_backend::{
+use inferno_inference::{
     create_engine, create_math_test_request, BurnInferenceEngine, InferenceEngine,
     InferenceRequest, VLLMConfig,
 };

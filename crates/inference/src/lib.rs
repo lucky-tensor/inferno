@@ -1,22 +1,22 @@
-//! # Inferno VLLM Backend
+//! # Inferno Inference Engine
 //!
-//! A high-performance VLLM backend implementation for the Inferno inference platform.
-//! This crate provides CUDA-accelerated inference with advanced batching, scheduling,
-//! and memory management capabilities.
+//! A high-performance inference engine implementation for the Inferno platform.
+//! This crate provides Burn framework-based inference with multi-backend support,
+//! advanced batching, and memory management capabilities.
 //!
 //! ## Features
 //!
-//! - **CUDA Acceleration**: GPU-accelerated inference with cudarc integration
-//! - **Advanced Batching**: Dynamic request batching with priority scheduling
-//! - **Memory Management**: Efficient GPU memory pooling and tracking
-//! - **FFI Integration**: C++/CUDA kernel integration for maximum performance
+//! - **Burn Framework**: Multi-backend inference (CPU/CUDA/ROCm/Metal/WebGPU)
+//! - **Real Model Support**: Actual LLM inference with Hugging Face model downloads
+//! - **Memory Management**: Efficient memory pooling and tracking  
 //! - **Service Discovery**: Integration with Inferno's service discovery system
 //! - **Health Monitoring**: Comprehensive health checks and metrics
+//! - **No Mocking**: Only real model inference, no pattern matching fallbacks
 //!
 //! ## Usage
 //!
 //! ```rust,no_run
-//! use inferno_vllm_backend::{VLLMBackend, VLLMConfig};
+//! use inferno_inference::{VLLMBackend, VLLMConfig};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {

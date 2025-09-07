@@ -1,11 +1,11 @@
 [package]
-name = "inferno-vllm-backend"
+name = "inferno-inference"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "VLLM backend implementation for Inferno with CUDA acceleration"
+description = "Inference engine implementation for Inferno with Burn ML framework support"
 
 [dependencies]
 # Workspace dependencies
@@ -46,11 +46,7 @@ validator = { version = "0.18", features = ["derive"] }
 
 # Tensor operations (for host-side work)
 
-[build-dependencies]
-cmake = "0.1"
-cc = { version = "1.0", features = ["parallel"] }
-bindgen = "0.69"
-pkg-config = "0.3"
+# No build dependencies needed for pure Rust Burn framework implementation
 
 [dev-dependencies]
 tokio-test = { workspace = true }
