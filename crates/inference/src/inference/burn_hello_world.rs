@@ -23,8 +23,7 @@ use burn::{
 #[cfg(feature = "burn-cpu")]
 use tokenizers::Tokenizer;
 
-#[cfg(feature = "burn-cpu")]
-use hf_hub::api::tokio::Api;
+// Using reqwest for direct HTTP downloads instead of hf_hub
 
 // Backend type alias
 #[cfg(feature = "burn-cpu")]
@@ -63,10 +62,10 @@ impl HelloWorldBurnEngine {
         }
     }
 
-    /// Download `SmolLM3` tokenizer (minimal download)
+    /// Download SmolLM2-135M tokenizer using direct HTTP download
     #[cfg(feature = "burn-cpu")]
     async fn download_tokenizer(models_dir: &str) -> VLLMResult<PathBuf> {
-        let model_cache_dir = Path::new(models_dir).join("smollm3-135m");
+        let model_cache_dir = Path::new(models_dir).join("smollm2-135m");
         std::fs::create_dir_all(&model_cache_dir).map_err(|e| {
             VLLMError::InvalidArgument(format!("Failed to create model cache dir: {}", e))
         })?;
@@ -74,26 +73,36 @@ impl HelloWorldBurnEngine {
         let tokenizer_file = model_cache_dir.join("tokenizer.json");
 
         if tokenizer_file.exists() {
-            info!("SmolLM3 tokenizer already cached");
+            info!("SmolLM2-135M tokenizer already cached");
             return Ok(model_cache_dir);
         }
 
-        info!("Downloading SmolLM3 tokenizer...");
+        info!("Downloading SmolLM2-135M tokenizer...");
 
-        let api = Api::new().map_err(|e| {
-            VLLMError::ModelLoadFailed(format!("Failed to create HF Hub API: {}", e))
-        })?;
-
-        let repo = api.model("HuggingFaceTB/SmolLM2-135M-Instruct".to_string());
-
-        let remote_file = repo.get("tokenizer.json").await.map_err(|e| {
+        // Direct download from Hugging Face
+        let url = "https://huggingface.co/HuggingFaceTB/SmolLM2-135M/resolve/main/tokenizer.json";
+        
+        let client = reqwest::Client::new();
+        let response = client.get(url).send().await.map_err(|e| {
             VLLMError::ModelLoadFailed(format!("Failed to download tokenizer: {}", e))
         })?;
+        
+        if !response.status().is_success() {
+            return Err(VLLMError::ModelLoadFailed(format!(
+                "Failed to download tokenizer: HTTP {}", 
+                response.status()
+            )));
+        }
+        
+        let content = response.bytes().await.map_err(|e| {
+            VLLMError::ModelLoadFailed(format!("Failed to read tokenizer content: {}", e))
+        })?;
+        
+        std::fs::write(&tokenizer_file, content).map_err(|e| {
+            VLLMError::InvalidArgument(format!("Failed to write tokenizer file: {}", e))
+        })?;
 
-        std::fs::copy(&remote_file, &tokenizer_file)
-            .map_err(|e| VLLMError::InvalidArgument(format!("Failed to copy tokenizer: {}", e)))?;
-
-        info!("Successfully downloaded SmolLM3 tokenizer");
+        info!("Successfully downloaded SmolLM2-135M tokenizer");
         Ok(model_cache_dir)
     }
 
@@ -188,6 +197,7 @@ impl HelloWorldBurnEngine {
             )
         } else if prompt.to_lowercase().contains("2+2") || prompt.to_lowercase().contains("what is 2+2") {
             // For math queries, use tensor computations to generate answer
+            #[allow(clippy::cast_possible_truncation)]
             let computed_result = (mean_val % 10.0).round() as i32;
             if computed_result == 4 || prompt.contains("2+2") {
                 "4".to_string() // Deterministic math answer
@@ -326,7 +336,7 @@ mod tests {
         };
 
         println!("Testing Hello World SmolLM3 inference...");
-        let result = engine.initialize(&config, "./models").await;
+        let result = engine.initialize(&config, "../../models").await;
         assert!(
             result.is_ok(),
             "Initialization should succeed: {:?}",
@@ -370,7 +380,7 @@ mod tests {
 
         let math_response = math_response.unwrap();
         println!("Math response: '{}'", math_response.generated_text);
-        assert!(math_response.generated_text.contains("4"));
+        assert!(math_response.generated_text.contains('4'));
     }
 
     #[tokio::test]

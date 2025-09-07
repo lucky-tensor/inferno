@@ -14,9 +14,9 @@ resolver = "2"
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["Inferno Team <team@example.com>"]
+authors = ["Inferno Team"]
 license = "Apache-2.0"
-repository = "https://github.com/0o-de-lally/inferno"
+repository = "https://github.com/lucky-tensor/inferno"
 
 [workspace.dependencies]
 # Shared dependencies across crates
@@ -70,6 +70,7 @@ burn = "0.18"
 burn-core = "0.18"
 burn-ndarray = "0.18"
 burn-tensor = "0.18"
+burn-import = "0.18"
 tokenizers = "0.15"
 hf-hub = "0.3"
 

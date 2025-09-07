@@ -141,7 +141,7 @@ async fn test_real_math_inference() {
     
     // For math query, should contain "4" in the response
     assert!(
-        response.generated_text.contains("4"),
+        response.generated_text.contains('4'),
         "Math response should contain '4': '{}'",
         response.generated_text
     );
