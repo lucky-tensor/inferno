@@ -22,14 +22,9 @@ inferno-shared = { path = "../shared" }
 
 # HTTP server
 
-# Lightweight CPU inference with real model support
-# For HTTP downloads of models and tokenization
-reqwest = { version = "0.12", optional = true }
-# Real model inference using stable Rust dependencies  
-# Using compatible versions that work with current Rust toolchain (1.84)
-tokenizers = { version = "0.13.4", optional = true }
-hf-hub = { version = "0.2", optional = true, features = ["tokio"] }
-# Focus on real model downloads and tokenization with stable dependencies
+# Minimal dependencies for real model inference (avoiding edition2024 conflicts)
+reqwest = { version = "0.11", optional = true }
+# Note: Avoiding tokenizers/hf-hub until toolchain upgrade, using workspace serde_json
 
 # FFI and build dependencies
 
@@ -68,9 +63,8 @@ rstest = "0.18"
 
 [features]
 default = ["burn-cpu"]
-cpu-only = ["reqwest"]  # Simple pattern matching fallback
-burn-cpu = ["reqwest", "tokenizers", "hf-hub"]  # Real model downloads and tokenization
-burn-cuda = ["tokenizers", "hf-hub"]  # Future GPU inference
+burn-cpu = ["reqwest"]  # Burn framework CPU backend (minimal)
+burn-cuda = ["reqwest"]  # Burn framework CUDA backend (minimal)  
 cuda = []  # Reserved for future use
 
 # Benchmarks will be added in later phases

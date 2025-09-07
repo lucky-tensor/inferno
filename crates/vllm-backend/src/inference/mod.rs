@@ -1,26 +1,21 @@
 //! CPU-based inference engine implementation
 //!
-//! This module implements a basic CPU inference pipeline using Candle for tensor operations
+//! This module implements multi-backend inference using Burn framework for tensor operations
 //! and Hugging Face models. It provides deterministic inference for mathematical queries.
 
 use crate::config::VLLMConfig;
 use crate::error::VLLMResult;
 
-#[cfg(not(feature = "cpu-only"))]
+#[cfg(not(feature = "burn-cpu"))]
 use crate::error::VLLMError;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
+#[cfg(feature = "burn-cpu")]
 use tracing::info;
-
-#[cfg(feature = "cpu-only")]
-mod cpu_engine;
 
 #[cfg(feature = "burn-cpu")]
 mod burn_engine;
-
-#[cfg(feature = "cpu-only")]
-pub use cpu_engine::*;
 
 #[cfg(feature = "burn-cpu")]
 pub use burn_engine::*;
@@ -129,28 +124,21 @@ impl Default for EngineStats {
 }
 
 /// Create a new inference engine based on configuration
-pub async fn create_engine(_config: &VLLMConfig) -> VLLMResult<Arc<RwLock<dyn InferenceEngine>>> {
-    // Priority 1: Burn-compatible engine (real model inference with Candle)
+pub async fn create_engine(config: &VLLMConfig) -> VLLMResult<Arc<RwLock<dyn InferenceEngine>>> {
+    // Only Burn framework engine (real model inference)
     #[cfg(feature = "burn-cpu")]
     {
-        info!("Creating Burn-compatible Llama inference engine with real model loading");
+        info!("Creating Burn framework Llama inference engine with real model loading");
         let mut engine = BurnInferenceEngine::new();
-        engine.initialize(_config, "./models").await?;
+        engine.initialize(config, "./models").await?;
         return Ok(Arc::new(RwLock::new(engine)));
     }
 
-    // Priority 2: Fallback to pattern matching engine (no real model)
-    #[cfg(feature = "cpu-only")]
-    {
-        info!("Creating CPU-based inference engine (pattern matching fallback)");
-        let mut engine = CpuInferenceEngine::new();
-        engine.initialize(_config, "./models").await?;
-        return Ok(Arc::new(RwLock::new(engine)));
-    }
-
-    // No engine available
+    // No engine available - no fallback, only real inference
+    #[cfg(not(feature = "burn-cpu"))]
     Err(VLLMError::InvalidArgument(
-        "No inference engine available. Enable burn-cpu or cpu-only feature".to_string(),
+        "No inference engine available. Enable burn-cpu feature for real model inference"
+            .to_string(),
     ))
 }
 

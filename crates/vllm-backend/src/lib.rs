@@ -48,7 +48,6 @@
     clippy::borrow_as_ptr,
     clippy::must_use_candidate,
     clippy::ptr_as_ptr,
-    clippy::non_std_lazy_statics,
     clippy::needless_return,
     clippy::manual_assert,
     clippy::non_send_fields_in_send_ty,
@@ -89,12 +88,9 @@ pub use error::{
 };
 pub use health::{HealthStatus, VLLMHealthChecker};
 pub use inference::{
-    create_engine, create_math_test_request, EngineStats, InferenceEngine,
-    InferenceRequest, InferenceResponse,
+    create_engine, create_math_test_request, EngineStats, InferenceEngine, InferenceRequest,
+    InferenceResponse,
 };
-
-#[cfg(feature = "cpu-only")]
-pub use inference::CpuInferenceEngine;
 
 #[cfg(feature = "burn-cpu")]
 pub use inference::BurnInferenceEngine;

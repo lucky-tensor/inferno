@@ -189,7 +189,8 @@ impl VLLMEngine {
 
     /// Get the current engine state
     pub async fn get_state(&self) -> String {
-        match &*self.state.read().await {
+        let state = self.state.read().await;
+        match &*state {
             EngineState::NotStarted => "not_started".to_string(),
             EngineState::Starting => "starting".to_string(),
             EngineState::Running => "running".to_string(),

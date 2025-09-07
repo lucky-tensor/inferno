@@ -6,16 +6,16 @@ This plan outlines how to systematically evaluate CUDA kernel performance across
 
 ## Libraries to Evaluate
 
-### 1. Current Implementation (lm.rs)
-- **CUDA Support**: None (CPU-only)
-- **Kernel Type**: N/A
-- **Purpose**: Baseline CPU performance reference
+### 1. Current Implementation (Burn-compatible)
+- **CUDA Support**: Future CUDA support via Burn framework
+- **Kernel Type**: CPU-only currently, CUDA kernels planned
+- **Purpose**: CPU baseline with GPU expansion path
 
-### 2. Candle Framework (Hugging Face)
-- **CUDA Support**: Full CUDA support with cuDNN optimization
-- **Kernel Type**: cuDNN optimized kernels + custom CUDA kernels
-- **Backend**: `candle-cuda-backend`
-- **Tensor Core**: Supported on compatible hardware
+### 2. Burn Framework (Primary Choice)
+- **CUDA Support**: Full CUDA support via CubeCL custom kernel development
+- **Kernel Type**: CubeCL-generated CUDA kernels + hardware-optimized backends
+- **Backend**: Universal tensor operations across CPU/CUDA/ROCm/Metal/WebGPU
+- **Tensor Core**: Supported through CubeCL kernel optimization
 
 ### 3. Burn Framework + CubeCL
 - **CUDA Support**: CUDA backend through CubeCL with tensor core support
@@ -110,7 +110,7 @@ impl CudaKernelProfiler {
 #### Test Matrix
 | Library | Model | Batch Size | Precision | Hardware | Workload Type |
 |---------|-------|------------|-----------|----------|---------------|
-| Candle | Llama 3.2 1B | 1,4,16,32 | FP16/FP32 | RTX 4090 | Single/Batch |
+| Burn | Llama 3.2 1B | 1,4,16,32 | FP16/FP32 | RTX 4090 | Single/Batch |
 | Burn | Llama 3.2 1B | 1,4,16,32 | FP16/FP32 | RTX 4090 | Single/Batch |
 | TensorRT-LLM | Llama 3.2 1B | 1,4,16,32 | FP16/INT8 | RTX 4090 | Single/Batch |
 | Custom JIT | Llama 3.2 1B | 1,4,16,32 | FP16/FP32 | RTX 4090 | Single/Batch |
@@ -130,7 +130,7 @@ pub struct KernelBenchmarkSuite {
 impl KernelBenchmarkSuite {
     pub async fn benchmark_all_libraries(&self) -> LibraryComparisonReport {
         let libraries = vec![
-            Box::new(CandleEngine::new()) as Box<dyn InferenceEngine>,
+            Box::new(BurnInferenceEngine::new()) as Box<dyn InferenceEngine>,
             Box::new(BurnEngine::new()) as Box<dyn InferenceEngine>,
             Box::new(TensorRTEngine::new()) as Box<dyn InferenceEngine>,
             Box::new(CustomJitEngine::new()) as Box<dyn InferenceEngine>,
@@ -182,7 +182,7 @@ pub struct WorkloadBenchmark {
 - [ ] Hardware monitoring setup (GPU utilization, temperature, power)
 
 ### Week 2: Library Integration
-- [ ] Candle CUDA backend integration and testing
+- [ ] Burn framework CUDA backend integration and testing
 - [ ] Burn CubeCL backend setup and validation
 - [ ] TensorRT-LLM FFI bindings (proof of concept)
 - [ ] Custom JIT-CUDA strategy prototype

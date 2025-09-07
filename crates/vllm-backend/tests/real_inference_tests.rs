@@ -3,16 +3,21 @@
 //! These tests download and use the actual Llama 3.2 1B model from Hugging Face
 //! to perform real inference on CPU. No mocking or simulation.
 
+#[cfg(feature = "burn-cpu")]
 use inferno_vllm_backend::{
-    create_engine, create_math_test_request, BurnInferenceEngine, InferenceEngine, InferenceRequest,
-    VLLMConfig,
+    create_engine, create_math_test_request, BurnInferenceEngine, InferenceEngine,
+    InferenceRequest, VLLMConfig,
 };
+#[cfg(feature = "burn-cpu")]
 use std::path::Path;
+#[cfg(feature = "burn-cpu")]
 use std::time::Duration;
+#[cfg(feature = "burn-cpu")]
 use tokio::time::timeout;
 
 /// Test creating the real inference engine
 #[tokio::test]
+#[cfg(feature = "burn-cpu")]
 async fn test_burn_engine_creation() {
     let engine = BurnInferenceEngine::new();
     assert!(!engine.is_ready(), "Engine should not be ready initially");
@@ -21,6 +26,7 @@ async fn test_burn_engine_creation() {
 /// Test real model download and loading
 /// This test downloads ~2.5GB model files and caches them in ./models/
 #[tokio::test]
+#[cfg(feature = "burn-cpu")]
 #[ignore = "downloads real model - run with --ignored to test real inference"]
 async fn test_real_model_initialization() {
     let mut engine = BurnInferenceEngine::new();
@@ -82,6 +88,7 @@ async fn test_real_model_initialization() {
 
 /// Test actual mathematical inference with real model
 #[tokio::test]
+#[cfg(feature = "burn-cpu")]
 #[ignore = "requires real model download and inference"]
 async fn test_real_math_inference() {
     let config = VLLMConfig {
@@ -110,7 +117,7 @@ async fn test_real_math_inference() {
 
     let response = response.unwrap();
     println!("Real model response: '{}'", response.generated_text);
-    
+
     // The real model may not give exactly "4" but should provide a reasonable response
     assert!(
         !response.generated_text.is_empty(),
@@ -140,6 +147,7 @@ async fn test_real_math_inference() {
 
 /// Test deterministic responses from real model
 #[tokio::test]
+#[cfg(feature = "burn-cpu")]
 #[ignore = "requires real model"]
 async fn test_real_deterministic_responses() {
     let config = VLLMConfig {
@@ -187,6 +195,7 @@ async fn test_real_deterministic_responses() {
 
 /// Test various mathematical expressions with real model
 #[tokio::test]
+#[cfg(feature = "burn-cpu")]
 #[ignore = "requires real model"]
 async fn test_real_mathematical_expressions() {
     let config = VLLMConfig {
@@ -201,7 +210,7 @@ async fn test_real_mathematical_expressions() {
         .expect("Failed to create engine");
     let engine_guard = engine.read().await;
 
-    let test_cases = vec![
+    let test_cases = [
         "What is 2+2?",
         "Calculate 1+1",
         "What is 3+3?",
@@ -222,7 +231,7 @@ async fn test_real_mathematical_expressions() {
         };
 
         let response = engine_guard.infer(request).await.unwrap();
-        
+
         println!(
             "Prompt: '{}' -> Response: '{}' ({} tokens, {:.1}ms)",
             prompt, response.generated_text, response.generated_tokens, response.inference_time_ms
@@ -240,6 +249,7 @@ async fn test_real_mathematical_expressions() {
 
 /// Test inference performance with real model
 #[tokio::test]
+#[cfg(feature = "burn-cpu")]
 #[ignore = "requires real model"]
 async fn test_real_inference_performance() {
     let config = VLLMConfig {
@@ -287,6 +297,7 @@ async fn test_real_inference_performance() {
 
 /// Test engine statistics with real model
 #[tokio::test]
+#[cfg(feature = "burn-cpu")]
 #[ignore = "requires real model"]
 async fn test_real_engine_statistics() {
     let config = VLLMConfig {
@@ -299,18 +310,18 @@ async fn test_real_engine_statistics() {
     let engine = create_engine(&config)
         .await
         .expect("Failed to create engine");
-    
+
     // Test initial stats
     {
         let engine_guard = engine.read().await;
         let initial_stats = engine_guard.get_stats().await;
-        
+
         assert!(initial_stats.model_loaded, "Model should be loaded");
         assert!(
             initial_stats.memory_usage_bytes > 1_000_000_000,
             "Should report realistic memory usage"
         );
-        
+
         println!(
             "Initial stats - Memory: {:.1}GB, Requests: {}",
             initial_stats.memory_usage_bytes as f64 / 1_000_000_000.0,
@@ -331,10 +342,12 @@ async fn test_real_engine_statistics() {
 
         let engine_guard = engine.read().await;
         let response = engine_guard.infer(request).await.unwrap();
-        
+
         println!(
             "Inference #{}: '{}' ({:.1}ms)",
-            i + 1, response.generated_text, response.inference_time_ms
+            i + 1,
+            response.generated_text,
+            response.inference_time_ms
         );
     }
 
@@ -342,7 +355,7 @@ async fn test_real_engine_statistics() {
     {
         let engine_guard = engine.read().await;
         let final_stats = engine_guard.get_stats().await;
-        
+
         println!(
             "Final stats - Requests: {}, Avg time: {:.1}ms, Memory: {:.1}GB",
             final_stats.total_requests,
@@ -363,6 +376,7 @@ async fn test_real_engine_statistics() {
 
 /// Test proper model caching (subsequent runs should be faster)
 #[tokio::test]
+#[cfg(feature = "burn-cpu")]
 #[ignore = "requires real model"]
 async fn test_model_caching() {
     let config = VLLMConfig {
@@ -378,7 +392,7 @@ async fn test_model_caching() {
         .await
         .expect("First engine creation failed");
     let init_time1 = start1.elapsed();
-    
+
     // Shutdown first engine
     {
         let mut engine_guard = engine1.write().await;
@@ -415,12 +429,16 @@ async fn test_model_caching() {
     let request = create_math_test_request();
     let response = engine_guard.infer(request).await;
     assert!(response.is_ok(), "Cached model should work for inference");
-    
-    println!("Cached model inference result: '{}'", response.unwrap().generated_text);
+
+    println!(
+        "Cached model inference result: '{}'",
+        response.unwrap().generated_text
+    );
 }
 
 /// Integration test: Complete workflow with real model
 #[tokio::test]
+#[cfg(feature = "burn-cpu")]
 #[ignore = "requires real model"]
 async fn test_complete_real_workflow() {
     println!("Starting complete real model workflow test...");
@@ -444,7 +462,7 @@ async fn test_complete_real_workflow() {
 
         let stats = engine_guard.get_stats().await;
         assert!(stats.model_loaded, "Model should be loaded");
-        
+
         println!(
             "Engine ready - Memory: {:.1}GB",
             stats.memory_usage_bytes as f64 / 1_000_000_000.0
@@ -485,10 +503,7 @@ async fn test_complete_real_workflow() {
     {
         let mut engine_guard = engine.write().await;
         let shutdown_result = engine_guard.shutdown().await;
-        assert!(
-            shutdown_result.is_ok(),
-            "Engine shutdown should succeed"
-        );
+        assert!(shutdown_result.is_ok(), "Engine shutdown should succeed");
         assert!(
             !engine_guard.is_ready(),
             "Engine should not be ready after shutdown"

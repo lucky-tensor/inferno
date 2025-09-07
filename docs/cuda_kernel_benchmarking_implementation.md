@@ -2,7 +2,7 @@
 
 ## Overview
 
-This plan outlines different methodologies for benchmarking CUDA kernel performance across our candidate libraries (Candle, Burn, TensorRT-LLM, Custom implementations). We'll implement multiple approaches to get comprehensive performance insights.
+This plan outlines different methodologies for benchmarking CUDA kernel performance across our candidate libraries (Burn framework, TensorRT-LLM, Custom CubeCL implementations). We'll implement multiple approaches to get comprehensive performance insights.
 
 ## Benchmarking Methodologies
 
@@ -479,7 +479,7 @@ impl PerformanceRegressionDetector {
 - [ ] Test data generation
 
 ### Week 2: Library Integration
-- [ ] Candle profiling integration
+- [ ] Burn framework profiling integration
 - [ ] Burn/CubeCL profiling setup
 - [ ] TensorRT-LLM profiling (if available)
 - [ ] Custom implementation benchmarking
