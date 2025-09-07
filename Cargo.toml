@@ -65,6 +65,14 @@ rstest = "0.18"
 # Workspace shared dependencies
 inferno-shared = { path = "crates/shared" }
 
+# Burn ML Framework dependencies (stable versions compatible with Rust 2021)
+burn = "0.14"
+burn-core = "0.14"
+burn-ndarray = "0.14"
+burn-tensor = "0.14"
+tokenizers = "0.15"
+hf-hub = "0.3"
+
 [workspace.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]

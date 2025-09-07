@@ -46,7 +46,13 @@ once_cell = { workspace = true }
 # JSON and validation
 validator = { workspace = true }
 
-# Tensor operations (for host-side work)
+# Burn ML Framework for real model inference
+burn = { workspace = true, optional = true }
+burn-core = { workspace = true, optional = true }
+burn-ndarray = { workspace = true, optional = true }
+burn-tensor = { workspace = true, optional = true }
+tokenizers = { workspace = true, optional = true }
+hf-hub = { workspace = true, optional = true }
 
 # No build dependencies needed for pure Rust Burn framework implementation
 
@@ -63,11 +69,23 @@ rstest = { workspace = true }
 default = ["burn-cpu"]
 burn-cpu = [
     "rand", 
-    "reqwest"
-]  # Real deterministic tiny model inference
+    "reqwest",
+    "burn",
+    "burn-core",
+    "burn-ndarray",
+    "burn-tensor",
+    "tokenizers",
+    "hf-hub"
+]  # Real deterministic SmolLM3 model inference
 burn-cuda = [
     "rand", 
-    "reqwest"
+    "reqwest",
+    "burn",
+    "burn-core",
+    "burn-ndarray", 
+    "burn-tensor",
+    "tokenizers",
+    "hf-hub"
 ]  # Same as CPU for now (future acceleration)
 cuda = []  # Reserved for future use
 
