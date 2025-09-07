@@ -66,9 +66,7 @@ fn download_model_file(file_path: &std::path::Path, filename: &str) -> bool {
         .output();
 
     match output {
-        Ok(result) if result.status.success() => {
-            return true;
-        }
+        Ok(result) if result.status.success() => true,
         _ => {
             // Try wget as fallback
             let wget_result = std::process::Command::new("wget")
@@ -78,12 +76,10 @@ fn download_model_file(file_path: &std::path::Path, filename: &str) -> bool {
                 .output();
 
             match wget_result {
-                Ok(result) if result.status.success() => {
-                    return true;
-                }
+                Ok(result) if result.status.success() => true,
                 _ => {
                     // Rust HTTP fallback
-                    return download_via_rust(&url, file_path);
+                    download_via_rust(&url, file_path)
                 }
             }
         }
@@ -97,10 +93,7 @@ fn download_via_rust(url: &str, path: &std::path::Path) -> bool {
     match reqwest::blocking::get(url) {
         Ok(response) if response.status().is_success() => match std::fs::File::create(path) {
             Ok(mut file) => match response.bytes() {
-                Ok(content) => match file.write_all(&content) {
-                    Ok(_) => true,
-                    Err(_) => false,
-                },
+                Ok(content) => file.write_all(&content).is_ok(),
                 Err(_) => false,
             },
             Err(_) => false,
