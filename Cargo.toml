@@ -73,6 +73,8 @@ burn-tensor = "0.18"
 burn-import = "0.18"
 tokenizers = "0.15"
 hf-hub = "0.3"
+safetensors = "0.4"
+half = "2.3"
 
 [workspace.metadata.docs.rs]
 all-features = true

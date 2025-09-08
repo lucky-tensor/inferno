@@ -45,8 +45,11 @@ validator = { workspace = true }
 
 # Burn ML Framework for real model inference
 burn = { workspace = true, optional = true }
+burn-import = { workspace = true, optional = true }
 tokenizers = { workspace = true, optional = true }
 hf-hub = { workspace = true, optional = true }
+safetensors = { workspace = true, optional = true }
+half = { workspace = true, optional = true }
 
 [build-dependencies]
 burn-import = { workspace = true, optional = true }
@@ -69,7 +72,9 @@ burn-cpu = [
     "burn/autodiff",
     "burn-import",
     "tokenizers",
-    "hf-hub/tokio"
+    "hf-hub/tokio",
+    "safetensors",
+    "half"
 ]  # Real deterministic SmolLM2 model inference with SafeTensors support
 burn-cuda = [
     "reqwest",
