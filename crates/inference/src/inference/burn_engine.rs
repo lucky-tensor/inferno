@@ -18,8 +18,8 @@ use tracing::{debug, info, warn};
 use burn::{
     backend::ndarray::NdArray,
     module::Module,
-    nn::{Linear, Embedding},
-    tensor::{Tensor, Device, TensorData, Int},
+    nn::{Embedding, Linear},
+    tensor::{Device, Int, Tensor, TensorData},
 };
 
 #[cfg(feature = "burn-cpu")]
@@ -82,21 +82,20 @@ impl<B: burn::tensor::backend::Backend> SmolLM3Model<B> {
     /// Forward pass through the `SmolLM3` model
     pub fn forward(&self, input_ids: Tensor<B, 2, Int>) -> Tensor<B, 3> {
         let [_batch_size, _seq_len] = input_ids.dims();
-        
+
         // Embedding lookup
         let mut hidden_states = self.embedding.forward(input_ids);
-        
+
         // Pass through transformer layers
         for layer in &self.layers {
             hidden_states = layer.forward(hidden_states);
         }
-        
+
         // Final layer norm
         hidden_states = self.final_layer_norm.forward(hidden_states);
-        
+
         // Language model head
-        
-        
+
         self.lm_head.forward(hidden_states)
     }
 }
@@ -121,16 +120,15 @@ impl<B: burn::tensor::backend::Backend> SmolLM3Layer<B> {
     pub fn forward(&self, hidden_states: Tensor<B, 3>) -> Tensor<B, 3> {
         // Pre-norm architecture
         let normed_hidden_states = self.input_layernorm.forward(hidden_states.clone());
-        
+
         // Self attention with residual connection
         let attention_output = self.self_attention.forward(normed_hidden_states);
         let hidden_states = hidden_states + attention_output;
-        
+
         // Feed forward with residual connection
         let normed_hidden_states = self.post_attention_layernorm.forward(hidden_states.clone());
         let ff_output = self.feed_forward.forward(normed_hidden_states);
-        
-        
+
         hidden_states + ff_output
     }
 }
@@ -160,11 +158,11 @@ impl<B: burn::tensor::backend::Backend> SmolLM3Attention<B> {
         let query = self.query.forward(hidden_states.clone());
         let key = self.key.forward(hidden_states.clone());
         let value = self.value.forward(hidden_states);
-        
+
         // Simplified attention computation (not proper scaled dot-product attention)
         // For this "hello world" implementation, just average the projections
         let attention_output = (query + key + value) / 3.0;
-        
+
         self.output.forward(attention_output)
     }
 }
@@ -188,13 +186,13 @@ impl<B: burn::tensor::backend::Backend> SmolLM3FeedForward<B> {
         // SwiGLU activation function implementation
         let gate_output = self.gate_proj.forward(hidden_states.clone());
         let up_output = self.up_proj.forward(hidden_states);
-        
+
         // Apply SiLU activation to gate
         let gate_activated = burn::tensor::activation::silu(gate_output);
-        
+
         // Element-wise multiplication
         let intermediate = gate_activated * up_output;
-        
+
         // Down projection
         self.down_proj.forward(intermediate)
     }
@@ -324,15 +322,12 @@ impl BurnInferenceEngine {
         // Download each required file
         for file_name in &model_files {
             let local_file = model_cache_dir.join(file_name);
-            
+
             if !local_file.exists() {
                 info!("Downloading {} from HuggingFace...", file_name);
-                
+
                 let remote_file = repo.get(file_name).await.map_err(|e| {
-                    VLLMError::ModelLoadFailed(format!(
-                        "Failed to download {}: {}",
-                        file_name, e
-                    ))
+                    VLLMError::ModelLoadFailed(format!("Failed to download {}: {}", file_name, e))
                 })?;
 
                 // Copy the downloaded file to our cache directory
@@ -342,7 +337,7 @@ impl BurnInferenceEngine {
                         file_name, e
                     ))
                 })?;
-                
+
                 info!("Successfully downloaded {}", file_name);
             }
         }
@@ -386,9 +381,8 @@ impl BurnInferenceEngine {
             tokenizer_file.display()
         );
 
-        let tokenizer = Tokenizer::from_file(&tokenizer_file).map_err(|e| {
-            VLLMError::ModelLoadFailed(format!("Failed to load tokenizer: {}", e))
-        })?;
+        let tokenizer = Tokenizer::from_file(&tokenizer_file)
+            .map_err(|e| VLLMError::ModelLoadFailed(format!("Failed to load tokenizer: {}", e)))?;
 
         info!("Successfully loaded SmolLM3 tokenizer");
         Ok(tokenizer)
@@ -416,7 +410,7 @@ impl BurnInferenceEngine {
         let config_content = std::fs::read_to_string(config_path).map_err(|e| {
             VLLMError::ModelLoadFailed(format!("Failed to read config.json: {}", e))
         })?;
-        
+
         let _hf_config: Value = serde_json::from_str(&config_content).map_err(|e| {
             VLLMError::ModelLoadFailed(format!("Failed to parse config.json: {}", e))
         })?;
@@ -446,7 +440,7 @@ impl BurnInferenceEngine {
     #[cfg(feature = "burn-cpu")]
     fn create_smollm3_model(&self, config: &SmolLM3Config) -> SmolLM3Model<Backend> {
         info!("Creating SmolLM3 model with Burn framework...");
-        
+
         // Create embedding layer
         let embedding = burn::nn::EmbeddingConfig::new(config.vocab_size, config.hidden_size)
             .init(&self.device);
@@ -467,12 +461,21 @@ impl BurnInferenceEngine {
                     num_heads: config.num_attention_heads,
                 },
                 feed_forward: SmolLM3FeedForward {
-                    gate_proj: burn::nn::LinearConfig::new(config.hidden_size, config.hidden_size * 4)
-                        .init(&self.device),
-                    up_proj: burn::nn::LinearConfig::new(config.hidden_size, config.hidden_size * 4)
-                        .init(&self.device),
-                    down_proj: burn::nn::LinearConfig::new(config.hidden_size * 4, config.hidden_size)
-                        .init(&self.device),
+                    gate_proj: burn::nn::LinearConfig::new(
+                        config.hidden_size,
+                        config.hidden_size * 4,
+                    )
+                    .init(&self.device),
+                    up_proj: burn::nn::LinearConfig::new(
+                        config.hidden_size,
+                        config.hidden_size * 4,
+                    )
+                    .init(&self.device),
+                    down_proj: burn::nn::LinearConfig::new(
+                        config.hidden_size * 4,
+                        config.hidden_size,
+                    )
+                    .init(&self.device),
                 },
                 input_layernorm: burn::nn::LayerNormConfig::new(config.hidden_size)
                     .init(&self.device),
@@ -483,11 +486,11 @@ impl BurnInferenceEngine {
         }
 
         // Create final layer norm and language model head
-        let final_layer_norm = burn::nn::LayerNormConfig::new(config.hidden_size)
-            .init(&self.device);
-        
-        let lm_head = burn::nn::LinearConfig::new(config.hidden_size, config.vocab_size)
-            .init(&self.device);
+        let final_layer_norm =
+            burn::nn::LayerNormConfig::new(config.hidden_size).init(&self.device);
+
+        let lm_head =
+            burn::nn::LinearConfig::new(config.hidden_size, config.vocab_size).init(&self.device);
 
         let model = SmolLM3Model {
             embedding,
@@ -508,47 +511,48 @@ impl BurnInferenceEngine {
     /// Perform real inference using Burn framework
     #[cfg(feature = "burn-cpu")]
     fn burn_framework_inference(&self, prompt: &str, _max_tokens: usize) -> VLLMResult<String> {
-        let tokenizer = self.tokenizer.as_ref().ok_or_else(|| {
-            VLLMError::InitializationFailed("Tokenizer not loaded".to_string())
-        })?;
+        let tokenizer = self
+            .tokenizer
+            .as_ref()
+            .ok_or_else(|| VLLMError::InitializationFailed("Tokenizer not loaded".to_string()))?;
 
-        let model = self.model.as_ref().ok_or_else(|| {
-            VLLMError::InitializationFailed("Model not loaded".to_string())
-        })?;
+        let model = self
+            .model
+            .as_ref()
+            .ok_or_else(|| VLLMError::InitializationFailed("Model not loaded".to_string()))?;
 
         // Tokenize input prompt
-        let encoding = tokenizer.encode(prompt, false).map_err(|e| {
-            VLLMError::ModelLoadFailed(format!("Tokenization failed: {}", e))
-        })?;
+        let encoding = tokenizer
+            .encode(prompt, false)
+            .map_err(|e| VLLMError::ModelLoadFailed(format!("Tokenization failed: {}", e)))?;
 
         let input_ids: Vec<i64> = encoding.get_ids().iter().map(|&x| i64::from(x)).collect();
         let seq_len = input_ids.len();
-        
+
         debug!(
             "SmolLM3 tokenized '{}' -> {} tokens: {:?}",
-            prompt, seq_len, &input_ids[..std::cmp::min(10, input_ids.len())]
+            prompt,
+            seq_len,
+            &input_ids[..std::cmp::min(10, input_ids.len())]
         );
 
         // Convert to Burn tensor [1, seq_len] (batch_size=1)
         let input_data = input_ids.into_iter().collect::<Vec<_>>();
         let tensor_data = TensorData::new(input_data, [1, encoding.len()]);
-        let input_tensor = Tensor::<Backend, 2, Int>::from_data(
-            tensor_data,
-            &self.device,
-        );
+        let input_tensor = Tensor::<Backend, 2, Int>::from_data(tensor_data, &self.device);
 
         // Forward pass through SmolLM3 model
         let logits = model.forward(input_tensor); // Shape: [1, seq_len, vocab_size]
-        
+
         // Get logits for the last token position for next token prediction
         let [_batch_size, _seq_len, vocab_size] = logits.dims();
         let last_token_logits = logits.slice([0..1, seq_len - 1..seq_len, 0..vocab_size]);
-        
+
         // Simple greedy sampling: take argmax
         // In a real implementation, we'd implement temperature, top-k, top-p sampling
         let next_token_id = last_token_logits
-            .squeeze::<2>(1)  // Remove seq_len dimension: [1, vocab_size]
-            .argmax(1)   // Get index of max logit: [1]
+            .squeeze::<2>(1) // Remove seq_len dimension: [1, vocab_size]
+            .argmax(1) // Get index of max logit: [1]
             .into_scalar()
             .try_into()
             .unwrap_or(0u32);
@@ -559,9 +563,9 @@ impl BurnInferenceEngine {
         output_ids.push(next_token_id);
 
         // Decode the tokens back to text
-        let response = tokenizer.decode(&output_ids, true).map_err(|e| {
-            VLLMError::ModelLoadFailed(format!("Detokenization failed: {}", e))
-        })?;
+        let response = tokenizer
+            .decode(&output_ids, true)
+            .map_err(|e| VLLMError::ModelLoadFailed(format!("Detokenization failed: {}", e)))?;
 
         info!(
             "SmolLM3 inference: {} input tokens -> generated token {} -> response: '{}'",
@@ -738,7 +742,10 @@ mod tests {
         );
 
         let stats = engine.get_stats();
-        assert!(stats.model_loaded, "SmolLM3 model should be marked as loaded");
+        assert!(
+            stats.model_loaded,
+            "SmolLM3 model should be marked as loaded"
+        );
         assert!(
             stats.memory_usage_bytes > 200_000_000,
             "Should report realistic memory usage for SmolLM3: {} bytes",
@@ -756,7 +763,10 @@ mod tests {
         };
 
         let response = engine.infer(request);
-        assert!(response.is_ok(), "SmolLM3 Burn framework inference should succeed");
+        assert!(
+            response.is_ok(),
+            "SmolLM3 Burn framework inference should succeed"
+        );
 
         let response = response.unwrap();
         println!(
