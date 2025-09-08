@@ -4,25 +4,21 @@
 //! and Hugging Face models. It provides deterministic inference for mathematical queries.
 
 use crate::config::VLLMConfig;
-use crate::error::VLLMResult;
-
-#[cfg(not(feature = "burn-cpu"))]
-use crate::error::VLLMError;
+use crate::error::{VLLMError, VLLMResult};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-#[cfg(feature = "burn-cpu")]
-use tracing::info;
 
 // Commented out for now - complex module with compilation issues
 // #[cfg(feature = "burn-cpu")]
 // mod burn_engine;
 
+// burn_hello_world module has been removed - using burn_engine directly
 #[cfg(feature = "burn-cpu")]
-mod burn_hello_world;
+mod burn_engine;
 
 #[cfg(feature = "burn-cpu")]
-pub use burn_hello_world::*;
+pub use burn_engine::*;
 
 /// Request for inference
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -128,20 +124,24 @@ impl Default for EngineStats {
 }
 
 /// Create a new inference engine based on configuration
-pub async fn create_engine(config: &VLLMConfig) -> VLLMResult<Arc<RwLock<dyn InferenceEngine>>> {
+pub async fn create_engine(_config: &VLLMConfig) -> VLLMResult<Arc<RwLock<dyn InferenceEngine>>> {
     // Only Burn framework engine (real model inference)
+    // Note: BurnInferenceEngine currently disabled due to Sync trait issues with Burn's Embedding
+    // TODO: Wrap in Arc<Mutex> or use alternative approach for thread safety
+    /*
     #[cfg(feature = "burn-cpu")]
     {
-        info!("Creating Hello World Burn framework SmolLM3 inference engine");
-        let mut engine = HelloWorldBurnEngine::new();
+        info!("Creating Burn framework SmolLM3 inference engine");
+        let mut engine = BurnInferenceEngine::new();
         engine.initialize(config, "./models").await?;
         return Ok(Arc::new(RwLock::new(engine)));
     }
+    */
 
     // No engine available - no fallback, only real inference
-    #[cfg(not(feature = "burn-cpu"))]
+    // Currently all engines disabled due to implementation issues
     Err(VLLMError::InvalidArgument(
-        "No inference engine available. Enable burn-cpu feature for real model inference"
+        "No inference engine available. BurnInferenceEngine temporarily disabled due to Sync trait issues"
             .to_string(),
     ))
 }

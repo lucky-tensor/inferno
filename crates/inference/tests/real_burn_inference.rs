@@ -1,13 +1,16 @@
-use std::path::PathBuf;
-use std::error::Error;
 use burn::{
     backend::ndarray::NdArray,
-    tensor::{Tensor, Int, TensorData, activation::{softmax, silu}},
-    nn::{Linear, LinearConfig, Embedding, EmbeddingConfig, LayerNorm, LayerNormConfig},
     module::Module,
+    nn::{Embedding, EmbeddingConfig, LayerNorm, LayerNormConfig, Linear, LinearConfig},
     record::{FullPrecisionSettings, Recorder},
+    tensor::{
+        activation::{silu, softmax},
+        Int, Tensor, TensorData,
+    },
 };
-use burn_import::safetensors::{SafetensorsFileRecorder, LoadArgs};
+use burn_import::safetensors::{LoadArgs, SafetensorsFileRecorder};
+use std::error::Error;
+use std::path::PathBuf;
 use tokenizers::Tokenizer;
 
 type Backend = NdArray<f32>;
@@ -53,7 +56,7 @@ pub struct SmolLM2Attention<B: burn::tensor::backend::Backend> {
 impl<B: burn::tensor::backend::Backend> SmolLM2Attention<B> {
     pub fn new(config: &SmolLM2Config, device: &B::Device) -> Self {
         let head_dim = config.hidden_size / config.num_attention_heads;
-        
+
         Self {
             q_proj: LinearConfig::new(config.hidden_size, config.num_attention_heads * head_dim)
                 .with_bias(false)
@@ -76,47 +79,58 @@ impl<B: burn::tensor::backend::Backend> SmolLM2Attention<B> {
     pub fn forward(&self, hidden_states: Tensor<B, 3>) -> Tensor<B, 3> {
         let batch_size = hidden_states.dims()[0];
         let seq_len = hidden_states.dims()[1];
-        
+
         // Project to Q, K, V
         let query = self.q_proj.forward(hidden_states.clone());
         let key = self.k_proj.forward(hidden_states.clone());
         let value = self.v_proj.forward(hidden_states);
-        
+
         // Reshape for multi-head attention
         let query = query.reshape([batch_size, seq_len, self.num_heads, self.head_dim]);
         let key = key.reshape([batch_size, seq_len, self.num_key_value_heads, self.head_dim]);
         let value = value.reshape([batch_size, seq_len, self.num_key_value_heads, self.head_dim]);
-        
+
         // Transpose for attention computation: [batch, heads, seq_len, head_dim]
         let query = query.swap_dims(1, 2);
         let key = key.swap_dims(1, 2);
         let value = value.swap_dims(1, 2);
-        
+
         // Handle grouped query attention - repeat key and value to match query heads
         let head_groups = self.num_heads / self.num_key_value_heads;
-        let key = key.repeat(&[1, head_groups, 1, 1]).slice([0..batch_size, 0..self.num_heads, 0..seq_len, 0..self.head_dim]);
-        let value = value.repeat(&[1, head_groups, 1, 1]).slice([0..batch_size, 0..self.num_heads, 0..seq_len, 0..self.head_dim]);
-        
+        let key = key.repeat(&[1, head_groups, 1, 1]).slice([
+            0..batch_size,
+            0..self.num_heads,
+            0..seq_len,
+            0..self.head_dim,
+        ]);
+        let value = value.repeat(&[1, head_groups, 1, 1]).slice([
+            0..batch_size,
+            0..self.num_heads,
+            0..seq_len,
+            0..self.head_dim,
+        ]);
+
         // Simplified attention (no RoPE for now)
         let scale = (self.head_dim as f32).sqrt();
         let scores = query.matmul(key.transpose()) / scale;
-        
+
         // Apply causal mask (upper triangular)
         let causal_mask = self.create_causal_mask(seq_len, &scores.device());
         let masked_scores = scores + causal_mask;
-        
+
         // Softmax and attend
         let attention_weights = softmax(masked_scores, 3); // Last dimension
         let attention_output = attention_weights.matmul(value);
-        
+
         // Transpose back and reshape
         let attention_output = attention_output.swap_dims(1, 2);
-        let attention_output = attention_output.reshape([batch_size, seq_len, self.num_heads * self.head_dim]);
-        
+        let attention_output =
+            attention_output.reshape([batch_size, seq_len, self.num_heads * self.head_dim]);
+
         // Final projection
         self.o_proj.forward(attention_output)
     }
-    
+
     fn create_causal_mask(&self, seq_len: usize, device: &B::Device) -> Tensor<B, 4> {
         // Create upper triangular mask filled with -inf
         let mut mask_data = Vec::with_capacity(seq_len * seq_len);
@@ -129,7 +143,7 @@ impl<B: burn::tensor::backend::Backend> SmolLM2Attention<B> {
                 }
             }
         }
-        
+
         let tensor_data = TensorData::new(mask_data, [1, 1, seq_len, seq_len]);
         Tensor::from_data(tensor_data, device)
     }
@@ -160,11 +174,11 @@ impl<B: burn::tensor::backend::Backend> SmolLM2MLP<B> {
     pub fn forward(&self, hidden_states: Tensor<B, 3>) -> Tensor<B, 3> {
         let gate = self.gate_proj.forward(hidden_states.clone());
         let up = self.up_proj.forward(hidden_states);
-        
+
         // SiLU activation: x * sigmoid(x)
         let gate_activated = silu(gate);
         let intermediate = gate_activated * up;
-        
+
         self.down_proj.forward(intermediate)
     }
 }
@@ -192,7 +206,7 @@ impl<B: burn::tensor::backend::Backend> SmolLM2Layer<B> {
         let normed = self.input_layernorm.forward(hidden_states.clone());
         let attention_output = self.self_attn.forward(normed);
         let hidden_states = hidden_states + attention_output;
-        
+
         // Pre-norm MLP
         let normed = self.post_attention_layernorm.forward(hidden_states.clone());
         let mlp_output = self.mlp.forward(normed);
@@ -234,15 +248,15 @@ impl<B: burn::tensor::backend::Backend> SmolLM2Model<B> {
 
     pub fn forward(&self, input_ids: Tensor<B, 2, Int>) -> Tensor<B, 3> {
         let mut hidden_states = self.embed_tokens.forward(input_ids);
-        
+
         // Pass through transformer layers
         for layer in &self.layers {
             hidden_states = layer.forward(hidden_states);
         }
-        
+
         // Final layer norm
         hidden_states = self.norm.forward(hidden_states);
-        
+
         // Language modeling head
         self.lm_head.forward(hidden_states)
     }
@@ -251,20 +265,20 @@ impl<B: burn::tensor::backend::Backend> SmolLM2Model<B> {
 #[tokio::test]
 async fn test_weight_loading_only() -> Result<(), Box<dyn Error>> {
     println!("🚀 Testing weight loading for SmolLM2 model");
-    
+
     let device = burn::backend::ndarray::NdArrayDevice::default();
     let config = SmolLM2Config::default();
-    
+
     // Create a smaller model for testing weight loading
     let mut small_config = config.clone();
-    small_config.num_hidden_layers = 2;  // Much smaller for testing
-    let mut model = SmolLM2Model::<Backend>::new(small_config, &device);
+    small_config.num_hidden_layers = 2; // Much smaller for testing
+    let _model = SmolLM2Model::<Backend>::new(small_config, &device);
     println!("✅ Created small SmolLM2 model structure (2 layers)");
-    
+
     // Test weight loading
     let model_path = PathBuf::from("../../models/smollm2-135m");
     let weights_path = model_path.join("model.safetensors");
-    
+
     match std::fs::metadata(&weights_path) {
         Ok(_) => {
             println!("📁 Found SafeTensors file: {:?}", weights_path);
@@ -274,25 +288,25 @@ async fn test_weight_loading_only() -> Result<(), Box<dyn Error>> {
             println!("⚠️  SafeTensors file not found");
         }
     }
-    
+
     Ok(())
 }
 
 #[tokio::test]
 async fn test_real_smollm2_inference() -> Result<(), Box<dyn Error>> {
     println!("🚀 Testing REAL SmolLM2 inference with actual pre-trained weights");
-    
+
     let device = burn::backend::ndarray::NdArrayDevice::default();
     let config = SmolLM2Config::default();
-    
+
     // Create model structure
     let mut model = SmolLM2Model::<Backend>::new(config, &device);
     println!("✅ Created SmolLM2 model structure");
-    
+
     // Load actual weights using burn-import
     let model_path = PathBuf::from("../../models/smollm2-135m");
     let weights_path = model_path.join("model.safetensors");
-    
+
     match std::fs::metadata(&weights_path) {
         Ok(_) => {
             println!("📁 Loading actual SmolLM2 weights from: {:?}", weights_path);
@@ -311,150 +325,225 @@ async fn test_real_smollm2_inference() -> Result<(), Box<dyn Error>> {
             println!("⚠️  SafeTensors file not found, using random weights for demo");
         }
     }
-    
+
     // Load tokenizer
     let model_path = PathBuf::from("../../models/smollm2-135m");
     let tokenizer_path = model_path.join("tokenizer.json");
-    let tokenizer = Tokenizer::from_file(tokenizer_path).map_err(|e| format!("Tokenizer error: {}", e))?;
+    let tokenizer =
+        Tokenizer::from_file(tokenizer_path).map_err(|e| format!("Tokenizer error: {}", e))?;
     println!("✅ Loaded tokenizer");
-    
+
     // Test prompt
     let prompt = "Which planet is referred to as the blue dot?";
-    let encoding = tokenizer.encode(prompt, false).map_err(|e| format!("Encoding error: {}", e))?;
+    let encoding = tokenizer
+        .encode(prompt, false)
+        .map_err(|e| format!("Encoding error: {}", e))?;
     let token_ids: Vec<i64> = encoding.get_ids().iter().map(|&x| x as i64).collect();
-    println!("✅ Tokenized: '{}' -> first 5 tokens: {:?}", prompt, &token_ids[..5.min(token_ids.len())]);
-    
+    println!(
+        "✅ Tokenized: '{}' -> first 5 tokens: {:?}",
+        prompt,
+        &token_ids[..5.min(token_ids.len())]
+    );
+
     // Create input tensor
     let seq_len = token_ids.len();
     let tensor_data = TensorData::new(token_ids, [1, seq_len]);
     let input_tensor = Tensor::<Backend, 2, Int>::from_data(tensor_data, &device);
     println!("✅ Input tensor: {:?}", input_tensor.dims());
-    
+
     // Forward pass through the REAL model structure
     let logits = model.forward(input_tensor);
-    println!("✅ Forward pass through {} transformer layers: {:?}", model.layers.len(), logits.dims());
-    
+    println!(
+        "✅ Forward pass through {} transformer layers: {:?}",
+        model.layers.len(),
+        logits.dims()
+    );
+
     // Generate next token
-    let last_token_logits = logits.clone().slice([0..1, seq_len-1..seq_len, 0..49152]);
+    let last_token_logits = logits.clone().slice([0..1, seq_len - 1..seq_len, 0..49152]);
     let last_token_logits = last_token_logits.squeeze::<2>(1);
-    
+
     let probs = softmax(last_token_logits, 1);
     let next_token = probs.argmax(1);
-    
+
     // Extract token ID
     let token_data = next_token.to_data();
     let next_token_id = if token_data.bytes.len() >= 4 {
-        u32::from_ne_bytes([token_data.bytes[0], token_data.bytes[1], token_data.bytes[2], token_data.bytes[3]])
+        u32::from_ne_bytes([
+            token_data.bytes[0],
+            token_data.bytes[1],
+            token_data.bytes[2],
+            token_data.bytes[3],
+        ])
     } else {
         0
     };
-    
+
     println!("🎯 Generated next token ID: {}", next_token_id);
-    
+
     // Try to decode
     let mut full_sequence = encoding.get_ids().to_vec();
     full_sequence.push(next_token_id);
-    let generated = tokenizer.decode(&full_sequence, false).map_err(|e| format!("Decode error: {}", e))?;
+    let generated = tokenizer
+        .decode(&full_sequence, false)
+        .map_err(|e| format!("Decode error: {}", e))?;
     println!("🎯 Generated text: '{}'", generated);
-    
+
     let config = model.config();
     println!("\n📊 Architecture verification:");
-    println!("✅ Embedding layer: {} vocab -> {} hidden", config.vocab_size, config.hidden_size);
+    println!(
+        "✅ Embedding layer: {} vocab -> {} hidden",
+        config.vocab_size, config.hidden_size
+    );
     println!("✅ Transformer layers: {}", model.layers.len());
     println!("✅ Attention heads: {}", config.num_attention_heads);
     println!("✅ Hidden size: {}", config.hidden_size);
-    println!("✅ LM head: {} hidden -> {} vocab", config.hidden_size, config.vocab_size);
-    
-    println!("\n⚠️  Next step: Implement actual weight loading from SafeTensors to get real inference!");
-    
+    println!(
+        "✅ LM head: {} hidden -> {} vocab",
+        config.hidden_size, config.vocab_size
+    );
+
+    println!(
+        "\n⚠️  Next step: Implement actual weight loading from SafeTensors to get real inference!"
+    );
+
     Ok(())
 }
 
 #[tokio::test]
 async fn test_complete_inference_architecture() -> Result<(), Box<dyn Error>> {
     println!("🚀 Testing COMPLETE SmolLM2 inference architecture with real tokenizer");
-    
+
     let device = burn::backend::ndarray::NdArrayDevice::default();
-    let mut config = SmolLM2Config::default();
-    config.num_hidden_layers = 2;  // Smaller for demo performance
-    
+    let config = SmolLM2Config {
+        num_hidden_layers: 2, // Smaller for demo performance
+        ..Default::default()
+    };
+
     // Create model (with random weights for demo)
     let model = SmolLM2Model::<Backend>::new(config.clone(), &device);
-    println!("✅ Created SmolLM2 architecture: {} layers, {} heads", config.num_hidden_layers, config.num_attention_heads);
-    
+    println!(
+        "✅ Created SmolLM2 architecture: {} layers, {} heads",
+        config.num_hidden_layers, config.num_attention_heads
+    );
+
     // Load REAL tokenizer (same as what would be used with real weights)
     let model_path = PathBuf::from("../../models/smollm2-135m");
     let tokenizer_path = model_path.join("tokenizer.json");
-    let tokenizer = Tokenizer::from_file(tokenizer_path).map_err(|e| format!("Tokenizer error: {}", e))?;
+    let tokenizer =
+        Tokenizer::from_file(tokenizer_path).map_err(|e| format!("Tokenizer error: {}", e))?;
     println!("✅ Loaded REAL SmolLM2 tokenizer");
-    
+
     // Test with real English question
     let prompt = "Which planet is referred to as the blue dot?";
-    let encoding = tokenizer.encode(prompt, false).map_err(|e| format!("Encoding error: {}", e))?;
+    let encoding = tokenizer
+        .encode(prompt, false)
+        .map_err(|e| format!("Encoding error: {}", e))?;
     let token_ids: Vec<i64> = encoding.get_ids().iter().map(|&x| x as i64).collect();
-    println!("✅ Real tokenization: '{}' -> {} tokens: {:?}", prompt, token_ids.len(), &token_ids[..5.min(token_ids.len())]);
-    
+    println!(
+        "✅ Real tokenization: '{}' -> {} tokens: {:?}",
+        prompt,
+        token_ids.len(),
+        &token_ids[..5.min(token_ids.len())]
+    );
+
     // Create input tensor
     let tensor_data = TensorData::new(token_ids.clone(), [1, token_ids.len()]);
     let input_tensor = Tensor::<Backend, 2, Int>::from_data(tensor_data, &device);
-    
+
     // Forward pass through COMPLETE architecture
     let start = std::time::Instant::now();
     let logits = model.forward(input_tensor);
     let duration = start.elapsed();
-    println!("✅ Complete forward pass: {:?} -> {:?} in {:.2}ms", [1, token_ids.len()], logits.dims(), duration.as_millis());
-    
+    println!(
+        "✅ Complete forward pass: {:?} -> {:?} in {:.2}ms",
+        [1, token_ids.len()],
+        logits.dims(),
+        duration.as_millis()
+    );
+
     // Generate next token with real sampling
-    let last_token_logits = logits.clone().slice([0..1, token_ids.len()-1..token_ids.len(), 0..config.vocab_size]);
+    let last_token_logits = logits.clone().slice([
+        0..1,
+        token_ids.len() - 1..token_ids.len(),
+        0..config.vocab_size,
+    ]);
     let last_token_logits = last_token_logits.squeeze::<2>(1);
-    
+
     let probs = softmax(last_token_logits, 1);
     let next_token = probs.argmax(1);
-    
+
     let token_data = next_token.to_data();
     let next_token_id = if token_data.bytes.len() >= 4 {
-        u32::from_ne_bytes([token_data.bytes[0], token_data.bytes[1], token_data.bytes[2], token_data.bytes[3]])
-    } else { 42 };
-    
+        u32::from_ne_bytes([
+            token_data.bytes[0],
+            token_data.bytes[1],
+            token_data.bytes[2],
+            token_data.bytes[3],
+        ])
+    } else {
+        42
+    };
+
     // Decode result
     let mut full_sequence = encoding.get_ids().to_vec();
     full_sequence.push(next_token_id);
-    let generated = tokenizer.decode(&full_sequence, false).map_err(|e| format!("Decode error: {}", e))?;
-    
+    let generated = tokenizer
+        .decode(&full_sequence, false)
+        .map_err(|e| format!("Decode error: {}", e))?;
+
     println!("🎯 Generated: '{}'", generated);
     println!("📊 INFERENCE COMPLETE - Full SmolLM2 architecture working!");
-    println!("✅ Components verified: Embedding → {} Attention Layers → LayerNorm → LM Head", config.num_hidden_layers);
+    println!(
+        "✅ Components verified: Embedding → {} Attention Layers → LayerNorm → LM Head",
+        config.num_hidden_layers
+    );
     println!("✅ Features implemented: Grouped Query Attention, SiLU MLP, Causal Masking");
     println!("✅ Weight loading infrastructure: SafeTensorsFileRecorder ready for real weights");
-    
-    assert!(generated.contains(prompt), "Generated text should contain the original prompt");
+
+    assert!(
+        generated.contains(prompt),
+        "Generated text should contain the original prompt"
+    );
     assert!(!generated.is_empty(), "Should generate non-empty text");
-    
+
     Ok(())
 }
 
 #[tokio::test]
 async fn test_model_components() -> Result<(), Box<dyn Error>> {
     println!("🔍 Testing individual SmolLM2 components");
-    
+
     let device = burn::backend::ndarray::NdArrayDevice::default();
     let config = SmolLM2Config::default();
-    
+
     // Test attention
     let attention = SmolLM2Attention::<Backend>::new(&config, &device);
     let dummy_hidden = Tensor::<Backend, 3>::zeros([1, 10, config.hidden_size], &device);
     let attn_output = attention.forward(dummy_hidden.clone());
-    println!("✅ Attention: {:?} -> {:?}", dummy_hidden.dims(), attn_output.dims());
-    
+    println!(
+        "✅ Attention: {:?} -> {:?}",
+        dummy_hidden.dims(),
+        attn_output.dims()
+    );
+
     // Test MLP
     let mlp = SmolLM2MLP::<Backend>::new(&config, &device);
     let mlp_output = mlp.forward(dummy_hidden.clone());
-    println!("✅ MLP: {:?} -> {:?}", dummy_hidden.dims(), mlp_output.dims());
-    
+    println!(
+        "✅ MLP: {:?} -> {:?}",
+        dummy_hidden.dims(),
+        mlp_output.dims()
+    );
+
     // Test full layer
     let layer = SmolLM2Layer::<Backend>::new(&config, &device);
     let layer_output = layer.forward(dummy_hidden.clone());
-    println!("✅ Transformer layer: {:?} -> {:?}", dummy_hidden.dims(), layer_output.dims());
-    
+    println!(
+        "✅ Transformer layer: {:?} -> {:?}",
+        dummy_hidden.dims(),
+        layer_output.dims()
+    );
+
     Ok(())
 }

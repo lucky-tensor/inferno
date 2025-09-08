@@ -88,7 +88,7 @@ pub use inference::{
 };
 
 #[cfg(feature = "burn-cpu")]
-pub use inference::HelloWorldBurnEngine;
+pub use inference::BurnInferenceEngine;
 
 pub use server::VLLMServer;
 pub use service::VLLMServiceRegistration;

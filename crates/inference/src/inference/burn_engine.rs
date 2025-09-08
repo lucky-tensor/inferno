@@ -6,7 +6,7 @@
 //! Burn is our primary ML inference framework, supporting CPU/CUDA/ROCm/Metal/WebGPU
 //! with unified tensor operations and custom kernel development via `CubeCL`.
 
-use super::{EngineStats, InferenceEngine, InferenceRequest, InferenceResponse};
+use super::{EngineStats, InferenceRequest, InferenceResponse};
 use crate::config::VLLMConfig;
 use crate::error::{VLLMError, VLLMResult};
 use std::path::{Path, PathBuf};
@@ -16,10 +16,10 @@ use tracing::{debug, info, warn};
 // Real Burn framework imports for SmolLM3 inference
 #[cfg(feature = "burn-cpu")]
 use burn::{
-    backend::{ndarray::NdArray, Autodiff},
+    backend::ndarray::NdArray,
     module::Module,
     nn::{Linear, Embedding},
-    tensor::{Tensor, Device, Data, Int},
+    tensor::{Tensor, Device, TensorData, Int},
 };
 
 #[cfg(feature = "burn-cpu")]
@@ -35,13 +35,18 @@ use serde_json::Value;
 #[cfg(feature = "burn-cpu")]
 type Backend = NdArray<f32>;
 
-/// SmolLM3 model configuration
+/// `SmolLM3` model configuration
 #[derive(Debug, Clone)]
 pub struct SmolLM3Config {
+    /// Vocabulary size of the model
     pub vocab_size: usize,
+    /// Hidden dimension size
     pub hidden_size: usize,
+    /// Number of transformer layers
     pub num_layers: usize,
+    /// Number of attention heads
     pub num_attention_heads: usize,
+    /// Maximum sequence length
     pub max_position_embeddings: usize,
 }
 
@@ -58,22 +63,23 @@ impl Default for SmolLM3Config {
     }
 }
 
-/// Simplified SmolLM3 model for Burn framework  
+/// Simplified `SmolLM3` model for Burn framework  
 #[cfg(feature = "burn-cpu")]
 #[derive(Module, Debug)]
 pub struct SmolLM3Model<B: burn::tensor::backend::Backend> {
+    /// Token embedding layer
     pub embedding: Embedding<B>,
+    /// Stack of transformer layers
     pub layers: Vec<SmolLM3Layer<B>>,
+    /// Final layer normalization
     pub final_layer_norm: burn::nn::LayerNorm<B>,
+    /// Language modeling head for output projection
     pub lm_head: Linear<B>,
-    // Don't derive Module for config since it's just metadata
-    #[module(ignored)]
-    pub config: SmolLM3Config,
 }
 
 #[cfg(feature = "burn-cpu")]
 impl<B: burn::tensor::backend::Backend> SmolLM3Model<B> {
-    /// Forward pass through the SmolLM3 model
+    /// Forward pass through the `SmolLM3` model
     pub fn forward(&self, input_ids: Tensor<B, 2, Int>) -> Tensor<B, 3> {
         let [_batch_size, _seq_len] = input_ids.dims();
         
@@ -89,9 +95,9 @@ impl<B: burn::tensor::backend::Backend> SmolLM3Model<B> {
         hidden_states = self.final_layer_norm.forward(hidden_states);
         
         // Language model head
-        let logits = self.lm_head.forward(hidden_states);
         
-        logits
+        
+        self.lm_head.forward(hidden_states)
     }
 }
 
@@ -99,9 +105,13 @@ impl<B: burn::tensor::backend::Backend> SmolLM3Model<B> {
 #[cfg(feature = "burn-cpu")]
 #[derive(Module, Debug)]
 pub struct SmolLM3Layer<B: burn::tensor::backend::Backend> {
+    /// Self-attention mechanism
     pub self_attention: SmolLM3Attention<B>,
+    /// Feed-forward network
     pub feed_forward: SmolLM3FeedForward<B>,
+    /// Layer normalization before self-attention
     pub input_layernorm: burn::nn::LayerNorm<B>,
+    /// Layer normalization after self-attention
     pub post_attention_layernorm: burn::nn::LayerNorm<B>,
 }
 
@@ -119,9 +129,9 @@ impl<B: burn::tensor::backend::Backend> SmolLM3Layer<B> {
         // Feed forward with residual connection
         let normed_hidden_states = self.post_attention_layernorm.forward(hidden_states.clone());
         let ff_output = self.feed_forward.forward(normed_hidden_states);
-        let hidden_states = hidden_states + ff_output;
         
-        hidden_states
+        
+        hidden_states + ff_output
     }
 }
 
@@ -129,10 +139,15 @@ impl<B: burn::tensor::backend::Backend> SmolLM3Layer<B> {
 #[cfg(feature = "burn-cpu")]
 #[derive(Module, Debug)]
 pub struct SmolLM3Attention<B: burn::tensor::backend::Backend> {
+    /// Query projection
     pub query: Linear<B>,
+    /// Key projection
     pub key: Linear<B>,
+    /// Value projection
     pub value: Linear<B>,
+    /// Output projection
     pub output: Linear<B>,
+    /// Number of attention heads
     pub num_heads: usize,
 }
 
@@ -158,8 +173,11 @@ impl<B: burn::tensor::backend::Backend> SmolLM3Attention<B> {
 #[cfg(feature = "burn-cpu")]
 #[derive(Module, Debug)]
 pub struct SmolLM3FeedForward<B: burn::tensor::backend::Backend> {
+    /// Gate projection for gating mechanism
     pub gate_proj: Linear<B>,
+    /// Up projection for expanding dimensions
     pub up_proj: Linear<B>,
+    /// Down projection for reducing dimensions
     pub down_proj: Linear<B>,
 }
 
@@ -192,7 +210,7 @@ pub struct BurnInferenceEngine {
     stats: EngineStats,
     /// Model files path
     model_path: Option<PathBuf>,
-    /// Loaded SmolLM3 model
+    /// Loaded `SmolLM3` model
     #[cfg(feature = "burn-cpu")]
     model: Option<SmolLM3Model<Backend>>,
     /// Tokenizer for text processing
@@ -238,7 +256,7 @@ impl BurnInferenceEngine {
             total_inference_time: 0.0,
             backend_type: BurnBackendType::Cpu,
             #[cfg(feature = "burn-cpu")]
-            device: Device::default(),
+            device: Device::<Backend>::default(),
         }
     }
 
@@ -258,7 +276,7 @@ impl BurnInferenceEngine {
             total_inference_time: 0.0,
             backend_type,
             #[cfg(feature = "burn-cpu")]
-            device: Device::default(),
+            device: Device::<Backend>::default(),
         }
     }
 
@@ -405,7 +423,7 @@ impl BurnInferenceEngine {
 
         // Initialize SmolLM3 model with default config
         let model_config = SmolLM3Config::default();
-        let model = self.create_smollm3_model(&model_config)?;
+        let model = self.create_smollm3_model(&model_config);
         self.model = Some(model);
 
         self.model_path = Some(model_dir);
@@ -424,9 +442,9 @@ impl BurnInferenceEngine {
         ))
     }
 
-    /// Create SmolLM3 model with Burn framework
+    /// Create `SmolLM3` model with Burn framework
     #[cfg(feature = "burn-cpu")]
-    fn create_smollm3_model(&self, config: &SmolLM3Config) -> VLLMResult<SmolLM3Model<Backend>> {
+    fn create_smollm3_model(&self, config: &SmolLM3Config) -> SmolLM3Model<Backend> {
         info!("Creating SmolLM3 model with Burn framework...");
         
         // Create embedding layer
@@ -476,11 +494,10 @@ impl BurnInferenceEngine {
             layers,
             final_layer_norm,
             lm_head,
-            config: config.clone(),
         };
 
         info!("Successfully created SmolLM3 model");
-        Ok(model)
+        model
     }
 
     #[cfg(not(feature = "burn-cpu"))]
@@ -490,7 +507,7 @@ impl BurnInferenceEngine {
 
     /// Perform real inference using Burn framework
     #[cfg(feature = "burn-cpu")]
-    fn burn_framework_inference(&self, prompt: &str, max_tokens: usize) -> VLLMResult<String> {
+    fn burn_framework_inference(&self, prompt: &str, _max_tokens: usize) -> VLLMResult<String> {
         let tokenizer = self.tokenizer.as_ref().ok_or_else(|| {
             VLLMError::InitializationFailed("Tokenizer not loaded".to_string())
         })?;
@@ -504,7 +521,7 @@ impl BurnInferenceEngine {
             VLLMError::ModelLoadFailed(format!("Tokenization failed: {}", e))
         })?;
 
-        let input_ids: Vec<i64> = encoding.get_ids().iter().map(|&x| x as i64).collect();
+        let input_ids: Vec<i64> = encoding.get_ids().iter().map(|&x| i64::from(x)).collect();
         let seq_len = input_ids.len();
         
         debug!(
@@ -513,9 +530,10 @@ impl BurnInferenceEngine {
         );
 
         // Convert to Burn tensor [1, seq_len] (batch_size=1)
-        let input_data: Vec<Vec<i64>> = vec![input_ids];
+        let input_data = input_ids.into_iter().collect::<Vec<_>>();
+        let tensor_data = TensorData::new(input_data, [1, encoding.len()]);
         let input_tensor = Tensor::<Backend, 2, Int>::from_data(
-            Data::from(input_data.as_slice()),
+            tensor_data,
             &self.device,
         );
 
@@ -523,15 +541,17 @@ impl BurnInferenceEngine {
         let logits = model.forward(input_tensor); // Shape: [1, seq_len, vocab_size]
         
         // Get logits for the last token position for next token prediction
-        let [batch_size, _seq_len, vocab_size] = logits.dims();
+        let [_batch_size, _seq_len, vocab_size] = logits.dims();
         let last_token_logits = logits.slice([0..1, seq_len - 1..seq_len, 0..vocab_size]);
         
         // Simple greedy sampling: take argmax
         // In a real implementation, we'd implement temperature, top-k, top-p sampling
         let next_token_id = last_token_logits
-            .squeeze(1)  // Remove seq_len dimension: [1, vocab_size]
+            .squeeze::<2>(1)  // Remove seq_len dimension: [1, vocab_size]
             .argmax(1)   // Get index of max logit: [1]
-            .into_scalar() as u32;
+            .into_scalar()
+            .try_into()
+            .unwrap_or(0u32);
 
         // For this "hello world" implementation, let's generate just one token
         // and decode it along with the original input
@@ -566,9 +586,14 @@ impl Default for BurnInferenceEngine {
     }
 }
 
-#[async_trait::async_trait]
-impl InferenceEngine for BurnInferenceEngine {
-    async fn initialize(&mut self, config: &VLLMConfig, models_dir: &str) -> VLLMResult<()> {
+// Note: Commenting out InferenceEngine impl due to Sync trait issues with Burn's Embedding layer
+// The Burn framework's Embedding uses OnceCell internally which is not Sync
+// TODO: Wrap in Arc<Mutex> or use alternative approach for thread safety
+
+// Temporary: Implement methods directly on BurnInferenceEngine without the trait
+impl BurnInferenceEngine {
+    /// Initialize the Burn inference engine with a model
+    pub async fn initialize(&mut self, config: &VLLMConfig, models_dir: &str) -> VLLMResult<()> {
         info!("Initializing Burn inference engine");
 
         if self.initialized {
@@ -595,11 +620,13 @@ impl InferenceEngine for BurnInferenceEngine {
         Ok(())
     }
 
-    fn is_ready(&self) -> bool {
+    /// Check if the engine is ready for inference
+    pub fn is_ready(&self) -> bool {
         self.initialized && self.model_ready && self.stats.model_loaded
     }
 
-    async fn infer(&self, request: InferenceRequest) -> VLLMResult<InferenceResponse> {
+    /// Perform inference on a request
+    pub fn infer(&self, request: InferenceRequest) -> VLLMResult<InferenceResponse> {
         if !self.is_ready() {
             return Err(VLLMError::InitializationFailed(
                 "Engine not initialized or model not loaded".to_string(),
@@ -635,7 +662,8 @@ impl InferenceEngine for BurnInferenceEngine {
         })
     }
 
-    async fn get_stats(&self) -> EngineStats {
+    /// Get engine statistics
+    pub fn get_stats(&self) -> EngineStats {
         let mut stats = self.stats.clone();
         stats.total_requests = self.request_count;
         stats.avg_inference_time_ms = if self.request_count > 0 {
@@ -649,7 +677,8 @@ impl InferenceEngine for BurnInferenceEngine {
         stats
     }
 
-    async fn shutdown(&mut self) -> VLLMResult<()> {
+    /// Shutdown the engine and release resources
+    pub fn shutdown(&mut self) -> VLLMResult<()> {
         info!("Shutting down Burn inference engine");
 
         self.initialized = false;
@@ -674,7 +703,7 @@ mod tests {
     use super::*;
     use crate::config::VLLMConfig;
 
-    /// Test that requires REAL SmolLM3 model download and Burn framework inference
+    /// Test that requires REAL `SmolLM3` model download and Burn framework inference
     #[tokio::test]
     #[ignore = "downloads real 270MB SmolLM3 model - run with --ignored to test Burn framework"]
     async fn test_burn_framework_smollm3_download_and_inference() {
@@ -708,7 +737,7 @@ mod tests {
             init_time.as_secs_f64()
         );
 
-        let stats = engine.get_stats().await;
+        let stats = engine.get_stats();
         assert!(stats.model_loaded, "SmolLM3 model should be marked as loaded");
         assert!(
             stats.memory_usage_bytes > 200_000_000,
@@ -726,7 +755,7 @@ mod tests {
             seed: Some(42),
         };
 
-        let response = engine.infer(request).await;
+        let response = engine.infer(request);
         assert!(response.is_ok(), "SmolLM3 Burn framework inference should succeed");
 
         let response = response.unwrap();
