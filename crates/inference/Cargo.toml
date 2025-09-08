@@ -51,7 +51,6 @@ safetensors = { workspace = true, optional = true }
 # half removed - not used in current implementation
 
 [build-dependencies]
-burn-import = { workspace = true, optional = true }
 reqwest = { version = "0.11", features = ["blocking"] }
 
 [dev-dependencies]
@@ -74,7 +73,6 @@ burn-cpu = [
 ]  # Real deterministic SmolLM2 model inference with SafeTensors support
 burn-cuda = [
     "burn",
-    "burn-import",
     "tokenizers",
     "hf-hub"
 ]  # Same as CPU for now (future acceleration)
