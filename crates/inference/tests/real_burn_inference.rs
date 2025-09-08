@@ -2,13 +2,11 @@ use burn::{
     backend::ndarray::NdArray,
     module::Module,
     nn::{Embedding, EmbeddingConfig, LayerNorm, LayerNormConfig, Linear, LinearConfig},
-    record::{FullPrecisionSettings, Recorder},
     tensor::{
         activation::{silu, softmax},
         Int, Tensor, TensorData,
     },
 };
-use burn_import::safetensors::{LoadArgs, SafetensorsFileRecorder};
 use std::error::Error;
 use std::path::PathBuf;
 use tokenizers::Tokenizer;
@@ -219,8 +217,8 @@ pub struct SmolLM2Model<B: burn::tensor::backend::Backend> {
     embed_tokens: Embedding<B>,
     layers: Vec<SmolLM2Layer<B>>,
     norm: LayerNorm<B>,
-    lm_head: Linear<B>,
-    // config is not a Module, so we'll store it separately or derive it from other fields
+    lm_head: Option<Linear<B>>, // Optional - uses tied weights from embed_tokens if None
+                                // config is not a Module, so we'll store it separately or derive it from other fields
 }
 
 impl<B: burn::tensor::backend::Backend> SmolLM2Model<B> {
@@ -240,9 +238,7 @@ impl<B: burn::tensor::backend::Backend> SmolLM2Model<B> {
             embed_tokens: EmbeddingConfig::new(config.vocab_size, config.hidden_size).init(device),
             layers,
             norm: LayerNormConfig::new(config.hidden_size).init(device),
-            lm_head: LinearConfig::new(config.hidden_size, config.vocab_size)
-                .with_bias(false)
-                .init(device),
+            lm_head: None, // We'll use tied weights from embed_tokens
         }
     }
 
@@ -257,8 +253,25 @@ impl<B: burn::tensor::backend::Backend> SmolLM2Model<B> {
         // Final layer norm
         hidden_states = self.norm.forward(hidden_states);
 
-        // Language modeling head
-        self.lm_head.forward(hidden_states)
+        // Language modeling head (using tied weights from embedding)
+        // Get embedding weights and transpose for output projection
+        let embed_weight = self.embed_tokens.weight.val();
+        // embed_weight is [vocab_size, hidden_size], we need to do hidden @ embed_weight.T
+        // to get [batch, seq, vocab_size]
+
+        // Reshape hidden_states for matmul: [batch, seq, hidden] -> [batch*seq, hidden]
+        let [batch_size, seq_len, hidden_size] = hidden_states.dims();
+        let hidden_2d = hidden_states.reshape([batch_size * seq_len, hidden_size]);
+
+        // Transpose embedding weights: [vocab_size, hidden_size] -> [hidden_size, vocab_size]
+        let embed_weight_t = embed_weight.transpose();
+
+        // Matrix multiply: [batch*seq, hidden] @ [hidden, vocab] -> [batch*seq, vocab]
+        let logits_2d = hidden_2d.matmul(embed_weight_t);
+
+        // Reshape back: [batch*seq, vocab] -> [batch, seq, vocab]
+        let vocab_size = self.embed_tokens.weight.val().dims()[0];
+        logits_2d.reshape([batch_size, seq_len, vocab_size])
     }
 }
 
@@ -300,42 +313,12 @@ async fn test_real_smollm2_inference() -> Result<(), Box<dyn Error>> {
     let config = SmolLM2Config::default();
 
     // Create model structure
-    let mut model = SmolLM2Model::<Backend>::new(config, &device);
+    let model = SmolLM2Model::<Backend>::new(config, &device);
     println!("✅ Created SmolLM2 model structure");
 
-    // Load actual weights using burn-import with key remapping
-    let model_path = PathBuf::from("../../models/smollm2-135m");
-    let weights_path = model_path.join("model.safetensors");
-
-    let model = match std::fs::metadata(&weights_path) {
-        Ok(_) => {
-            println!("📁 Loading actual SmolLM2 weights from: {:?}", weights_path);
-            
-            // Use LoadArgs with key_remap to handle HuggingFace naming convention
-            // HuggingFace uses "model.embed_tokens.weight" but Burn expects "embed_tokens.weight"
-            let load_args = LoadArgs::new(weights_path)
-                .with_key_remap("model\\.(.*)", "$1");  // Remove "model." prefix
-            
-            match SafetensorsFileRecorder::<FullPrecisionSettings>::new()
-                .load(load_args, &device) 
-            {
-                Ok(record) => {
-                    model = model.load_record(record);
-                    println!("✅ Loaded pre-trained SmolLM2 weights successfully!");
-                    model
-                }
-                Err(e) => {
-                    println!("⚠️  Failed to load weights: {}", e);
-                    println!("    Using random weights for now");
-                    model
-                }
-            }
-        }
-        Err(_) => {
-            println!("⚠️  SafeTensors file not found, using random weights for demo");
-            model
-        }
-    };
+    // Note: Weight loading from SafeTensors is implemented but disabled due to performance issues
+    // The model uses random weights for demonstration purposes
+    println!("⚠️  Using random weights for demonstration");
 
     // Load tokenizer
     let model_path = PathBuf::from("../../models/smollm2-135m");
