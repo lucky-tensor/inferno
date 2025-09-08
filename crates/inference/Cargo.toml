@@ -24,8 +24,7 @@ inferno-shared = { workspace = true }
 
 # Minimal dependencies for real CPU inference
 
-# HTTP client for model downloads
-reqwest = { workspace = true, optional = true }
+# HTTP client removed - only used in build script
 
 # FFI and build dependencies
 
@@ -49,35 +48,31 @@ burn-import = { workspace = true, optional = true }
 tokenizers = { workspace = true, optional = true }
 hf-hub = { workspace = true, optional = true }
 safetensors = { workspace = true, optional = true }
-half = { workspace = true, optional = true }
+# half removed - not used in current implementation
 
 [build-dependencies]
 burn-import = { workspace = true, optional = true }
-reqwest = { version = "0.11", features = ["blocking"], optional = true }
+reqwest = { version = "0.11", features = ["blocking"] }
 
 [dev-dependencies]
 tokio-test = { workspace = true }
 criterion = { workspace = true }
 proptest = { workspace = true }
 serial_test = { workspace = true }
-reqwest = { workspace = true }
 tempfile = { workspace = true }
 rstest = { workspace = true }
 
 [features]
 default = ["burn-cpu"]
 burn-cpu = [
-    "reqwest",
     "burn/ndarray",
     "burn/autodiff",
     "burn-import",
     "tokenizers",
     "hf-hub/tokio",
-    "safetensors",
-    "half"
+    "safetensors"
 ]  # Real deterministic SmolLM2 model inference with SafeTensors support
 burn-cuda = [
-    "reqwest",
     "burn",
     "burn-import",
     "tokenizers",
