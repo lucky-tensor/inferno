@@ -33,6 +33,7 @@ burn = { workspace = true, optional = true }
 tokenizers = { workspace = true, optional = true }
 hf-hub = { workspace = true, optional = true }
 safetensors = { workspace = true, optional = true }
+llama-burn = { workspace = true, optional = true }
 # half removed - not used in current implementation
 
 [build-dependencies]
@@ -53,12 +54,14 @@ burn-cpu = [
     "burn/autodiff",
     "tokenizers",
     "hf-hub/tokio",
-    "safetensors"
-]  # Real deterministic SmolLM2 model inference with SafeTensors support
+    "safetensors",
+    "llama-burn"
+]  # Real deterministic Llama model inference with SafeTensors support
 burn-cuda = [
     "burn",
     "tokenizers",
-    "hf-hub"
+    "hf-hub",
+    "llama-burn"
 ]  # Same as CPU for now (future acceleration)
 cuda = []  # Reserved for future use
 

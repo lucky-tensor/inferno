@@ -1,5 +1,5 @@
 //! Model implementations
 
-pub mod smollm2_loader;
+pub mod llama_loader;
 
-pub use smollm2_loader::load_smollm2_weights;
+pub use llama_loader::load_llama_weights;
