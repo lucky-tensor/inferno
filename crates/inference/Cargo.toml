@@ -20,31 +20,16 @@ chrono = { workspace = true }
 # Local dependencies
 inferno-shared = { workspace = true }
 
-# HTTP server
-
-# Minimal dependencies for real CPU inference
-
-# HTTP client removed - only used in build script
-
-# FFI and build dependencies
-
 # Configuration and environment
 config = { workspace = true }
 toml = { workspace = true }
 num_cpus = { workspace = true }
-
-# Async utilities
-
-# Memory management
-
-# Performance monitoring
 
 # JSON and validation
 validator = { workspace = true }
 
 # Burn ML Framework for real model inference
 burn = { workspace = true, optional = true }
-burn-import = { workspace = true, optional = true }
 tokenizers = { workspace = true, optional = true }
 hf-hub = { workspace = true, optional = true }
 safetensors = { workspace = true, optional = true }
