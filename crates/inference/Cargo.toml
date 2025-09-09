@@ -51,7 +51,6 @@ default = ["burn-cpu"]
 burn-cpu = [
     "burn/ndarray",
     "burn/autodiff",
-    "burn-import",
     "tokenizers",
     "hf-hub/tokio",
     "safetensors"
