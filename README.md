@@ -1,30 +1,12 @@
 
 # Inferno: a self healing cloud for AI inference
 
-An end-to-end Rust LLM micro platform which is request optimized and kernel optimized, inspired by Cloudflare Infire. https://blog.cloudflare.com/cloudflares-most-efficient-ai-inference-engine/
+An end-to-end Rust LLM micro platform which is request optimized and kernel optimized, inspired by Cloudflare Infire. [More about us](./docs/about.md)
 
 [![Build](https://github.com/0o-de-lally/inferno/workflows/Build/badge.svg)](https://github.com/0o-de-lally/inferno/actions/workflows/build.yml)
 [![Test](https://github.com/0o-de-lally/inferno/workflows/Test/badge.svg)](https://github.com/0o-de-lally/inferno/actions/workflows/test.yml)
 [![Benchmark](https://github.com/0o-de-lally/inferno/workflows/Benchmark/badge.svg)](https://github.com/0o-de-lally/inferno/actions/workflows/bench.yml)
 [![Lint](https://github.com/0o-de-lally/inferno/workflows/Lint/badge.svg)](https://github.com/0o-de-lally/inferno/actions/workflows/lint.yml)
-
-
-# History
-We were working on a self-healing cloud for AI inference that could run on bare metal, optimized for batches and kernel fusion, and then Cloudflare published their architecture with a similar name and architecture. We love it. Nothing is a coincidence.
-
-Inferno is a self-healing cloud platform for AI inference, designed for high-performance, reliability, and observability. It demonstrates best practices for distributed systems, with comprehensive testing and robust error recovery for AI workloads.
-
-# Motivation
-The state of the art (Summer 2025) for IT friendly turnkey serving of LLM are VLLM platforms. However to squeeze the most performance per GPU hyperscalers use proprietary kernel and memory optimization (TensorRT for nvidia). Read more in [./docs/state-of-the-art.md].
-
-# Trend
-There are some important trends to consider when picking an LLM stack:
-- Models are getting bigger (they can't fit on a single node or GPU)
-- Models are getting more specialized (you may want to use multiple models)
-- More chip architectures will emerge
-- More data centers will come online
-- Users will demand omni - video, audio, text
-- Other runtimes are catching up to Python in usability had a head start in data analytics
 
 
 ## Features

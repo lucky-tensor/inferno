@@ -65,27 +65,13 @@ The state of the art is a **split solution**:
 
 A future serving stack could unify these worlds: **hardware-optimized like TensorRT-LLM**, **serving-optimized like vLLM**, and importantly, **fully open source**. Until then, deploying LLMs at scale involves tradeoffs between raw GPU efficiency and flexible multi-user serving.
 
-+---------------------------------------------------------------+
-|                       LLM Serving Approaches                 |
-+------------------------+------------------------+-------------+
-| Feature                | TensorRT-LLM + Triton  | vLLM        |
-+------------------------+------------------------+-------------+
-| Open Source?           | Partially OSS          | Fully OSS   |
-|                        | (core runtime closed)  |             |
-+------------------------+------------------------+-------------+
-| Hardware Optimization  | ✅ Fused CUDA kernels  | ⚠️ Minimal |
-|                        | ✅ Quantization FP16/8 |             |
-|                        | ✅ Multi-GPU scaling   |             |
-+------------------------+------------------------+-------------+
-| KV-Cache Handling      | Static per-request     | PagedAttention |
-|                        | Optimized for speed    | Dynamic reuse |
-|                        | Quantized (FP16/INT8) | Token-level batching |
-+------------------------+------------------------+-------------+
-| Batching               | Request-level batching | Token-level batching |
-|                        | Needs Triton or app   | Built-in, dynamic |
-+------------------------+------------------------+-------------+
-| Concurrency            | External (Triton/App) | Built-in high concurrency |
-+------------------------+------------------------+-------------+
-| Best Use Case          | Production, max GPU   | Multi-user LLM APIs |
-|                        | throughput            | Chatbots, SaaS |
-+------------------------+------------------------+-------------+
+## 📊 LLM Serving Comparison
+
+| Feature | TensorRT-LLM + Triton | vLLM |
+|---------|----------------------|------|
+| **Open Source?** | Partially OSS<br/>(core runtime closed) | Fully OSS |
+| **Hardware Optimization** | ✅ Fused CUDA kernels<br/>✅ Quantization FP16/8<br/>✅ Multi-GPU scaling | ⚠️ Minimal |
+| **KV-Cache Handling** | Static per-request<br/>Optimized for speed<br/>Quantized (FP16/INT8) | PagedAttention<br/>Dynamic reuse<br/>Token-level batching |
+| **Batching** | Request-level batching<br/>Needs Triton or app | Token-level batching<br/>Built-in, dynamic |
+| **Concurrency** | External (Triton/App) | Built-in high concurrency |
+| **Best Use Case** | Production, max GPU<br/>throughput | Multi-user LLM APIs<br/>Chatbots, SaaS |
