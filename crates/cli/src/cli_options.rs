@@ -11,6 +11,7 @@ use inferno_governator::GovernatorCliOptions;
 use inferno_proxy::ProxyCliOptions;
 
 use crate::model_downloader;
+use crate::doctor;
 
 /// Inferno - Unified command interface for distributed AI inference platform
 #[derive(Parser, Debug)]
@@ -34,6 +35,35 @@ pub enum Commands {
 
     /// Download models from Hugging Face Hub
     Download(DownloadCliOptions),
+
+    /// Run system diagnostics and check hardware compatibility
+    Doctor(DoctorCliOptions),
+}
+
+/// CLI options for system diagnostics and hardware compatibility checking
+#[derive(Args, Debug)]
+pub struct DoctorCliOptions {
+    /// Model directory to scan for compatibility
+    #[arg(
+        short = 'm',
+        long = "model-dir",
+        value_name = "PATH",
+        default_value = "./models"
+    )]
+    pub model_dir: String,
+
+    /// Enable verbose output with detailed diagnostics
+    #[arg(short = 'v', long = "verbose")]
+    pub verbose: bool,
+
+    /// Output format (table, json, yaml)
+    #[arg(
+        short = 'f',
+        long = "format",
+        value_name = "FORMAT",
+        default_value = "table"
+    )]
+    pub format: String,
 }
 
 /// CLI options for downloading models from Hugging Face Hub
@@ -69,6 +99,7 @@ impl Cli {
             Commands::Backend(opts) => opts.run().await,
             Commands::Governator(opts) => opts.run().await,
             Commands::Download(opts) => opts.run().await,
+            Commands::Doctor(opts) => opts.run().await,
         }
     }
 }
@@ -105,5 +136,12 @@ impl DownloadCliOptions {
         );
 
         Ok(())
+    }
+}
+
+impl DoctorCliOptions {
+    /// Run the doctor command
+    pub async fn run(self) -> Result<()> {
+        doctor::run_diagnostics(self).await
     }
 }

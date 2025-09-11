@@ -18,5 +18,6 @@
 
 pub mod cli_options;
 pub mod model_downloader;
+pub mod doctor;
 
 pub use cli_options::{Cli, Commands};
