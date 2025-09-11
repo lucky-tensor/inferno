@@ -1,12 +1,13 @@
 
 # Inferno: a self healing cloud for AI inference
 
+An end-to-end Rust LLM micro platform which is request optimized and kernel optimized, inspired by Cloudflare Infire. [More about us](./docs/about.md)
+
 [![Build](https://github.com/0o-de-lally/inferno/workflows/Build/badge.svg)](https://github.com/0o-de-lally/inferno/actions/workflows/build.yml)
 [![Test](https://github.com/0o-de-lally/inferno/workflows/Test/badge.svg)](https://github.com/0o-de-lally/inferno/actions/workflows/test.yml)
 [![Benchmark](https://github.com/0o-de-lally/inferno/workflows/Benchmark/badge.svg)](https://github.com/0o-de-lally/inferno/actions/workflows/bench.yml)
 [![Lint](https://github.com/0o-de-lally/inferno/workflows/Lint/badge.svg)](https://github.com/0o-de-lally/inferno/actions/workflows/lint.yml)
 
-Inferno is a self-healing cloud platform for AI inference, designed for high-performance, reliability, and observability. It demonstrates best practices for distributed systems, with comprehensive testing and robust error recovery for AI workloads.
 
 ## Features
 
@@ -73,17 +74,17 @@ The system uses a dual-server architecture with separate concerns:
 
 ### Component Architecture
 
-- **Proxy Server**: 
+- **Proxy Server**:
   - **Port 8080**: Pingora-based HTTP proxy for request forwarding and load balancing
   - **Port 6100**: Hyper-based operations server for monitoring and service discovery
 
-- **Backend Server**: 
+- **Backend Server**:
   - **Port 8080**: Hyper-based inference server for AI model requests
   - **Port 6100**: Hyper-based operations server for monitoring and service discovery
 
 - **Operations Server**: Shared Hyper-based component providing:
   - **`GET /metrics`**: Prometheus metrics endpoint
-  - **`GET /health`**: Health check endpoint  
+  - **`GET /health`**: Health check endpoint
   - **`POST /registration`**: Service discovery registration endpoint
 
 
@@ -137,7 +138,7 @@ Every existing solution forces a choice: use inadequate open-source tools or pay
 | **Extensibility** | 🔒 Performance-first | 🔒 Performance-first | 🔧 Highly extensible | 🔧 Highly extensible | 🔧 Plugin system |
 | **License** | 🆓 Free | 💰 Commercial | 🆓 Open source* | 🆓 Apache 2.0 | 🆓 Open source (MIT) |
 
-*Nvidia Dynamo: Open source with optional enterprise support via NVIDIA AI Enterprise  
+*Nvidia Dynamo: Open source with optional enterprise support via NVIDIA AI Enterprise
 **llm-d**: Kubernetes-native framework by CoreWeave, Google, IBM, NVIDIA, Red Hat
 
 **Key Advantages:**
@@ -156,7 +157,7 @@ Every existing solution forces a choice: use inadequate open-source tools or pay
 **Sub-60 second deployment with production-grade performance optimization.**
 
 - ⚡ **Rapid deployment**: Zero-configuration startup with optimal defaults
-- 🏆 **Optimized architecture**: Streamlined design with configurable performance defaults  
+- 🏆 **Optimized architecture**: Streamlined design with configurable performance defaults
 - 🔧 **Simplified stack**: Rust-native implementation without Python extensibility layers
 - 🌐 **Self-healing discovery**: SWIM consensus protocol for automatic node discovery and failure detection
 - 🐳 **Container-optional**: No Docker or Kubernetes required (but supported if preferred)
