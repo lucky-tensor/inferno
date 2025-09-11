@@ -2,7 +2,7 @@
 //!
 //! This module re-exports and organizes CLI options from all Inferno components.
 
-use clap::{Parser, Subcommand, Args};
+use clap::{Args, Parser, Subcommand};
 use inferno_shared::Result;
 
 // Import CLI options from other crates
@@ -44,7 +44,12 @@ pub struct DownloadCliOptions {
     pub model_id: String,
 
     /// Output directory for downloaded model
-    #[arg(short = 'o', long = "output-dir", value_name = "PATH", default_value = "./models")]
+    #[arg(
+        short = 'o',
+        long = "output-dir",
+        value_name = "PATH",
+        default_value = "./models"
+    )]
     pub output_dir: String,
 
     /// Hugging Face API token (for gated/private models)
@@ -85,14 +90,19 @@ impl DownloadCliOptions {
             &self.model_id,
             &self.output_dir,
             self.hf_token.as_ref(),
-            self.resume
-        ).await.map_err(|e| inferno_shared::InfernoError::internal(
-            format!("Model download failed: {}", e),
-            None
-        ))?;
+            self.resume,
+        )
+        .await
+        .map_err(|e| {
+            inferno_shared::InfernoError::internal(format!("Model download failed: {}", e), None)
+        })?;
 
         println!("✅ Model download completed!");
-        println!("Model saved to: {}/{}", self.output_dir, self.model_id.replace("/", "_"));
+        println!(
+            "Model saved to: {}/{}",
+            self.output_dir,
+            self.model_id.replace("/", "_")
+        );
 
         Ok(())
     }

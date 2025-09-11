@@ -185,7 +185,10 @@ async fn test_configuration_validation_errors() {
     env::remove_var("INFERNO_SERVICE_DISCOVERY_SHARED_SECRET");
     env::set_var("INFERNO_SERVICE_DISCOVERY_AUTH_MODE", "shared_secret");
     let result = ServiceDiscoveryConfig::from_env();
-    assert!(result.is_err(), "Should fail when shared_secret auth mode is used without a secret");
+    assert!(
+        result.is_err(),
+        "Should fail when shared_secret auth mode is used without a secret"
+    );
     env::remove_var("INFERNO_SERVICE_DISCOVERY_AUTH_MODE");
 
     // Test invalid numeric values
