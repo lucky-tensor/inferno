@@ -109,7 +109,9 @@ fn test_model_info_creation() {
         path: "/models/tiny-llama.safetensors".to_string(),
         format: ModelFormat::SafeTensors,
         size_mb: 512,
-        sha256_hash: Some("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string()),
+        sha256_hash: Some(
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string(),
+        ),
         is_optimized: true,
         compatible_backends: vec![Backend::Cpu, Backend::Cuda],
         issues: vec![],
@@ -134,7 +136,7 @@ fn test_model_scanning() -> Result<(), Box<dyn std::error::Error>> {
     // Create test safetensors files
     let _safetensors_file1 = create_test_file(&temp_dir, "model1.safetensors", 1024)?;
     let _safetensors_file2 = create_test_file(&temp_dir, "model2.safetensors", 2048)?;
-    
+
     // Create non-safetensors files that should be ignored
     let _pytorch_file = create_test_file(&temp_dir, "model.pt", 512)?;
     let _gguf_file = create_test_file(&temp_dir, "model.gguf", 2048)?;
@@ -144,7 +146,7 @@ fn test_model_scanning() -> Result<(), Box<dyn std::error::Error>> {
 
     // Verify we found only safetensors models
     assert_eq!(models.len(), 2);
-    
+
     // All should be safetensors format
     for model in &models {
         assert_eq!(model.format, ModelFormat::SafeTensors);
@@ -193,24 +195,42 @@ fn test_check_model_optimization() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test optimized model names
     let optimized_file = create_test_file(&temp_dir, "model_quantized.safetensors", 1024)?;
-    assert!(check_model_optimization(&optimized_file, &ModelFormat::SafeTensors));
+    assert!(check_model_optimization(
+        &optimized_file,
+        &ModelFormat::SafeTensors
+    ));
 
     let int8_file = create_test_file(&temp_dir, "model_int8.safetensors", 1024)?;
-    assert!(check_model_optimization(&int8_file, &ModelFormat::SafeTensors));
+    assert!(check_model_optimization(
+        &int8_file,
+        &ModelFormat::SafeTensors
+    ));
 
     let fp16_file = create_test_file(&temp_dir, "model_fp16.safetensors", 1024)?;
-    assert!(check_model_optimization(&fp16_file, &ModelFormat::SafeTensors));
+    assert!(check_model_optimization(
+        &fp16_file,
+        &ModelFormat::SafeTensors
+    ));
 
     let optimized_file2 = create_test_file(&temp_dir, "model_optimized.safetensors", 1024)?;
-    assert!(check_model_optimization(&optimized_file2, &ModelFormat::SafeTensors));
+    assert!(check_model_optimization(
+        &optimized_file2,
+        &ModelFormat::SafeTensors
+    ));
 
     // Test non-optimized model names
     let regular_file = create_test_file(&temp_dir, "regular_model.safetensors", 1024)?;
-    assert!(!check_model_optimization(&regular_file, &ModelFormat::SafeTensors));
+    assert!(!check_model_optimization(
+        &regular_file,
+        &ModelFormat::SafeTensors
+    ));
 
     // Test that the format parameter doesn't matter (all models are safetensors now)
     let regular_file2 = create_test_file(&temp_dir, "another_model.safetensors", 1024)?;
-    assert!(!check_model_optimization(&regular_file2, &ModelFormat::SafeTensors));
+    assert!(!check_model_optimization(
+        &regular_file2,
+        &ModelFormat::SafeTensors
+    ));
 
     Ok(())
 }
@@ -247,7 +267,9 @@ fn test_calculate_compatibility_matrix() {
         path: "/models/tiny-llama.safetensors".to_string(),
         format: ModelFormat::SafeTensors,
         size_mb: 512,
-        sha256_hash: Some("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string()),
+        sha256_hash: Some(
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string(),
+        ),
         is_optimized: true,
         compatible_backends: vec![Backend::Cpu, Backend::Cuda, Backend::Rocm],
         issues: vec![],
@@ -346,7 +368,7 @@ fn test_generate_recommendations() {
 fn test_detect_cpu_features_fallback() {
     // This tests the fallback behavior on non-x86 architectures
     let (_avx, _avx2, _avx512) = detect_cpu_features();
-    
+
     // On x86_64, we should get real feature detection
     // On other architectures, we should get (false, false, false)
     #[cfg(target_arch = "x86_64")]
@@ -354,7 +376,7 @@ fn test_detect_cpu_features_fallback() {
         // On x86_64, at least one should likely be true for modern systems
         // but we can't guarantee it, so we just test that the function runs
     }
-    
+
     #[cfg(not(target_arch = "x86_64"))]
     {
         assert!(!_avx);
@@ -421,7 +443,9 @@ fn create_test_diagnostics_good() -> DiagnosticsResult {
         path: "/models/tiny-llama.safetensors".to_string(),
         format: ModelFormat::SafeTensors,
         size_mb: 512,
-        sha256_hash: Some("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string()),
+        sha256_hash: Some(
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string(),
+        ),
         is_optimized: true,
         compatible_backends: vec![Backend::Cpu, Backend::Cuda],
         issues: vec![],
@@ -484,7 +508,9 @@ fn create_test_diagnostics_no_gpu() -> DiagnosticsResult {
         path: "/models/test.safetensors".to_string(),
         format: ModelFormat::SafeTensors,
         size_mb: 1024,
-        sha256_hash: Some("abc123def456789abc123def456789abc123def456789abc123def456789abc12".to_string()),
+        sha256_hash: Some(
+            "abc123def456789abc123def456789abc123def456789abc123def456789abc12".to_string(),
+        ),
         is_optimized: false,
         compatible_backends: vec![Backend::Cpu, Backend::Cuda],
         issues: vec![],
@@ -544,18 +570,21 @@ fn create_test_diagnostics_no_models() -> DiagnosticsResult {
 async fn test_detect_gpus() -> Result<(), Box<dyn std::error::Error>> {
     // Test GPU detection (this will depend on the actual system)
     let result = detect_gpus().await;
-    
+
     // Should not panic and return a result (may be empty on systems without GPUs)
     assert!(result.is_ok());
     let gpus = result.unwrap();
-    
+
     // GPUs vector should be valid (may be empty)
     // Each GPU should have valid vendor information
     for gpu in &gpus {
         assert!(!gpu.name.is_empty());
-        assert!(matches!(gpu.vendor, GpuVendor::Nvidia | GpuVendor::Amd | GpuVendor::Intel | GpuVendor::Unknown));
+        assert!(matches!(
+            gpu.vendor,
+            GpuVendor::Nvidia | GpuVendor::Amd | GpuVendor::Intel | GpuVendor::Unknown
+        ));
     }
-    
+
     Ok(())
 }
 
@@ -563,19 +592,19 @@ async fn test_detect_gpus() -> Result<(), Box<dyn std::error::Error>> {
 #[test]
 fn test_detect_cpu_info() -> Result<(), Box<dyn std::error::Error>> {
     let cpu_info = detect_cpu_info()?;
-    
+
     // CPU should have basic information
     assert!(!cpu_info.name.is_empty());
     assert!(cpu_info.cores > 0);
     assert!(cpu_info.threads > 0);
-    
+
     // Threads should be >= cores
     assert!(cpu_info.threads >= cpu_info.cores);
-    
+
     // Frequency should be reasonable (always non-negative for u64)
     // Note: This is always true for u64, but we keep it for documentation
     assert!(cpu_info.frequency_mhz < u64::MAX);
-    
+
     // AVX support chain should be logical: AVX512 implies AVX2 implies AVX
     if cpu_info.supports_avx512 {
         assert!(cpu_info.supports_avx2);
@@ -584,7 +613,7 @@ fn test_detect_cpu_info() -> Result<(), Box<dyn std::error::Error>> {
     if cpu_info.supports_avx2 {
         assert!(cpu_info.supports_avx);
     }
-    
+
     Ok(())
 }
 
@@ -595,17 +624,17 @@ fn test_extract_memory_from_rocm_output() {
     let valid_output = "Device: gfx906\nTotal VRAM: 8192 MB\nAvailable VRAM: 7680 MB";
     let memory = extract_memory_from_rocm_output(valid_output);
     assert_eq!(memory, Some(8192));
-    
+
     // Test with different format
     let alt_output = "Memory Info:\nTotal VRAM     : 16384MB";
     let memory2 = extract_memory_from_rocm_output(alt_output);
     assert_eq!(memory2, Some(16384));
-    
+
     // Test with no memory info
     let no_memory = "Device: gfx906\nTemperature: 45C";
     let memory3 = extract_memory_from_rocm_output(no_memory);
     assert_eq!(memory3, None);
-    
+
     // Test with invalid format
     let invalid = "Total VRAM: invalid MB";
     let memory4 = extract_memory_from_rocm_output(invalid);
@@ -617,7 +646,7 @@ fn test_extract_memory_from_rocm_output() {
 fn test_is_rocm_installed() {
     // This test depends on the actual system
     let is_installed = is_rocm_installed();
-    
+
     // Should return a boolean (actual value depends on system)
     assert!(is_installed || !is_installed); // Always true, just checking it doesn't panic
 }
@@ -626,7 +655,7 @@ fn test_is_rocm_installed() {
 #[test]
 fn test_check_amd_gpus_lspci() {
     let result = check_amd_gpus_lspci();
-    
+
     // Should return Ok with a boolean (may vary by system)
     assert!(result.is_ok());
 }
@@ -636,12 +665,12 @@ fn test_check_amd_gpus_lspci() {
 fn test_parse_cuda_version_output() {
     // Test typical nvcc output parsing
     let mock_output = "nvcc: NVIDIA (R) Cuda compiler driver\nCopyright (c) 2005-2023 NVIDIA Corporation\nBuilt on Tue_Aug_15_22:02:13_PDT_2023\nCuda compilation tools, release 12.2, V12.2.140\nBuild cuda_12.2.r12.2/compiler.33191640_0";
-    
+
     // Since get_cuda_version() is async and calls external commands,
     // we test the regex pattern that would be used
     use regex::Regex;
     let re = Regex::new(r"release (\d+\.\d+)").unwrap();
-    
+
     if let Some(captures) = re.captures(mock_output) {
         let version = captures[1].to_string();
         assert_eq!(version, "12.2");
@@ -654,11 +683,12 @@ fn test_parse_cuda_version_output() {
 #[test]
 fn test_parse_rocm_version_output() {
     // Test typical hipcc output parsing
-    let mock_output = "HIP version: 5.4.22224-b2e0db6e\nHIP platform: AMD HIP-Clang\nHIP runtime: rocm";
-    
+    let mock_output =
+        "HIP version: 5.4.22224-b2e0db6e\nHIP platform: AMD HIP-Clang\nHIP runtime: rocm";
+
     use regex::Regex;
     let re = Regex::new(r"HIP version: (\d+\.\d+\.\d+)").unwrap();
-    
+
     if let Some(captures) = re.captures(mock_output) {
         let version = captures[1].to_string();
         assert_eq!(version, "5.4.22224");
@@ -709,7 +739,9 @@ fn test_diagnostics_result_comprehensive() {
         path: "/models/large-model.safetensors".to_string(),
         format: ModelFormat::SafeTensors,
         size_mb: 7000, // Large model
-        sha256_hash: Some("1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_string()),
+        sha256_hash: Some(
+            "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef".to_string(),
+        ),
         is_optimized: false,
         compatible_backends: vec![Backend::Cpu, Backend::Cuda, Backend::Rocm],
         issues: vec!["Large model may require significant GPU memory".to_string()],
@@ -720,7 +752,9 @@ fn test_diagnostics_result_comprehensive() {
         path: "/models/small-model.safetensors".to_string(),
         format: ModelFormat::SafeTensors,
         size_mb: 500,
-        sha256_hash: Some("fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321".to_string()),
+        sha256_hash: Some(
+            "fedcba0987654321fedcba0987654321fedcba0987654321fedcba0987654321".to_string(),
+        ),
         is_optimized: true,
         compatible_backends: vec![Backend::Cpu, Backend::Cuda, Backend::Rocm],
         issues: vec![],
@@ -739,41 +773,41 @@ fn test_diagnostics_result_comprehensive() {
 
     // Calculate compatibility matrix
     diagnostics.compatibility_matrix = calculate_compatibility_matrix(&diagnostics);
-    
+
     // Calculate overall score
     calculate_overall_score(&mut diagnostics);
-    
+
     // Generate recommendations
     generate_recommendations(&mut diagnostics);
-    
+
     // Verify results
     assert!(diagnostics.overall_score > 5); // Should have good score with NVIDIA + AMD GPUs
     assert!(diagnostics.system_ready);
     assert!(!diagnostics.compatibility_matrix.is_empty());
-    
+
     // Check that both models have compatibility entries
     assert!(diagnostics.compatibility_matrix.contains_key("large-model"));
     assert!(diagnostics.compatibility_matrix.contains_key("small-model"));
-    
+
     // Both models should be compatible with all backends (good hardware)
     let large_compat = &diagnostics.compatibility_matrix["large-model"];
     let small_compat = &diagnostics.compatibility_matrix["small-model"];
-    
+
     assert!(large_compat.contains_key("CPU"));
     assert!(large_compat.contains_key("CUDA"));
     assert!(large_compat.contains_key("ROCm"));
-    
+
     assert!(small_compat.contains_key("CPU"));
     assert!(small_compat.contains_key("CUDA"));
     assert!(small_compat.contains_key("ROCm"));
-    
+
     // CUDA and ROCm should be compatible (we have both GPU types)
     if let CompatibilityStatus::Compatible = large_compat["CUDA"] {
         // Expected
     } else {
         panic!("Expected CUDA to be compatible with NVIDIA GPU present");
     }
-    
+
     if let CompatibilityStatus::Compatible = large_compat["ROCm"] {
         // Expected
     } else {
@@ -805,14 +839,14 @@ fn test_calculate_overall_score_edge_cases() {
         recommendations: vec![],
         system_ready: false,
     };
-    
+
     calculate_overall_score(&mut minimal_diagnostics);
-    
+
     // Should have some score for CPU but low overall
     assert!(minimal_diagnostics.overall_score > 0);
     assert!(minimal_diagnostics.overall_score < minimal_diagnostics.max_score);
     assert!(minimal_diagnostics.max_score > 0);
-    
+
     // Test with incompatible GPU
     let mut incompatible_gpu_diagnostics = DiagnosticsResult {
         gpus: vec![GpuInfo {
@@ -843,9 +877,9 @@ fn test_calculate_overall_score_edge_cases() {
         recommendations: vec![],
         system_ready: false,
     };
-    
+
     calculate_overall_score(&mut incompatible_gpu_diagnostics);
-    
+
     // Should get some points for having a GPU but not full points
     assert!(incompatible_gpu_diagnostics.overall_score > 2); // CPU points
     assert!(incompatible_gpu_diagnostics.overall_score < incompatible_gpu_diagnostics.max_score);
@@ -858,13 +892,15 @@ fn test_generate_recommendations_comprehensive() {
     let mut old_cpu_diagnostics = create_test_diagnostics_poor();
     old_cpu_diagnostics.cpu.supports_avx2 = false;
     old_cpu_diagnostics.cpu.supports_avx = false;
-    
+
     generate_recommendations(&mut old_cpu_diagnostics);
-    
-    let has_cpu_rec = old_cpu_diagnostics.recommendations.iter()
+
+    let has_cpu_rec = old_cpu_diagnostics
+        .recommendations
+        .iter()
         .any(|r| r.contains("CPU") && r.contains("AVX2"));
     assert!(has_cpu_rec);
-    
+
     // Test system with NVIDIA GPU but no CUDA
     let mut no_cuda_diagnostics = DiagnosticsResult {
         gpus: vec![GpuInfo {
@@ -895,13 +931,15 @@ fn test_generate_recommendations_comprehensive() {
         recommendations: vec![],
         system_ready: false,
     };
-    
+
     generate_recommendations(&mut no_cuda_diagnostics);
-    
-    let has_cuda_rec = no_cuda_diagnostics.recommendations.iter()
+
+    let has_cuda_rec = no_cuda_diagnostics
+        .recommendations
+        .iter()
         .any(|r| r.contains("CUDA"));
     assert!(has_cuda_rec);
-    
+
     // Test system with non-SafeTensors models
     let mut non_safetensors_diagnostics = DiagnosticsResult {
         gpus: vec![GpuInfo {
@@ -930,7 +968,9 @@ fn test_generate_recommendations_comprehensive() {
             path: "/models/model.safetensors".to_string(),
             format: ModelFormat::SafeTensors,
             size_mb: 1024,
-            sha256_hash: Some("abcdef123456789abcdef123456789abcdef123456789abcdef123456789abcdef".to_string()),
+            sha256_hash: Some(
+                "abcdef123456789abcdef123456789abcdef123456789abcdef123456789abcdef".to_string(),
+            ),
             is_optimized: false,
             compatible_backends: vec![Backend::Cpu, Backend::Cuda, Backend::Rocm],
             issues: vec![],
@@ -941,9 +981,9 @@ fn test_generate_recommendations_comprehensive() {
         recommendations: vec![],
         system_ready: false,
     };
-    
+
     generate_recommendations(&mut non_safetensors_diagnostics);
-    
+
     // Since all models are SafeTensors now, there might not be any format-related recommendations
     // The system may still be considered good enough to not generate recommendations
     // Just verify the function runs without panicking - Vec::len() is always >= 0
@@ -954,12 +994,12 @@ fn test_generate_recommendations_comprehensive() {
 fn test_display_results_table_basic() {
     // This test just ensures the function doesn't panic with various data
     let diagnostics = create_test_diagnostics_good();
-    
+
     // We can't easily test the actual output without capturing stdout,
     // but we can at least ensure it doesn't panic
     display_results_table(&diagnostics, false);
     display_results_table(&diagnostics, true); // verbose mode
-    
+
     // Test with empty diagnostics
     let empty_diagnostics = DiagnosticsResult {
         gpus: vec![],
@@ -981,7 +1021,7 @@ fn test_display_results_table_basic() {
         recommendations: vec!["Test recommendation".to_string()],
         system_ready: false,
     };
-    
+
     display_results_table(&empty_diagnostics, false);
 }
 
@@ -1006,7 +1046,7 @@ async fn test_run_diagnostics_integration() -> Result<(), Box<dyn std::error::Er
     // This should not panic and should complete successfully
     // Note: The actual GPU/CPU detection will depend on the test environment
     let result = run_diagnostics(opts).await;
-    
+
     // The function should complete without error
     // (though actual hardware detection results will vary)
     assert!(result.is_ok());
@@ -1063,10 +1103,10 @@ async fn test_run_diagnostics_table_format() -> Result<(), Box<dyn std::error::E
 #[test]
 fn test_get_standard_model_directories() {
     let directories = get_standard_model_directories();
-    
+
     // Should return a vector (may be empty if no standard directories exist)
     // This is always true for Vec::len(), but documents the expectation
-    
+
     // All returned directories should be valid paths
     for dir in &directories {
         assert!(std::path::Path::new(dir).exists());
@@ -1077,16 +1117,17 @@ fn test_get_standard_model_directories() {
 #[test]
 fn test_extract_model_name() {
     // Test HuggingFace pattern: /models/model-name/model.safetensors
-    let hf_path = std::path::Path::new("/home/user/models/microsoft/DialoGPT-medium/model.safetensors");
+    let hf_path =
+        std::path::Path::new("/home/user/models/microsoft/DialoGPT-medium/model.safetensors");
     assert_eq!(extract_model_name(hf_path), "DialoGPT-medium"); // Should get the immediate parent directory
-    
+
     let hf_path2 = std::path::Path::new("/home/user/models/llama-2-7b/model.safetensors");
     assert_eq!(extract_model_name(hf_path2), "llama-2-7b");
-    
+
     // Test direct file pattern: /models/model-name.safetensors
     let direct_path = std::path::Path::new("/home/user/models/tiny-llama-1b.safetensors");
     assert_eq!(extract_model_name(direct_path), "tiny-llama-1b");
-    
+
     // Test fallback to filename
     let simple_path = std::path::Path::new("model.safetensors");
     assert_eq!(extract_model_name(simple_path), "model");
@@ -1096,31 +1137,34 @@ fn test_extract_model_name() {
 #[test]
 fn test_calculate_file_hash() -> Result<(), Box<dyn std::error::Error>> {
     let temp_dir = TempDir::new()?;
-    
+
     // Create a test file with known content
     let test_content = b"Hello, World!";
     let test_file = temp_dir.path().join("test.txt");
     std::fs::write(&test_file, test_content)?;
-    
+
     let hash = calculate_file_hash(&test_file)?;
-    
+
     // SHA256 of "Hello, World!" should be this specific hash
-    assert_eq!(hash, "dffd6021bb2bd5b0af676290809ec3a53191dd81c7f70a4b28688a362182986f");
+    assert_eq!(
+        hash,
+        "dffd6021bb2bd5b0af676290809ec3a53191dd81c7f70a4b28688a362182986f"
+    );
     assert_eq!(hash.len(), 64); // SHA256 should be 64 hex characters
-    
+
     Ok(())
 }
 
 /// Test scanning models in standard locations
-#[test]  
+#[test]
 fn test_scan_models_standard_locations() -> Result<(), Box<dyn std::error::Error>> {
     // This test will work regardless of whether standard directories exist
     let result = scan_models_standard_locations();
     assert!(result.is_ok());
-    
+
     let models = result.unwrap();
     // Should return a vector (may be empty) - always true for Vec::len()
-    
+
     // All returned models should have required fields
     for model in &models {
         assert!(!model.name.is_empty());
@@ -1130,7 +1174,7 @@ fn test_scan_models_standard_locations() -> Result<(), Box<dyn std::error::Error
             // Hash might be None if calculation failed, but that's ok
         }
     }
-    
+
     Ok(())
 }
 
@@ -1138,17 +1182,17 @@ fn test_scan_models_standard_locations() -> Result<(), Box<dyn std::error::Error
 #[test]
 fn test_safetensors_model_processing() -> Result<(), Box<dyn std::error::Error>> {
     let temp_dir = TempDir::new()?;
-    
+
     // Create a safetensors file with some content
     let safetensors_content = b"fake safetensors content for testing";
     let safetensors_file = temp_dir.path().join("test-model.safetensors");
     std::fs::write(&safetensors_file, safetensors_content)?;
-    
+
     let models = scan_models_in_directory(temp_dir.path().to_str().unwrap())?;
-    
+
     assert_eq!(models.len(), 1);
     let model = &models[0];
-    
+
     // The model name will be extracted from the path. For temp dir, it might be the temp dir name
     // The important thing is that it's not empty and the path is correct
     assert!(!model.name.is_empty());
@@ -1157,6 +1201,6 @@ fn test_safetensors_model_processing() -> Result<(), Box<dyn std::error::Error>>
     assert!(model.sha256_hash.is_some()); // Should have calculated hash
     assert!(!model.sha256_hash.as_ref().unwrap().is_empty());
     assert_eq!(model.sha256_hash.as_ref().unwrap().len(), 64); // SHA256 hex length
-    
+
     Ok(())
 }

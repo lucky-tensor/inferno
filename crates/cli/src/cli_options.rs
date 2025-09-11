@@ -10,8 +10,8 @@ use inferno_backend::BackendCliOptions;
 use inferno_governator::GovernatorCliOptions;
 use inferno_proxy::ProxyCliOptions;
 
-use crate::model_downloader;
 use crate::doctor;
+use crate::model_downloader;
 
 /// Inferno - Unified command interface for distributed AI inference platform
 #[derive(Parser, Debug)]

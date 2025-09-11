@@ -142,26 +142,35 @@ pub async fn run_diagnostics(opts: DoctorCliOptions) -> Result<()> {
 
     // Scan models in standard locations and user-specified directory
     if opts.verbose {
-        println!("Scanning models in standard locations and {}...", opts.model_dir);
+        println!(
+            "Scanning models in standard locations and {}...",
+            opts.model_dir
+        );
     }
-    
+
     let mut all_models = Vec::new();
-    
+
     // Scan standard locations
     let standard_models = scan_models_standard_locations().map_err(|e| {
-        inferno_shared::InfernoError::internal(format!("Standard model scanning failed: {}", e), None)
+        inferno_shared::InfernoError::internal(
+            format!("Standard model scanning failed: {}", e),
+            None,
+        )
     })?;
     all_models.extend(standard_models);
-    
+
     // Also scan user-specified directory if it's different from standard locations
     let standard_dirs = get_standard_model_directories();
     if !standard_dirs.contains(&opts.model_dir) {
         let user_models = scan_models(&opts.model_dir).map_err(|e| {
-            inferno_shared::InfernoError::internal(format!("User model directory scanning failed: {}", e), None)
+            inferno_shared::InfernoError::internal(
+                format!("User model directory scanning failed: {}", e),
+                None,
+            )
         })?;
         all_models.extend(user_models);
     }
-    
+
     diagnostics.models = all_models;
 
     // Calculate compatibility matrix
@@ -245,7 +254,9 @@ async fn detect_nvidia_gpus() -> AnyhowResult<Vec<GpuInfo>> {
                     if let Some(ref cc) = compute_capability {
                         if let Ok(cc_float) = cc.parse::<f32>() {
                             if cc_float < 7.0 {
-                                issues.push("Compute capability < 7.0 may have limited support".to_string());
+                                issues.push(
+                                    "Compute capability < 7.0 may have limited support".to_string(),
+                                );
                                 is_compatible = false;
                             }
                         }
@@ -255,7 +266,9 @@ async fn detect_nvidia_gpus() -> AnyhowResult<Vec<GpuInfo>> {
                     if let Some(ref driver) = driver_version {
                         if let Ok(version) = parse_driver_version(driver) {
                             if version < 525.0 {
-                                issues.push("Driver version may be too old for CUDA 12.x".to_string());
+                                issues.push(
+                                    "Driver version may be too old for CUDA 12.x".to_string(),
+                                );
                             }
                         }
                     }
@@ -304,10 +317,10 @@ async fn detect_amd_gpus() -> AnyhowResult<Vec<GpuInfo>> {
                     let parts: Vec<&str> = line.split(',').collect();
                     if parts.len() >= 2 {
                         let name = parts[1].trim().to_string();
-                        
+
                         // Try to get memory info
                         let memory_mb = extract_memory_from_rocm_output(&stdout);
-                        
+
                         let mut issues = Vec::new();
                         let mut is_compatible = false;
 
@@ -369,7 +382,7 @@ async fn get_cuda_version() -> Option<String> {
     if let Ok(output) = output {
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
-            
+
             // Extract version using regex
             let re = Regex::new(r"release (\d+\.\d+)").ok()?;
             if let Some(captures) = re.captures(&stdout) {
@@ -407,8 +420,8 @@ pub fn extract_memory_from_rocm_output(output: &str) -> Option<u64> {
 
 /// Check if ROCm is properly installed
 pub fn is_rocm_installed() -> bool {
-    std::path::Path::new("/opt/rocm").exists() || 
-    Command::new("hipcc").arg("--version").output().is_ok()
+    std::path::Path::new("/opt/rocm").exists()
+        || Command::new("hipcc").arg("--version").output().is_ok()
 }
 
 /// Get ROCm version
@@ -499,7 +512,10 @@ pub fn detect_cpu_features() -> (bool, bool, bool) {
     // Try to detect features using cpuid on x86/x86_64
     #[cfg(target_arch = "x86_64")]
     {
-        if is_x86_feature_detected!("avx") && is_x86_feature_detected!("avx2") && is_x86_feature_detected!("avx512f") {
+        if is_x86_feature_detected!("avx")
+            && is_x86_feature_detected!("avx2")
+            && is_x86_feature_detected!("avx512f")
+        {
             return (true, true, true);
         } else if is_x86_feature_detected!("avx") && is_x86_feature_detected!("avx2") {
             return (true, true, false);
@@ -524,27 +540,29 @@ pub fn detect_cpu_features() -> (bool, bool, bool) {
 /// Get standard model directories to search
 pub fn get_standard_model_directories() -> Vec<String> {
     let mut directories = Vec::new();
-    
+
     // Add $HOME/models if it exists
     if let Some(home_dir) = std::env::var_os("HOME") {
         let home_models = std::path::Path::new(&home_dir).join("models");
         if home_models.exists() {
             directories.push(home_models.to_string_lossy().to_string());
         }
-        
+
         // Add $HOME/.inferno/models if it exists
-        let inferno_models = std::path::Path::new(&home_dir).join(".inferno").join("models");
+        let inferno_models = std::path::Path::new(&home_dir)
+            .join(".inferno")
+            .join("models");
         if inferno_models.exists() {
             directories.push(inferno_models.to_string_lossy().to_string());
         }
     }
-    
+
     // Add ./models if it exists
     let current_models = std::path::Path::new("./models");
     if current_models.exists() {
         directories.push("./models".to_string());
     }
-    
+
     directories
 }
 
@@ -552,12 +570,12 @@ pub fn get_standard_model_directories() -> Vec<String> {
 pub fn scan_models_standard_locations() -> AnyhowResult<Vec<ModelInfo>> {
     let mut all_models = Vec::new();
     let directories = get_standard_model_directories();
-    
+
     for dir in directories {
         let mut models = scan_models_in_directory(&dir)?;
         all_models.append(&mut models);
     }
-    
+
     Ok(all_models)
 }
 
@@ -591,7 +609,7 @@ pub fn scan_models_in_directory(model_dir: &str) -> AnyhowResult<Vec<ModelInfo>>
 
                 // Extract better model name from path structure
                 let name = extract_model_name(path);
-                
+
                 // Calculate SHA256 hash for safetensors files
                 let sha256_hash = calculate_file_hash(path).ok();
 
@@ -625,7 +643,7 @@ pub fn calculate_file_hash(path: &std::path::Path) -> AnyhowResult<String> {
     let mut file = File::open(path)?;
     let mut hasher = Sha256::new();
     let mut buffer = [0; 8192];
-    
+
     loop {
         let bytes_read = file.read(&mut buffer)?;
         if bytes_read == 0 {
@@ -633,7 +651,7 @@ pub fn calculate_file_hash(path: &std::path::Path) -> AnyhowResult<String> {
         }
         hasher.update(&buffer[..bytes_read]);
     }
-    
+
     Ok(hex::encode(hasher.finalize()))
 }
 
@@ -641,19 +659,22 @@ pub fn calculate_file_hash(path: &std::path::Path) -> AnyhowResult<String> {
 pub fn extract_model_name(path: &std::path::Path) -> String {
     // Try to get model name from directory structure
     // Look for patterns like: /models/model-name/model.safetensors or /models/model-name-version.safetensors
-    
-    let components: Vec<_> = path.components().map(|c| c.as_os_str().to_string_lossy()).collect();
-    
+
+    let components: Vec<_> = path
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy())
+        .collect();
+
     // If the file is directly in a named directory (common HuggingFace pattern)
     if components.len() >= 2 {
         let parent_dir = components[components.len() - 2].to_string();
-        
+
         // If parent directory name looks like a model name (not just "models")
         if parent_dir != "models" && parent_dir != "safetensors" {
             return parent_dir;
         }
     }
-    
+
     // Fall back to filename without extension
     path.file_stem()
         .unwrap_or_default()
@@ -665,10 +686,10 @@ pub fn extract_model_name(path: &std::path::Path) -> String {
 pub fn check_model_optimization(path: &std::path::Path, _format: &ModelFormat) -> bool {
     // Check for quantization markers or specific naming patterns
     let path_str = path.to_string_lossy().to_lowercase();
-    path_str.contains("quantized") || 
-    path_str.contains("int8") || 
-    path_str.contains("fp16") ||
-    path_str.contains("optimized")
+    path_str.contains("quantized")
+        || path_str.contains("int8")
+        || path_str.contains("fp16")
+        || path_str.contains("optimized")
 }
 
 /// Determine which backends are compatible with a model format
@@ -785,7 +806,7 @@ pub fn calculate_overall_score(diagnostics: &mut DiagnosticsResult) {
         score += 1;
     }
 
-    // Models score  
+    // Models score
     max_score += 2;
     let model_count = diagnostics.models.len();
 
@@ -895,10 +916,23 @@ pub fn display_results_table(diagnostics: &DiagnosticsResult, verbose: bool) {
     );
 
     if verbose || !diagnostics.cpu.is_compatible {
-        println!("   Features: AVX: {}, AVX2: {}, AVX512: {}", 
-            if diagnostics.cpu.supports_avx { "✅" } else { "❌" },
-            if diagnostics.cpu.supports_avx2 { "✅" } else { "❌" },
-            if diagnostics.cpu.supports_avx512 { "✅" } else { "❌" }
+        println!(
+            "   Features: AVX: {}, AVX2: {}, AVX512: {}",
+            if diagnostics.cpu.supports_avx {
+                "✅"
+            } else {
+                "❌"
+            },
+            if diagnostics.cpu.supports_avx2 {
+                "✅"
+            } else {
+                "❌"
+            },
+            if diagnostics.cpu.supports_avx512 {
+                "✅"
+            } else {
+                "❌"
+            }
         );
         for issue in &diagnostics.cpu.issues {
             println!("   ⚠️  {}", issue);
@@ -963,16 +997,26 @@ pub fn display_results_table(diagnostics: &DiagnosticsResult, verbose: bool) {
                 if let Some(hash) = &model.sha256_hash {
                     println!("   SHA256: {}", hash);
                 }
-                println!("   Optimized: {}", if model.is_optimized { "✅" } else { "❌" });
-                
+                println!(
+                    "   Optimized: {}",
+                    if model.is_optimized { "✅" } else { "❌" }
+                );
+
                 if let Some(model_compat) = diagnostics.compatibility_matrix.get(&model.name) {
-                    println!("   Backends: CPU {} | CUDA {} | ROCm {}",
-                        model_compat.get("CPU").unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
-                        model_compat.get("CUDA").unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
-                        model_compat.get("ROCm").unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string()))
+                    println!(
+                        "   Backends: CPU {} | CUDA {} | ROCm {}",
+                        model_compat
+                            .get("CPU")
+                            .unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
+                        model_compat
+                            .get("CUDA")
+                            .unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
+                        model_compat
+                            .get("ROCm")
+                            .unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string()))
                     );
                 }
-                
+
                 for issue in &model.issues {
                     println!("   ⚠️  {}", issue);
                 }
@@ -980,7 +1024,10 @@ pub fn display_results_table(diagnostics: &DiagnosticsResult, verbose: bool) {
             }
         } else {
             // Compact table view
-            println!("{:<30} {:<8} {:<8} {:<8} {:<12}", "Model", "CPU", "CUDA", "ROCm", "SHA256");
+            println!(
+                "{:<30} {:<8} {:<8} {:<8} {:<12}",
+                "Model", "CPU", "CUDA", "ROCm", "SHA256"
+            );
             println!("{:-<70}", "");
 
             for model in &diagnostics.models {
@@ -990,11 +1037,23 @@ pub fn display_results_table(diagnostics: &DiagnosticsResult, verbose: bool) {
                     } else {
                         "N/A".to_string()
                     };
-                    
-                    let cpu_status = status_to_ascii(model_compat.get("CPU").unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())));
-                    let cuda_status = status_to_ascii(model_compat.get("CUDA").unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())));
-                    let rocm_status = status_to_ascii(model_compat.get("ROCm").unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())));
-                    
+
+                    let cpu_status = status_to_ascii(
+                        model_compat
+                            .get("CPU")
+                            .unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
+                    );
+                    let cuda_status = status_to_ascii(
+                        model_compat
+                            .get("CUDA")
+                            .unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
+                    );
+                    let rocm_status = status_to_ascii(
+                        model_compat
+                            .get("ROCm")
+                            .unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
+                    );
+
                     println!(
                         "{:<30} {:<8} {:<8} {:<8} {:<12}",
                         if model.name.len() > 29 {
