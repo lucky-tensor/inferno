@@ -37,6 +37,7 @@ walkdir = "2.4"
 
 [dev-dependencies]
 tokio-test = { workspace = true }
+tempfile = "3.8"
 
 [[bin]]
 name = "inferno"

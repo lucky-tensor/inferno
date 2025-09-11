@@ -365,7 +365,7 @@ async fn get_cuda_version() -> Option<String> {
 }
 
 /// Parse driver version string to float for comparison
-fn parse_driver_version(version: &str) -> AnyhowResult<f32> {
+pub fn parse_driver_version(version: &str) -> AnyhowResult<f32> {
     let re = Regex::new(r"(\d+)\.(\d+)")?;
     if let Some(captures) = re.captures(version) {
         let major: u32 = captures[1].parse()?;
@@ -377,7 +377,7 @@ fn parse_driver_version(version: &str) -> AnyhowResult<f32> {
 }
 
 /// Extract memory information from rocm-smi output
-fn extract_memory_from_rocm_output(output: &str) -> Option<u64> {
+pub fn extract_memory_from_rocm_output(output: &str) -> Option<u64> {
     for line in output.lines() {
         if line.contains("Total VRAM") {
             let re = Regex::new(r"(\d+)\s*MB").ok()?;
@@ -390,7 +390,7 @@ fn extract_memory_from_rocm_output(output: &str) -> Option<u64> {
 }
 
 /// Check if ROCm is properly installed
-fn is_rocm_installed() -> bool {
+pub fn is_rocm_installed() -> bool {
     std::path::Path::new("/opt/rocm").exists() || 
     Command::new("hipcc").arg("--version").output().is_ok()
 }
@@ -416,7 +416,7 @@ fn get_rocm_version() -> Option<String> {
 }
 
 /// Check for AMD GPUs using lspci
-fn check_amd_gpus_lspci() -> AnyhowResult<bool> {
+pub fn check_amd_gpus_lspci() -> AnyhowResult<bool> {
     let output = Command::new("lspci")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -431,7 +431,7 @@ fn check_amd_gpus_lspci() -> AnyhowResult<bool> {
 }
 
 /// Detect CPU information and capabilities
-fn detect_cpu_info() -> Result<CpuInfo> {
+pub fn detect_cpu_info() -> Result<CpuInfo> {
     let mut system = System::new_all();
     system.refresh_cpu();
 
@@ -479,7 +479,7 @@ fn detect_cpu_info() -> Result<CpuInfo> {
 }
 
 /// Detect CPU instruction set features
-fn detect_cpu_features() -> (bool, bool, bool) {
+pub fn detect_cpu_features() -> (bool, bool, bool) {
     // Try to detect features using cpuid on x86/x86_64
     #[cfg(target_arch = "x86_64")]
     {
@@ -506,7 +506,7 @@ fn detect_cpu_features() -> (bool, bool, bool) {
 }
 
 /// Scan for models in the specified directory
-fn scan_models(model_dir: &str) -> AnyhowResult<Vec<ModelInfo>> {
+pub fn scan_models(model_dir: &str) -> AnyhowResult<Vec<ModelInfo>> {
     let mut models = Vec::new();
 
     if !std::path::Path::new(model_dir).exists() {
@@ -564,7 +564,7 @@ fn scan_models(model_dir: &str) -> AnyhowResult<Vec<ModelInfo>> {
 }
 
 /// Check if a model has been optimized
-fn check_model_optimization(path: &std::path::Path, format: &ModelFormat) -> bool {
+pub fn check_model_optimization(path: &std::path::Path, format: &ModelFormat) -> bool {
     match format {
         ModelFormat::SafeTensors => {
             // Check for quantization markers or specific naming patterns
@@ -579,7 +579,7 @@ fn check_model_optimization(path: &std::path::Path, format: &ModelFormat) -> boo
 }
 
 /// Determine which backends are compatible with a model format
-fn determine_compatible_backends(format: &ModelFormat) -> Vec<Backend> {
+pub fn determine_compatible_backends(format: &ModelFormat) -> Vec<Backend> {
     match format {
         ModelFormat::SafeTensors => vec![Backend::Cpu, Backend::Cuda, Backend::Rocm],
         ModelFormat::Pytorch => vec![Backend::Cpu, Backend::Cuda],
@@ -590,7 +590,7 @@ fn determine_compatible_backends(format: &ModelFormat) -> Vec<Backend> {
 }
 
 /// Calculate compatibility matrix for models and backends
-fn calculate_compatibility_matrix(
+pub fn calculate_compatibility_matrix(
     diagnostics: &DiagnosticsResult,
 ) -> HashMap<String, HashMap<String, CompatibilityStatus>> {
     let mut matrix = HashMap::new();
@@ -664,7 +664,7 @@ fn calculate_compatibility_matrix(
 }
 
 /// Calculate overall system score
-fn calculate_overall_score(diagnostics: &mut DiagnosticsResult) {
+pub fn calculate_overall_score(diagnostics: &mut DiagnosticsResult) {
     let mut score = 0;
     let mut max_score = 0;
 
@@ -734,7 +734,7 @@ fn calculate_overall_score(diagnostics: &mut DiagnosticsResult) {
 }
 
 /// Generate recommendations based on diagnostics
-fn generate_recommendations(diagnostics: &mut DiagnosticsResult) {
+pub fn generate_recommendations(diagnostics: &mut DiagnosticsResult) {
     // CPU recommendations
     if !diagnostics.cpu.supports_avx2 {
         diagnostics
@@ -797,7 +797,7 @@ fn generate_recommendations(diagnostics: &mut DiagnosticsResult) {
 }
 
 /// Display results in table format
-fn display_results_table(diagnostics: &DiagnosticsResult, verbose: bool) {
+pub fn display_results_table(diagnostics: &DiagnosticsResult, verbose: bool) {
     // Hardware Detection
     println!("Hardware Detection:");
     println!("==================");
