@@ -221,7 +221,7 @@ async fn detect_nvidia_gpus() -> AnyhowResult<Vec<GpuInfo>> {
 
     // Try to run nvidia-smi
     let output = Command::new("nvidia-smi")
-        .args(&[
+        .args([
             "--query-gpu=name,driver_version,memory.total,compute_cap",
             "--format=csv,noheader,nounits",
         ])
@@ -304,7 +304,7 @@ async fn detect_amd_gpus() -> AnyhowResult<Vec<GpuInfo>> {
 
     // Try to run rocm-smi
     let output = Command::new("rocm-smi")
-        .args(&["--showproductname", "--showmeminfo", "vram", "--csv"])
+        .args(["--showproductname", "--showmeminfo", "vram", "--csv"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output();
@@ -374,7 +374,7 @@ async fn detect_amd_gpus() -> AnyhowResult<Vec<GpuInfo>> {
 /// Get CUDA version from nvcc
 async fn get_cuda_version() -> Option<String> {
     let output = Command::new("nvcc")
-        .args(&["--version"])
+        .args(["--version"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output();
@@ -407,9 +407,9 @@ pub fn parse_driver_version(version: &str) -> AnyhowResult<f32> {
 
 /// Extract memory information from rocm-smi output
 pub fn extract_memory_from_rocm_output(output: &str) -> Option<u64> {
+    let re = Regex::new(r"(\d+)\s*MB").ok()?;
     for line in output.lines() {
         if line.contains("Total VRAM") {
-            let re = Regex::new(r"(\d+)\s*MB").ok()?;
             if let Some(captures) = re.captures(line) {
                 return captures[1].parse().ok();
             }
@@ -427,7 +427,7 @@ pub fn is_rocm_installed() -> bool {
 /// Get ROCm version
 fn get_rocm_version() -> Option<String> {
     let output = Command::new("hipcc")
-        .args(&["--version"])
+        .args(["--version"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output();
@@ -986,87 +986,85 @@ pub fn display_results_table(diagnostics: &DiagnosticsResult, verbose: bool) {
 
     if diagnostics.models.is_empty() {
         println!("No models found in standard model directories");
-    } else {
-        if verbose {
-            // Verbose mode shows more detail
-            for model in &diagnostics.models {
-                println!("📁 Model: {}", model.name);
-                println!("   Path: {}", model.path);
-                println!("   Format: {:?}", model.format);
-                println!("   Size: {} MB", model.size_mb);
-                if let Some(hash) = &model.sha256_hash {
-                    println!("   SHA256: {}", hash);
-                }
+    } else if verbose {
+        // Verbose mode shows more detail
+        for model in &diagnostics.models {
+            println!("📁 Model: {}", model.name);
+            println!("   Path: {}", model.path);
+            println!("   Format: {:?}", model.format);
+            println!("   Size: {} MB", model.size_mb);
+            if let Some(hash) = &model.sha256_hash {
+                println!("   SHA256: {}", hash);
+            }
+            println!(
+                "   Optimized: {}",
+                if model.is_optimized { "✅" } else { "❌" }
+            );
+
+            if let Some(model_compat) = diagnostics.compatibility_matrix.get(&model.name) {
                 println!(
-                    "   Optimized: {}",
-                    if model.is_optimized { "✅" } else { "❌" }
+                    "   Backends: CPU {} | CUDA {} | ROCm {}",
+                    model_compat
+                        .get("CPU")
+                        .unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
+                    model_compat
+                        .get("CUDA")
+                        .unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
+                    model_compat
+                        .get("ROCm")
+                        .unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string()))
+                );
+            }
+
+            for issue in &model.issues {
+                println!("   ⚠️  {}", issue);
+            }
+            println!();
+        }
+    } else {
+        // Compact table view
+        println!(
+            "{:<30} {:<8} {:<8} {:<8} {:<12}",
+            "Model", "CPU", "CUDA", "ROCm", "SHA256"
+        );
+        println!("{:-<70}", "");
+
+        for model in &diagnostics.models {
+            if let Some(model_compat) = diagnostics.compatibility_matrix.get(&model.name) {
+                let hash_display = if let Some(hash) = &model.sha256_hash {
+                    format!("{}...", &hash[..8])
+                } else {
+                    "N/A".to_string()
+                };
+
+                let cpu_status = status_to_ascii(
+                    model_compat
+                        .get("CPU")
+                        .unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
+                );
+                let cuda_status = status_to_ascii(
+                    model_compat
+                        .get("CUDA")
+                        .unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
+                );
+                let rocm_status = status_to_ascii(
+                    model_compat
+                        .get("ROCm")
+                        .unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
                 );
 
-                if let Some(model_compat) = diagnostics.compatibility_matrix.get(&model.name) {
-                    println!(
-                        "   Backends: CPU {} | CUDA {} | ROCm {}",
-                        model_compat
-                            .get("CPU")
-                            .unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
-                        model_compat
-                            .get("CUDA")
-                            .unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
-                        model_compat
-                            .get("ROCm")
-                            .unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string()))
-                    );
-                }
-
-                for issue in &model.issues {
-                    println!("   ⚠️  {}", issue);
-                }
-                println!();
-            }
-        } else {
-            // Compact table view
-            println!(
-                "{:<30} {:<8} {:<8} {:<8} {:<12}",
-                "Model", "CPU", "CUDA", "ROCm", "SHA256"
-            );
-            println!("{:-<70}", "");
-
-            for model in &diagnostics.models {
-                if let Some(model_compat) = diagnostics.compatibility_matrix.get(&model.name) {
-                    let hash_display = if let Some(hash) = &model.sha256_hash {
-                        format!("{}...", &hash[..8])
+                println!(
+                    "{:<30} {:<8} {:<8} {:<8} {:<12}",
+                    if model.name.len() > 29 {
+                        format!("{}...", &model.name[..26])
                     } else {
-                        "N/A".to_string()
-                    };
-
-                    let cpu_status = status_to_ascii(
-                        model_compat
-                            .get("CPU")
-                            .unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
-                    );
-                    let cuda_status = status_to_ascii(
-                        model_compat
-                            .get("CUDA")
-                            .unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
-                    );
-                    let rocm_status = status_to_ascii(
-                        model_compat
-                            .get("ROCm")
-                            .unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
-                    );
-
-                    println!(
-                        "{:<30} {:<8} {:<8} {:<8} {:<12}",
-                        if model.name.len() > 29 {
-                            format!("{}...", &model.name[..26])
-                        } else {
-                            model.name.clone()
-                        },
-                        cpu_status,
-                        cuda_status,
-                        rocm_status,
-                        hash_display
-                    );
-                }
+                        model.name.clone()
+                    },
+                    cpu_status,
+                    cuda_status,
+                    rocm_status,
+                    hash_display
+                );
             }
         }
     }

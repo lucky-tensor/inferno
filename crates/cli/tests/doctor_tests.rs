@@ -32,7 +32,7 @@ fn test_model_format_detection() {
 /// Test backend enumeration
 #[test]
 fn test_backend_types() {
-    let backends = vec![Backend::Cpu, Backend::Cuda, Backend::Rocm];
+    let backends = [Backend::Cpu, Backend::Cuda, Backend::Rocm];
     assert_eq!(backends.len(), 3);
     assert!(backends.contains(&Backend::Cpu));
     assert!(backends.contains(&Backend::Cuda));
@@ -648,7 +648,8 @@ fn test_is_rocm_installed() {
     let is_installed = is_rocm_installed();
 
     // Should return a boolean (actual value depends on system)
-    assert!(is_installed || !is_installed); // Always true, just checking it doesn't panic
+    // Just checking it doesn't panic - function should complete successfully
+    let _ = is_installed;
 }
 
 /// Test AMD GPU detection via lspci
