@@ -125,7 +125,7 @@ async fn clone_repo_with_lfs(model_id: &str, output_dir: &str, hf_token: Option<
         let mut callbacks = RemoteCallbacks::new();
         callbacks.credentials(|_url, username_from_url, _allowed_types| {
             if let Some(token) = hf_token {
-                Cred::userpass_plaintext(&username_from_url.unwrap_or("oauth2"), token)
+                Cred::userpass_plaintext(username_from_url.unwrap_or("oauth2"), token)
             } else {
                 Cred::default()
             }
@@ -219,7 +219,7 @@ async fn download_lfs_files(repo: &Repository, repo_dir: &str, hf_token: Option<
         
         download_tasks.push(async move {
             download_lfs_file_with_progress(
-                &lfs_file,
+                lfs_file.clone(),
                 &model_id_clone,
                 hf_token_clone.as_deref(),
                 progress_bar
@@ -325,7 +325,7 @@ fn extract_model_id_from_repo_path(repo_path: &str) -> Result<String> {
 }
 
 async fn download_lfs_file_with_progress(
-    lfs_file: &LfsFile,
+    lfs_file: LfsFile,
     model_id: &str,
     hf_token: Option<&str>,
     progress_bar: ProgressBar,
