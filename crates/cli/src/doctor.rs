@@ -9,7 +9,10 @@ use anyhow::Result as AnyhowResult;
 use inferno_shared::Result;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::Read;
 use std::process::{Command, Stdio};
 use sysinfo::System;
 use walkdir::WalkDir;
@@ -57,6 +60,7 @@ pub struct ModelInfo {
     pub path: String,
     pub format: ModelFormat,
     pub size_mb: u64,
+    pub sha256_hash: Option<String>,
     pub is_optimized: bool,
     pub compatible_backends: Vec<Backend>,
     pub issues: Vec<String>,
@@ -66,10 +70,6 @@ pub struct ModelInfo {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ModelFormat {
     SafeTensors,
-    Pytorch,
-    Gguf,
-    Onnx,
-    Unknown,
 }
 
 /// Available backends enumeration
@@ -140,13 +140,29 @@ pub async fn run_diagnostics(opts: DoctorCliOptions) -> Result<()> {
         inferno_shared::InfernoError::internal(format!("GPU detection failed: {}", e), None)
     })?;
 
-    // Scan models
+    // Scan models in standard locations and user-specified directory
     if opts.verbose {
-        println!("Scanning models in {}...", opts.model_dir);
+        println!("Scanning models in standard locations and {}...", opts.model_dir);
     }
-    diagnostics.models = scan_models(&opts.model_dir).map_err(|e| {
-        inferno_shared::InfernoError::internal(format!("Model scanning failed: {}", e), None)
+    
+    let mut all_models = Vec::new();
+    
+    // Scan standard locations
+    let standard_models = scan_models_standard_locations().map_err(|e| {
+        inferno_shared::InfernoError::internal(format!("Standard model scanning failed: {}", e), None)
     })?;
+    all_models.extend(standard_models);
+    
+    // Also scan user-specified directory if it's different from standard locations
+    let standard_dirs = get_standard_model_directories();
+    if !standard_dirs.contains(&opts.model_dir) {
+        let user_models = scan_models(&opts.model_dir).map_err(|e| {
+            inferno_shared::InfernoError::internal(format!("User model directory scanning failed: {}", e), None)
+        })?;
+        all_models.extend(user_models);
+    }
+    
+    diagnostics.models = all_models;
 
     // Calculate compatibility matrix
     diagnostics.compatibility_matrix = calculate_compatibility_matrix(&diagnostics);
@@ -505,8 +521,53 @@ pub fn detect_cpu_features() -> (bool, bool, bool) {
     (false, false, false)
 }
 
-/// Scan for models in the specified directory
+/// Get standard model directories to search
+pub fn get_standard_model_directories() -> Vec<String> {
+    let mut directories = Vec::new();
+    
+    // Add $HOME/models if it exists
+    if let Some(home_dir) = std::env::var_os("HOME") {
+        let home_models = std::path::Path::new(&home_dir).join("models");
+        if home_models.exists() {
+            directories.push(home_models.to_string_lossy().to_string());
+        }
+        
+        // Add $HOME/.inferno/models if it exists
+        let inferno_models = std::path::Path::new(&home_dir).join(".inferno").join("models");
+        if inferno_models.exists() {
+            directories.push(inferno_models.to_string_lossy().to_string());
+        }
+    }
+    
+    // Add ./models if it exists
+    let current_models = std::path::Path::new("./models");
+    if current_models.exists() {
+        directories.push("./models".to_string());
+    }
+    
+    directories
+}
+
+/// Scan for models in all standard locations
+pub fn scan_models_standard_locations() -> AnyhowResult<Vec<ModelInfo>> {
+    let mut all_models = Vec::new();
+    let directories = get_standard_model_directories();
+    
+    for dir in directories {
+        let mut models = scan_models_in_directory(&dir)?;
+        all_models.append(&mut models);
+    }
+    
+    Ok(all_models)
+}
+
+/// Scan for models in the specified directory (deprecated - use scan_models_standard_locations)
 pub fn scan_models(model_dir: &str) -> AnyhowResult<Vec<ModelInfo>> {
+    scan_models_in_directory(model_dir)
+}
+
+/// Scan for models in a specific directory
+pub fn scan_models_in_directory(model_dir: &str) -> AnyhowResult<Vec<ModelInfo>> {
     let mut models = Vec::new();
 
     if !std::path::Path::new(model_dir).exists() {
@@ -519,30 +580,25 @@ pub fn scan_models(model_dir: &str) -> AnyhowResult<Vec<ModelInfo>> {
 
         if path.is_file() {
             if let Some(extension) = path.extension() {
-                let format = match extension.to_str() {
-                    Some("safetensors") => ModelFormat::SafeTensors,
-                    Some("pt") | Some("pth") | Some("bin") => ModelFormat::Pytorch,
-                    Some("gguf") => ModelFormat::Gguf,
-                    Some("onnx") => ModelFormat::Onnx,
-                    _ => continue,
-                };
+                // Only process safetensors files
+                if extension.to_str() != Some("safetensors") {
+                    continue;
+                }
+                let format = ModelFormat::SafeTensors;
 
                 let metadata = entry.metadata()?;
                 let size_mb = metadata.len() / 1024 / 1024;
 
-                let name = path
-                    .file_stem()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .to_string();
+                // Extract better model name from path structure
+                let name = extract_model_name(path);
+                
+                // Calculate SHA256 hash for safetensors files
+                let sha256_hash = calculate_file_hash(path).ok();
 
                 let is_optimized = check_model_optimization(path, &format);
                 let compatible_backends = determine_compatible_backends(&format);
 
                 let mut issues = Vec::new();
-                if format == ModelFormat::Gguf {
-                    issues.push("GGUF format not yet supported by Burn framework".to_string());
-                }
                 if size_mb > 4096 {
                     issues.push("Large model may require significant GPU memory".to_string());
                 }
@@ -552,6 +608,7 @@ pub fn scan_models(model_dir: &str) -> AnyhowResult<Vec<ModelInfo>> {
                     path: path.to_string_lossy().to_string(),
                     format,
                     size_mb,
+                    sha256_hash,
                     is_optimized,
                     compatible_backends,
                     issues,
@@ -563,30 +620,61 @@ pub fn scan_models(model_dir: &str) -> AnyhowResult<Vec<ModelInfo>> {
     Ok(models)
 }
 
-/// Check if a model has been optimized
-pub fn check_model_optimization(path: &std::path::Path, format: &ModelFormat) -> bool {
-    match format {
-        ModelFormat::SafeTensors => {
-            // Check for quantization markers or specific naming patterns
-            let path_str = path.to_string_lossy().to_lowercase();
-            path_str.contains("quantized") || 
-            path_str.contains("int8") || 
-            path_str.contains("fp16") ||
-            path_str.contains("optimized")
+/// Calculate SHA256 hash of a file
+pub fn calculate_file_hash(path: &std::path::Path) -> AnyhowResult<String> {
+    let mut file = File::open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0; 8192];
+    
+    loop {
+        let bytes_read = file.read(&mut buffer)?;
+        if bytes_read == 0 {
+            break;
         }
-        _ => false,
+        hasher.update(&buffer[..bytes_read]);
     }
+    
+    Ok(hex::encode(hasher.finalize()))
+}
+
+/// Extract a meaningful model name from the file path
+pub fn extract_model_name(path: &std::path::Path) -> String {
+    // Try to get model name from directory structure
+    // Look for patterns like: /models/model-name/model.safetensors or /models/model-name-version.safetensors
+    
+    let components: Vec<_> = path.components().map(|c| c.as_os_str().to_string_lossy()).collect();
+    
+    // If the file is directly in a named directory (common HuggingFace pattern)
+    if components.len() >= 2 {
+        let parent_dir = components[components.len() - 2].to_string();
+        
+        // If parent directory name looks like a model name (not just "models")
+        if parent_dir != "models" && parent_dir != "safetensors" {
+            return parent_dir;
+        }
+    }
+    
+    // Fall back to filename without extension
+    path.file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string()
+}
+
+/// Check if a model has been optimized
+pub fn check_model_optimization(path: &std::path::Path, _format: &ModelFormat) -> bool {
+    // Check for quantization markers or specific naming patterns
+    let path_str = path.to_string_lossy().to_lowercase();
+    path_str.contains("quantized") || 
+    path_str.contains("int8") || 
+    path_str.contains("fp16") ||
+    path_str.contains("optimized")
 }
 
 /// Determine which backends are compatible with a model format
-pub fn determine_compatible_backends(format: &ModelFormat) -> Vec<Backend> {
-    match format {
-        ModelFormat::SafeTensors => vec![Backend::Cpu, Backend::Cuda, Backend::Rocm],
-        ModelFormat::Pytorch => vec![Backend::Cpu, Backend::Cuda],
-        ModelFormat::Onnx => vec![Backend::Cpu, Backend::Cuda],
-        ModelFormat::Gguf => vec![], // Not yet supported
-        ModelFormat::Unknown => vec![], // Unknown format not supported
-    }
+pub fn determine_compatible_backends(_format: &ModelFormat) -> Vec<Backend> {
+    // SafeTensors supports all backends
+    vec![Backend::Cpu, Backend::Cuda, Backend::Rocm]
 }
 
 /// Calculate compatibility matrix for models and backends
@@ -697,18 +785,12 @@ pub fn calculate_overall_score(diagnostics: &mut DiagnosticsResult) {
         score += 1;
     }
 
-    // Models score
+    // Models score  
     max_score += 2;
-    let compatible_models = diagnostics
-        .models
-        .iter()
-        .filter(|m| m.format == ModelFormat::SafeTensors)
-        .count();
+    let model_count = diagnostics.models.len();
 
-    if compatible_models > 0 {
-        score += 2;
-    } else if !diagnostics.models.is_empty() {
-        score += 1;
+    if model_count > 0 {
+        score += 2; // All models are safetensors now
     }
 
     // Driver/Software score
@@ -777,22 +859,19 @@ pub fn generate_recommendations(diagnostics: &mut DiagnosticsResult) {
     }
 
     // Model recommendations
-    let safetensors_count = diagnostics
-        .models
-        .iter()
-        .filter(|m| m.format == ModelFormat::SafeTensors)
-        .count();
-
-    if safetensors_count == 0 && !diagnostics.models.is_empty() {
-        diagnostics
-            .recommendations
-            .push("Convert models to SafeTensors format for best compatibility".to_string());
-    }
-
     if diagnostics.models.is_empty() {
         diagnostics
             .recommendations
-            .push("Download models using 'inferno download' command".to_string());
+            .push("Download SafeTensors models using 'inferno download' command".to_string());
+    }
+}
+
+/// Helper function to convert compatibility status to ASCII for table alignment
+fn status_to_ascii(status: &CompatibilityStatus) -> &'static str {
+    match status {
+        CompatibilityStatus::Compatible => "OK",
+        CompatibilityStatus::Warning(_) => "WARN",
+        CompatibilityStatus::Incompatible(_) => "FAIL",
     }
 }
 
@@ -872,24 +951,63 @@ pub fn display_results_table(diagnostics: &DiagnosticsResult, verbose: bool) {
     println!("===================");
 
     if diagnostics.models.is_empty() {
-        println!("No models found in model directory");
+        println!("No models found in standard model directories");
     } else {
-        println!("{:<30} {:<8} {:<8} {:<8}", "Model", "CPU", "CUDA", "ROCm");
-        println!("{:-<54}", "");
+        if verbose {
+            // Verbose mode shows more detail
+            for model in &diagnostics.models {
+                println!("📁 Model: {}", model.name);
+                println!("   Path: {}", model.path);
+                println!("   Format: {:?}", model.format);
+                println!("   Size: {} MB", model.size_mb);
+                if let Some(hash) = &model.sha256_hash {
+                    println!("   SHA256: {}", hash);
+                }
+                println!("   Optimized: {}", if model.is_optimized { "✅" } else { "❌" });
+                
+                if let Some(model_compat) = diagnostics.compatibility_matrix.get(&model.name) {
+                    println!("   Backends: CPU {} | CUDA {} | ROCm {}",
+                        model_compat.get("CPU").unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
+                        model_compat.get("CUDA").unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
+                        model_compat.get("ROCm").unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string()))
+                    );
+                }
+                
+                for issue in &model.issues {
+                    println!("   ⚠️  {}", issue);
+                }
+                println!();
+            }
+        } else {
+            // Compact table view
+            println!("{:<30} {:<8} {:<8} {:<8} {:<12}", "Model", "CPU", "CUDA", "ROCm", "SHA256");
+            println!("{:-<70}", "");
 
-        for model in &diagnostics.models {
-            if let Some(model_compat) = diagnostics.compatibility_matrix.get(&model.name) {
-                println!(
-                    "{:<30} {:<8} {:<8} {:<8}",
-                    if model.name.len() > 29 {
-                        format!("{}...", &model.name[..26])
+            for model in &diagnostics.models {
+                if let Some(model_compat) = diagnostics.compatibility_matrix.get(&model.name) {
+                    let hash_display = if let Some(hash) = &model.sha256_hash {
+                        format!("{}...", &hash[..8])
                     } else {
-                        model.name.clone()
-                    },
-                    model_compat.get("CPU").unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
-                    model_compat.get("CUDA").unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())),
-                    model_compat.get("ROCm").unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string()))
-                );
+                        "N/A".to_string()
+                    };
+                    
+                    let cpu_status = status_to_ascii(model_compat.get("CPU").unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())));
+                    let cuda_status = status_to_ascii(model_compat.get("CUDA").unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())));
+                    let rocm_status = status_to_ascii(model_compat.get("ROCm").unwrap_or(&CompatibilityStatus::Incompatible("N/A".to_string())));
+                    
+                    println!(
+                        "{:<30} {:<8} {:<8} {:<8} {:<12}",
+                        if model.name.len() > 29 {
+                            format!("{}...", &model.name[..26])
+                        } else {
+                            model.name.clone()
+                        },
+                        cpu_status,
+                        cuda_status,
+                        rocm_status,
+                        hash_display
+                    );
+                }
             }
         }
     }
