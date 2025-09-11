@@ -17,5 +17,6 @@
 //! ```
 
 pub mod cli_options;
+pub mod model_downloader;
 
 pub use cli_options::{Cli, Commands};

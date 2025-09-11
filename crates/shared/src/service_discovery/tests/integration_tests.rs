@@ -124,6 +124,14 @@ async fn test_self_sovereign_updates() {
 async fn test_configuration_from_environment() {
     use std::env;
 
+    // Clean up any leftover environment variables from other tests
+    env::remove_var("INFERNO_SERVICE_DISCOVERY_AUTH_MODE");
+    env::remove_var("INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_INTERVAL");
+    env::remove_var("INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_TIMEOUT");
+    env::remove_var("INFERNO_SERVICE_DISCOVERY_FAILURE_THRESHOLD");
+    env::remove_var("INFERNO_SERVICE_DISCOVERY_SHARED_SECRET");
+    env::remove_var("INFERNO_SERVICE_DISCOVERY_ENABLE_LOGGING");
+
     // Set test environment variables
     env::set_var("INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_INTERVAL", "10");
     env::set_var("INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_TIMEOUT", "3");
@@ -156,30 +164,40 @@ async fn test_configuration_from_environment() {
 async fn test_configuration_validation_errors() {
     use std::env;
 
+    // Clean up any environment variables that might interfere with our tests
+    let vars_to_clean = [
+        "INFERNO_SERVICE_DISCOVERY_AUTH_MODE",
+        "INFERNO_SERVICE_DISCOVERY_SHARED_SECRET",
+        "INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_INTERVAL",
+        "INFERNO_SERVICE_DISCOVERY_ENABLE_LOGGING",
+    ];
+    for var in &vars_to_clean {
+        env::remove_var(var);
+    }
+
     // Test invalid auth mode
     env::set_var("INFERNO_SERVICE_DISCOVERY_AUTH_MODE", "invalid_mode");
     let result = ServiceDiscoveryConfig::from_env();
     assert!(result.is_err());
+    env::remove_var("INFERNO_SERVICE_DISCOVERY_AUTH_MODE");
 
-    // Test shared secret mode without secret
-    env::set_var("INFERNO_SERVICE_DISCOVERY_AUTH_MODE", "shared_secret");
+    // Test shared secret mode without secret - ensure secret is NOT set
     env::remove_var("INFERNO_SERVICE_DISCOVERY_SHARED_SECRET");
+    env::set_var("INFERNO_SERVICE_DISCOVERY_AUTH_MODE", "shared_secret");
     let result = ServiceDiscoveryConfig::from_env();
-    assert!(result.is_err());
+    assert!(result.is_err(), "Should fail when shared_secret auth mode is used without a secret");
+    env::remove_var("INFERNO_SERVICE_DISCOVERY_AUTH_MODE");
 
     // Test invalid numeric values
     env::set_var("INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_INTERVAL", "invalid");
     let result = ServiceDiscoveryConfig::from_env();
     assert!(result.is_err());
+    env::remove_var("INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_INTERVAL");
 
     // Test invalid boolean values
     env::set_var("INFERNO_SERVICE_DISCOVERY_ENABLE_LOGGING", "maybe");
     let result = ServiceDiscoveryConfig::from_env();
     assert!(result.is_err());
-
-    // Clean up
-    env::remove_var("INFERNO_SERVICE_DISCOVERY_AUTH_MODE");
-    env::remove_var("INFERNO_SERVICE_DISCOVERY_HEALTH_CHECK_INTERVAL");
     env::remove_var("INFERNO_SERVICE_DISCOVERY_ENABLE_LOGGING");
 }
 
