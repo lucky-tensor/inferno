@@ -47,7 +47,6 @@ pub struct ServiceDiscovery {
     client: ServiceDiscoveryClient,
 
     /// Consensus resolver for peer information
-
     /// Known peer URLs for registration
     peer_urls: Arc<RwLock<Vec<String>>>,
 

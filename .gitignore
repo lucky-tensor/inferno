@@ -44,3 +44,6 @@ CACHEDIR.TAG
 benchmark.json
 
 .claude/todo.md
+
+# Model files
+/models/

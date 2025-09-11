@@ -8,6 +8,7 @@ An end-to-end Rust LLM micro platform which is request optimized and kernel opti
 [![Benchmark](https://github.com/0o-de-lally/inferno/workflows/Benchmark/badge.svg)](https://github.com/0o-de-lally/inferno/actions/workflows/bench.yml)
 [![Lint](https://github.com/0o-de-lally/inferno/workflows/Lint/badge.svg)](https://github.com/0o-de-lally/inferno/actions/workflows/lint.yml)
 
+Inferno is a self-healing cloud platform for AI inference, designed for high-performance, reliability, and observability. It demonstrates best practices for distributed systems, with comprehensive testing and robust error recovery for AI workloads.
 
 ## Features
 

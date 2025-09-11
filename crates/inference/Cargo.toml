@@ -1,0 +1,76 @@
+[package]
+name = "inferno-inference"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Inference engine implementation for Inferno with Burn ML framework support"
+
+[dependencies]
+# Workspace dependencies
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+
+# Local dependencies
+inferno-shared = { workspace = true }
+
+# Configuration and environment
+config = { workspace = true }
+toml = { workspace = true }
+num_cpus = { workspace = true }
+
+# JSON and validation
+validator = { workspace = true }
+
+# Burn ML Framework for real model inference
+burn = { workspace = true, optional = true }
+tokenizers = { workspace = true, optional = true }
+hf-hub = { workspace = true, optional = true }
+safetensors = { workspace = true, optional = true }
+llama-burn = { workspace = true, optional = true }
+# half removed - not used in current implementation
+
+[build-dependencies]
+reqwest = { version = "0.11", features = ["blocking"] }
+
+[dev-dependencies]
+tokio-test = { workspace = true }
+criterion = { workspace = true }
+proptest = { workspace = true }
+serial_test = { workspace = true }
+tempfile = { workspace = true }
+rstest = { workspace = true }
+
+[features]
+default = ["burn-cpu", "pretrained"]
+pretrained = []
+burn-cpu = [
+    "burn/ndarray",
+    "burn/autodiff",
+    "tokenizers",
+    "hf-hub/tokio",
+    "safetensors",
+    "llama-burn"
+]  # Real deterministic Llama model inference with SafeTensors support
+burn-cuda = [
+    "burn",
+    "tokenizers",
+    "hf-hub",
+    "llama-burn"
+]  # Same as CPU for now (future acceleration)
+cuda = []  # Reserved for future use
+
+# Benchmarks will be added in later phases
+# [[bench]]
+# name = "latency"
+# harness = false
+
+# [[bench]]
+# name = "throughput"
+# harness = false
