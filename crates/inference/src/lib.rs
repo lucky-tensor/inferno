@@ -65,6 +65,7 @@ pub mod error;
 pub mod engine;
 pub mod inference;
 pub mod memory;
+pub mod models;
 
 // Service integration
 pub mod health;

@@ -1,6 +1,6 @@
-//! Build script for SmolLM2-135M model download using SafeTensors format
+//! Build script for TinyLlama-1.1B model download using SafeTensors format
 //!
-//! This script downloads the SmolLM2-135M model from Hugging Face
+//! This script downloads the TinyLlama-1.1B model from Hugging Face
 //! and prepares it for use with Burn framework.
 
 #[cfg(feature = "burn-cpu")]
@@ -10,7 +10,7 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
 
     // Create models directory if it doesn't exist
-    let models_dir = Path::new("../../models/smollm2-135m");
+    let models_dir = Path::new("../../models/tinyllama-1.1b");
     std::fs::create_dir_all(models_dir).expect("Failed to create models directory");
 
     let model_files = [
@@ -23,7 +23,7 @@ fn main() {
         let file_path = models_dir.join(filename);
         if !file_path.exists() {
             println!(
-                "cargo:warning=Downloading SmolLM2-135M {} ({})...",
+                "cargo:warning=Downloading TinyLlama-1.1B {} ({})...",
                 filename, description
             );
             if download_model_file(&file_path, filename) {
@@ -44,16 +44,16 @@ fn main() {
     let tokenizer_path = models_dir.join("tokenizer.json");
 
     if model_path.exists() && tokenizer_path.exists() {
-        println!("cargo:warning=SmolLM2-135M model ready for Burn framework");
+        println!("cargo:warning=TinyLlama-1.1B model ready for Burn framework");
     } else {
-        println!("cargo:warning=Missing essential files for SmolLM2-135M model");
+        println!("cargo:warning=Missing essential files for TinyLlama-1.1B model");
     }
 }
 
 #[cfg(feature = "burn-cpu")]
 fn download_model_file(file_path: &std::path::Path, filename: &str) -> bool {
     let url = format!(
-        "https://huggingface.co/HuggingFaceTB/SmolLM2-135M/resolve/main/{}",
+        "https://huggingface.co/TinyLlama/TinyLlama-1.1B-Chat-v1.0/resolve/main/{}",
         filename
     );
 

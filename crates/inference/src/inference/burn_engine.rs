@@ -183,16 +183,25 @@ impl BurnInferenceEngine {
             } else {
                 &config.model_path
             };
-            let model_path = Self::download_real_model(&models_dir).await?;
+            let model_path = Self::download_real_model(models_dir).await?;
             self.model_path = Some(model_path.clone());
             
-            // Try to load the model with weights and tokenizer
-            // For now, skip loading pre-trained weights
-            // The llama-burn crate should provide weight loading utilities
-            let load_weights = false;
+            // Load the model with pre-trained weights using llama-burn
+            let load_weights = true;
             if load_weights {
-                // self.model = Some(loaded_model);
-                info!("TinyLlama model loaded successfully with weights");
+                // Create device for model loading
+                let device = burn::backend::ndarray::NdArrayDevice::default();
+                match crate::models::llama_loader::load_llama_weights(&model_path, &device) {
+                    Ok(loaded_model) => {
+                        self.model = Some(loaded_model);
+                        info!("TinyLlama model loaded successfully with pre-trained weights");
+                        self.model_ready = true;
+                    }
+                    Err(e) => {
+                        warn!("Failed to load pre-trained weights: {}. Using random weights.", e);
+                        self.model_ready = false;
+                    }
+                }
             } else {
                 // Fallback: Initialize model without pre-trained weights
                 warn!("Could not load pre-trained weights, initializing new model");
@@ -231,13 +240,13 @@ impl BurnInferenceEngine {
     }
 
     /// Process a single inference request
-    pub async fn process(&mut self, mut request: InferenceRequest) -> VLLMResult<InferenceResponse> {
+    pub fn process(&mut self, mut request: InferenceRequest) -> VLLMResult<InferenceResponse> {
         // Ensure request has an ID
         if request.request_id == 0 {
             request.request_id = self.request_count + 1;
         }
         if !self.initialized {
-            return Err(VLLMError::InvalidArgument("Engine not initialized".to_string()));
+            return Err(VLLMError::EngineNotInitialized);
         }
 
         let start_time = Instant::now();
@@ -264,9 +273,12 @@ impl BurnInferenceEngine {
 
         let inference_time = start_time.elapsed().as_secs_f64();
         self.total_inference_time += inference_time;
-        self.stats.avg_inference_time_ms = (self.total_inference_time * 1000.0) / self.request_count as f64;
+        #[allow(clippy::cast_precision_loss)]
+        let avg_inference_time_ms = (self.total_inference_time * 1000.0) / (self.request_count as f64);
+        self.stats.avg_inference_time_ms = avg_inference_time_ms;
 
-        let avg_latency = self.total_inference_time / self.request_count as f64;
+        #[allow(clippy::cast_precision_loss)]
+        let avg_latency = self.total_inference_time / (self.request_count as f64);
         debug!(
             "Inference completed in {:.3}s (avg: {:.3}s)",
             inference_time, avg_latency
@@ -293,7 +305,7 @@ impl BurnInferenceEngine {
     }
 
     /// Shutdown the engine
-    pub async fn shutdown(&mut self) -> VLLMResult<()> {
+    pub fn shutdown(&mut self) -> VLLMResult<()> {
         info!("Shutting down Burn inference engine");
         self.initialized = false;
         self.model_ready = false;
@@ -343,7 +355,7 @@ mod tests {
             seed: Some(42),
         };
         
-        let result = engine.process(request).await;
-        assert!(matches!(result, Err(VLLMError::NotInitialized)));
+        let result = engine.process(request);
+        assert!(matches!(result, Err(VLLMError::EngineNotInitialized)));
     }
 }

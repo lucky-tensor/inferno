@@ -14,7 +14,7 @@ use tokenizers::Tokenizer;
 type Backend = NdArray<f32>;
 
 #[derive(Clone, Debug)]
-pub struct SmolLM2Config {
+pub struct TinyLlamaConfig {
     pub vocab_size: usize,
     pub hidden_size: usize,
     pub intermediate_size: usize,
@@ -25,23 +25,23 @@ pub struct SmolLM2Config {
     pub rms_norm_eps: f64,
 }
 
-impl Default for SmolLM2Config {
+impl Default for TinyLlamaConfig {
     fn default() -> Self {
         Self {
-            vocab_size: 49152,
-            hidden_size: 576,
-            intermediate_size: 1536,
-            num_hidden_layers: 30,
-            num_attention_heads: 9,
-            num_key_value_heads: 3,
-            max_position_embeddings: 8192,
+            vocab_size: 32000,
+            hidden_size: 2048,
+            intermediate_size: 5632,
+            num_hidden_layers: 22,
+            num_attention_heads: 32,
+            num_key_value_heads: 4,
+            max_position_embeddings: 2048,
             rms_norm_eps: 1e-5,
         }
     }
 }
 
 #[derive(Module, Debug)]
-pub struct SmolLM2Attention<B: burn::tensor::backend::Backend> {
+pub struct TinyLlamaAttention<B: burn::tensor::backend::Backend> {
     q_proj: Linear<B>,
     k_proj: Linear<B>,
     v_proj: Linear<B>,
@@ -51,8 +51,8 @@ pub struct SmolLM2Attention<B: burn::tensor::backend::Backend> {
     head_dim: usize,
 }
 
-impl<B: burn::tensor::backend::Backend> SmolLM2Attention<B> {
-    pub fn new(config: &SmolLM2Config, device: &B::Device) -> Self {
+impl<B: burn::tensor::backend::Backend> TinyLlamaAttention<B> {
+    pub fn new(config: &TinyLlamaConfig, device: &B::Device) -> Self {
         let head_dim = config.hidden_size / config.num_attention_heads;
 
         Self {
@@ -148,14 +148,14 @@ impl<B: burn::tensor::backend::Backend> SmolLM2Attention<B> {
 }
 
 #[derive(Module, Debug)]
-pub struct SmolLM2MLP<B: burn::tensor::backend::Backend> {
+pub struct TinyLlamaMLP<B: burn::tensor::backend::Backend> {
     gate_proj: Linear<B>,
     up_proj: Linear<B>,
     down_proj: Linear<B>,
 }
 
-impl<B: burn::tensor::backend::Backend> SmolLM2MLP<B> {
-    pub fn new(config: &SmolLM2Config, device: &B::Device) -> Self {
+impl<B: burn::tensor::backend::Backend> TinyLlamaMLP<B> {
+    pub fn new(config: &TinyLlamaConfig, device: &B::Device) -> Self {
         Self {
             gate_proj: LinearConfig::new(config.hidden_size, config.intermediate_size)
                 .with_bias(false)
@@ -182,18 +182,18 @@ impl<B: burn::tensor::backend::Backend> SmolLM2MLP<B> {
 }
 
 #[derive(Module, Debug)]
-pub struct SmolLM2Layer<B: burn::tensor::backend::Backend> {
-    self_attn: SmolLM2Attention<B>,
-    mlp: SmolLM2MLP<B>,
+pub struct TinyLlamaLayer<B: burn::tensor::backend::Backend> {
+    self_attn: TinyLlamaAttention<B>,
+    mlp: TinyLlamaMLP<B>,
     input_layernorm: LayerNorm<B>,
     post_attention_layernorm: LayerNorm<B>,
 }
 
-impl<B: burn::tensor::backend::Backend> SmolLM2Layer<B> {
-    pub fn new(config: &SmolLM2Config, device: &B::Device) -> Self {
+impl<B: burn::tensor::backend::Backend> TinyLlamaLayer<B> {
+    pub fn new(config: &TinyLlamaConfig, device: &B::Device) -> Self {
         Self {
-            self_attn: SmolLM2Attention::new(config, device),
-            mlp: SmolLM2MLP::new(config, device),
+            self_attn: TinyLlamaAttention::new(config, device),
+            mlp: TinyLlamaMLP::new(config, device),
             input_layernorm: LayerNormConfig::new(config.hidden_size).init(device),
             post_attention_layernorm: LayerNormConfig::new(config.hidden_size).init(device),
         }
@@ -213,25 +213,25 @@ impl<B: burn::tensor::backend::Backend> SmolLM2Layer<B> {
 }
 
 #[derive(Module, Debug)]
-pub struct SmolLM2Model<B: burn::tensor::backend::Backend> {
+pub struct TinyLlamaModel<B: burn::tensor::backend::Backend> {
     embed_tokens: Embedding<B>,
-    layers: Vec<SmolLM2Layer<B>>,
+    layers: Vec<TinyLlamaLayer<B>>,
     norm: LayerNorm<B>,
     lm_head: Option<Linear<B>>, // Optional - uses tied weights from embed_tokens if None
                                 // config is not a Module, so we'll store it separately or derive it from other fields
 }
 
-impl<B: burn::tensor::backend::Backend> SmolLM2Model<B> {
-    pub fn config(&self) -> SmolLM2Config {
-        SmolLM2Config::default() // For now, return default config
+impl<B: burn::tensor::backend::Backend> TinyLlamaModel<B> {
+    pub fn config(&self) -> TinyLlamaConfig {
+        TinyLlamaConfig::default() // For now, return default config
     }
 }
 
-impl<B: burn::tensor::backend::Backend> SmolLM2Model<B> {
-    pub fn new(config: SmolLM2Config, device: &B::Device) -> Self {
+impl<B: burn::tensor::backend::Backend> TinyLlamaModel<B> {
+    pub fn new(config: TinyLlamaConfig, device: &B::Device) -> Self {
         let mut layers = Vec::new();
         for _ in 0..config.num_hidden_layers {
-            layers.push(SmolLM2Layer::new(&config, device));
+            layers.push(TinyLlamaLayer::new(&config, device));
         }
 
         Self {
@@ -277,19 +277,19 @@ impl<B: burn::tensor::backend::Backend> SmolLM2Model<B> {
 
 #[tokio::test]
 async fn test_weight_loading_only() -> Result<(), Box<dyn Error>> {
-    println!("🚀 Testing weight loading for SmolLM2 model");
+    println!("🚀 Testing weight loading for TinyLlama model");
 
     let device = burn::backend::ndarray::NdArrayDevice::default();
-    let config = SmolLM2Config::default();
+    let config = TinyLlamaConfig::default();
 
     // Create a smaller model for testing weight loading
     let mut small_config = config.clone();
     small_config.num_hidden_layers = 2; // Much smaller for testing
-    let _model = SmolLM2Model::<Backend>::new(small_config, &device);
-    println!("✅ Created small SmolLM2 model structure (2 layers)");
+    let _model = TinyLlamaModel::<Backend>::new(small_config, &device);
+    println!("✅ Created small TinyLlama model structure (2 layers)");
 
     // Test weight loading
-    let model_path = PathBuf::from("../../models/smollm2-135m");
+    let model_path = PathBuf::from("../../models/tinyllama-1.1b");
     let weights_path = model_path.join("model.safetensors");
 
     match std::fs::metadata(&weights_path) {
@@ -306,22 +306,22 @@ async fn test_weight_loading_only() -> Result<(), Box<dyn Error>> {
 }
 
 #[tokio::test]
-async fn test_real_smollm2_inference() -> Result<(), Box<dyn Error>> {
-    println!("🚀 Testing REAL SmolLM2 inference with actual pre-trained weights");
+async fn test_real_tinyllama_inference() -> Result<(), Box<dyn Error>> {
+    println!("🚀 Testing REAL TinyLlama inference with actual pre-trained weights");
 
     let device = burn::backend::ndarray::NdArrayDevice::default();
-    let config = SmolLM2Config::default();
+    let config = TinyLlamaConfig::default();
 
     // Create model structure
-    let model = SmolLM2Model::<Backend>::new(config, &device);
-    println!("✅ Created SmolLM2 model structure");
+    let model = TinyLlamaModel::<Backend>::new(config, &device);
+    println!("✅ Created TinyLlama model structure");
 
     // Note: Weight loading from SafeTensors is implemented but disabled due to performance issues
     // The model uses random weights for demonstration purposes
     println!("⚠️  Using random weights for demonstration");
 
     // Load tokenizer
-    let model_path = PathBuf::from("../../models/smollm2-135m");
+    let model_path = PathBuf::from("../../models/tinyllama-1.1b");
     let tokenizer_path = model_path.join("tokenizer.json");
     let tokenizer =
         Tokenizer::from_file(tokenizer_path).map_err(|e| format!("Tokenizer error: {}", e))?;
@@ -354,7 +354,7 @@ async fn test_real_smollm2_inference() -> Result<(), Box<dyn Error>> {
     );
 
     // Generate next token
-    let last_token_logits = logits.clone().slice([0..1, seq_len - 1..seq_len, 0..49152]);
+    let last_token_logits = logits.clone().slice([0..1, seq_len - 1..seq_len, 0..32000]);
     let last_token_logits = last_token_logits.squeeze::<2>(1);
 
     let probs = softmax(last_token_logits, 1);
@@ -404,27 +404,27 @@ async fn test_real_smollm2_inference() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn test_complete_inference_architecture() -> Result<(), Box<dyn Error>> {
-    println!("🚀 Testing COMPLETE SmolLM2 inference architecture with real tokenizer");
+    println!("🚀 Testing COMPLETE TinyLlama inference architecture with real tokenizer");
 
     let device = burn::backend::ndarray::NdArrayDevice::default();
-    let config = SmolLM2Config {
+    let config = TinyLlamaConfig {
         num_hidden_layers: 2, // Smaller for demo performance
         ..Default::default()
     };
 
     // Create model (with random weights for demo)
-    let model = SmolLM2Model::<Backend>::new(config.clone(), &device);
+    let model = TinyLlamaModel::<Backend>::new(config.clone(), &device);
     println!(
-        "✅ Created SmolLM2 architecture: {} layers, {} heads",
+        "✅ Created TinyLlama architecture: {} layers, {} heads",
         config.num_hidden_layers, config.num_attention_heads
     );
 
     // Load REAL tokenizer (same as what would be used with real weights)
-    let model_path = PathBuf::from("../../models/smollm2-135m");
+    let model_path = PathBuf::from("../../models/tinyllama-1.1b");
     let tokenizer_path = model_path.join("tokenizer.json");
     let tokenizer =
         Tokenizer::from_file(tokenizer_path).map_err(|e| format!("Tokenizer error: {}", e))?;
-    println!("✅ Loaded REAL SmolLM2 tokenizer");
+    println!("✅ Loaded REAL TinyLlama tokenizer");
 
     // Test with real English question
     let prompt = "Which planet is referred to as the blue dot?";
@@ -485,7 +485,7 @@ async fn test_complete_inference_architecture() -> Result<(), Box<dyn Error>> {
         .map_err(|e| format!("Decode error: {}", e))?;
 
     println!("🎯 Generated: '{}'", generated);
-    println!("📊 INFERENCE COMPLETE - Full SmolLM2 architecture working!");
+    println!("📊 INFERENCE COMPLETE - Full TinyLlama architecture working!");
     println!(
         "✅ Components verified: Embedding → {} Attention Layers → LayerNorm → LM Head",
         config.num_hidden_layers
@@ -504,13 +504,13 @@ async fn test_complete_inference_architecture() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn test_model_components() -> Result<(), Box<dyn Error>> {
-    println!("🔍 Testing individual SmolLM2 components");
+    println!("🔍 Testing individual TinyLlama components");
 
     let device = burn::backend::ndarray::NdArrayDevice::default();
-    let config = SmolLM2Config::default();
+    let config = TinyLlamaConfig::default();
 
     // Test attention
-    let attention = SmolLM2Attention::<Backend>::new(&config, &device);
+    let attention = TinyLlamaAttention::<Backend>::new(&config, &device);
     let dummy_hidden = Tensor::<Backend, 3>::zeros([1, 10, config.hidden_size], &device);
     let attn_output = attention.forward(dummy_hidden.clone());
     println!(
@@ -520,7 +520,7 @@ async fn test_model_components() -> Result<(), Box<dyn Error>> {
     );
 
     // Test MLP
-    let mlp = SmolLM2MLP::<Backend>::new(&config, &device);
+    let mlp = TinyLlamaMLP::<Backend>::new(&config, &device);
     let mlp_output = mlp.forward(dummy_hidden.clone());
     println!(
         "✅ MLP: {:?} -> {:?}",
@@ -529,7 +529,7 @@ async fn test_model_components() -> Result<(), Box<dyn Error>> {
     );
 
     // Test full layer
-    let layer = SmolLM2Layer::<Backend>::new(&config, &device);
+    let layer = TinyLlamaLayer::<Backend>::new(&config, &device);
     let layer_output = layer.forward(dummy_hidden.clone());
     println!(
         "✅ Transformer layer: {:?} -> {:?}",

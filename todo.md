@@ -1,21 +1,21 @@
 # Inference Crate Cleanup and Refactoring Tasks
 
 ## Summary
-The latest commit (f9205ce) successfully demonstrates SmolLM2 inference working with Burn framework. Now we need to consolidate and clean up the redundant demo/test files.
+The latest commit successfully demonstrates TinyLlama inference working with Burn framework. Now we need to consolidate and clean up the redundant demo/test files.
 
 ## Test Files Analysis
 
 ### Keep (Working Implementation)
 - **`tests/real_burn_inference.rs`** - KEEP
-  - Contains the complete SmolLM2 implementation with proper architecture
+  - Contains the complete TinyLlama implementation with proper architecture
   - Has attention, MLP, layernorm, and full transformer layers
   - Successfully demonstrates inference with tokenizer integration
-  - Tests: `test_weight_loading_only`, `test_real_smollm2_inference`, `test_complete_inference_architecture`, `test_model_components`
+  - Tests: `test_weight_loading_only`, `test_real_tinyllama_inference`, `test_complete_inference_architecture`, `test_model_components`
 
 ### Remove (Redundant/Demo Files)
 1. **`tests/burn_clean_demo.rs`** - REMOVE
    - Simple demo showing Burn abstractions vs manual implementation
-   - Redundant now that we have full SmolLM2 working
+   - Redundant now that we have full TinyLlama working
 
 2. **`tests/burn_proper_inference.rs`** - REMOVE  
    - Intermediate demo with SimpleLanguageModel
@@ -58,14 +58,14 @@ The latest commit (f9205ce) successfully demonstrates SmolLM2 inference working 
 
 ## Refactoring Tasks
 
-### 1. Consolidate SmolLM2 Implementation
-- [ ] Move SmolLM2 model from `tests/real_burn_inference.rs` to proper location in `src/`
-- [ ] Create `src/models/smollm2/mod.rs` with:
-  - `SmolLM2Config`
-  - `SmolLM2Model` 
-  - `SmolLM2Attention`
-  - `SmolLM2MLP`
-  - `SmolLM2Layer`
+### 1. Consolidate TinyLlama Implementation
+- [ ] Move TinyLlama model from `tests/real_burn_inference.rs` to proper location in `src/`
+- [ ] Create `src/models/tinyllama/mod.rs` with:
+  - `TinyLlamaConfig`
+  - `TinyLlamaModel` 
+  - `TinyLlamaAttention`
+  - `TinyLlamaMLP`
+  - `TinyLlamaLayer`
 
 ### 2. Clean Test Structure
 - [ ] Remove redundant test files (burn_clean_demo.rs, burn_proper_inference.rs, minimal_hello_world.rs)
@@ -73,7 +73,7 @@ The latest commit (f9205ce) successfully demonstrates SmolLM2 inference working 
 - [ ] Move integration tests to proper structure
 
 ### 3. Update Module Exports
-- [ ] Update `src/lib.rs` to export SmolLM2 model
+- [ ] Update `src/lib.rs` to export TinyLlama model
 - [ ] Clean up unused exports from removed files
 - [ ] Add proper documentation
 
@@ -83,18 +83,18 @@ The latest commit (f9205ce) successfully demonstrates SmolLM2 inference working 
 - [ ] Create weight conversion utilities if needed
 
 ### 5. Inference API
-- [ ] Create clean inference API using SmolLM2
+- [ ] Create clean inference API using TinyLlama
 - [ ] Implement proper batching support
 - [ ] Add streaming generation support
 
 ### 6. Documentation
-- [ ] Update README with SmolLM2 usage examples
+- [ ] Update README with TinyLlama usage examples
 - [ ] Document model architecture
 - [ ] Add inference benchmarks
 
 ## Priority Order
 1. **High Priority**: Remove redundant test files
-2. **High Priority**: Move SmolLM2 to src/models/
+2. **High Priority**: Move TinyLlama to src/models/
 3. **Medium Priority**: Clean up src/inference/ module
 4. **Medium Priority**: Implement proper weight loading
 5. **Low Priority**: Documentation and benchmarks
@@ -111,14 +111,14 @@ git rm crates/inference/src/inference/burn_engine_simple.rs
 git rm crates/inference/src/inference/burn_hello_world.rs
 
 # Create new model structure
-mkdir -p crates/inference/src/models/smollm2
+mkdir -p crates/inference/src/models/tinyllama
 ```
 
 ## Notes
 - The `real_burn_inference.rs` test successfully demonstrates:
   - Tokenizer integration
   - Model architecture (embedding, attention, MLP, layernorm)
-  - Forward pass through 30 transformer layers
+  - Forward pass through 22 transformer layers
   - Next token prediction
   - SafeTensors weight loading structure (needs full implementation)
 - Current implementation uses random weights for demo, needs actual weight loading

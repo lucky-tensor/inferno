@@ -1,4 +1,4 @@
-# SmolLM2 Weight Loading Status
+# TinyLlama Weight Loading Status
 
 ## Current Status
 ✅ **Model Architecture**: Fully implemented and working
@@ -8,8 +8,8 @@
 ## The Challenge
 The Burn framework's `SafetensorsFileRecorder` expects tensor names to match the model's field names exactly, but HuggingFace models use a different naming convention:
 
-### HuggingFace SmolLM2 Tensor Names:
-- `model.embed_tokens.weight` (shape: [49152, 576])
+### HuggingFace TinyLlama Tensor Names:
+- `model.embed_tokens.weight` (shape: [32000, 2048])
 - `model.layers.0.self_attn.q_proj.weight`
 - `model.layers.0.mlp.gate_proj.weight`
 - `model.norm.weight`
@@ -22,7 +22,7 @@ The Burn framework's `SafetensorsFileRecorder` expects tensor names to match the
 - `norm`
 
 ## Additional Complexity
-- SmolLM2 uses **tied embeddings** (`tie_word_embeddings: true`)
+- TinyLlama uses **tied embeddings** (`tie_word_embeddings: true`)
 - The embedding weights are reused for the language model head
 - No separate `lm_head` weights in the SafeTensors file
 
@@ -58,7 +58,7 @@ Despite using random weights, the model:
 
 ## Files Created
 - `examples/inspect_safetensors.rs` - Tool to inspect SafeTensors structure
-- `src/models/smollm2_loader.rs` - Started implementation of custom loader
+- `src/models/tinyllama_loader.rs` - Started implementation of custom loader
 - `src/models/mod.rs` - Module structure for model loaders
 
 ## Next Steps
@@ -70,7 +70,7 @@ Despite using random weights, the model:
 ## Running the Tests
 ```bash
 # See current behavior with random weights
-cargo test test_real_smollm2_inference --test real_burn_inference -- --nocapture
+cargo test test_real_tinyllama_inference --test real_burn_inference -- --nocapture
 
 # Inspect SafeTensors structure
 cargo run --example inspect_safetensors
