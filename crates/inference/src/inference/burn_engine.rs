@@ -15,10 +15,7 @@ use tracing::{debug, info, warn};
 
 // Real Burn framework imports for Llama inference
 #[cfg(feature = "burn-cpu")]
-use burn::{
-    backend::ndarray::NdArray,
-    tensor::Device,
-};
+use burn::{backend::ndarray::NdArray, tensor::Device};
 
 #[cfg(feature = "burn-cpu")]
 use llama_burn::llama::{Llama, LlamaConfig};
@@ -129,7 +126,10 @@ impl BurnInferenceEngine {
             .all(|file| model_cache_dir.join(file).exists());
 
         if all_files_exist {
-            info!("TinyLlama-1.1B model already cached at: {:?}", model_cache_dir);
+            info!(
+                "TinyLlama-1.1B model already cached at: {:?}",
+                model_cache_dir
+            );
             return Ok(model_cache_dir);
         }
 
@@ -149,19 +149,22 @@ impl BurnInferenceEngine {
             let file_path = model_cache_dir.join(filename);
             if !file_path.exists() {
                 info!("Downloading {}", filename);
-                
-                let downloaded_path = repo
-                    .get(filename)
-                    .await
-                    .map_err(|e| VLLMError::InvalidArgument(format!("Failed to download {}: {}", filename, e)))?;
-                
+
+                let downloaded_path = repo.get(filename).await.map_err(|e| {
+                    VLLMError::InvalidArgument(format!("Failed to download {}: {}", filename, e))
+                })?;
+
                 // Copy to our cache directory
-                std::fs::copy(downloaded_path, &file_path)
-                    .map_err(|e| VLLMError::InvalidArgument(format!("Failed to copy {}: {}", filename, e)))?;
+                std::fs::copy(downloaded_path, &file_path).map_err(|e| {
+                    VLLMError::InvalidArgument(format!("Failed to copy {}: {}", filename, e))
+                })?;
             }
         }
 
-        info!("TinyLlama-1.1B model downloaded successfully to {:?}", model_cache_dir);
+        info!(
+            "TinyLlama-1.1B model downloaded successfully to {:?}",
+            model_cache_dir
+        );
         Ok(model_cache_dir)
     }
 
@@ -171,8 +174,11 @@ impl BurnInferenceEngine {
             return Ok(());
         }
 
-        info!("Initializing Burn inference engine with backend: {:?}", self.backend_type);
-        
+        info!(
+            "Initializing Burn inference engine with backend: {:?}",
+            self.backend_type
+        );
+
         self.config = Some(config.clone());
 
         // Download and load real model
@@ -185,7 +191,7 @@ impl BurnInferenceEngine {
             };
             let model_path = Self::download_real_model(models_dir).await?;
             self.model_path = Some(model_path.clone());
-            
+
             // Load the model with pre-trained weights using llama-burn
             let load_weights = true;
             if load_weights {
@@ -198,14 +204,17 @@ impl BurnInferenceEngine {
                         self.model_ready = true;
                     }
                     Err(e) => {
-                        warn!("Failed to load pre-trained weights: {}. Using random weights.", e);
+                        warn!(
+                            "Failed to load pre-trained weights: {}. Using random weights.",
+                            e
+                        );
                         self.model_ready = false;
                     }
                 }
             } else {
                 // Fallback: Initialize model without pre-trained weights
                 warn!("Could not load pre-trained weights, initializing new model");
-                
+
                 // Create TinyLlama model with proper configuration
                 let tokenizer_path = model_path.join("tokenizer.json");
                 let llama_config = LlamaConfig {
@@ -221,20 +230,23 @@ impl BurnInferenceEngine {
                     max_batch_size: 1,
                     tokenizer: tokenizer_path.to_str().unwrap().to_string(),
                 };
-                
+
                 // Initialize model
-                let model = llama_config.init::<Backend, SentiencePieceTokenizer>(&self.device)
-                    .map_err(|e| VLLMError::InvalidArgument(format!("Failed to init model: {}", e)))?;
+                let model = llama_config
+                    .init::<Backend, SentiencePieceTokenizer>(&self.device)
+                    .map_err(|e| {
+                        VLLMError::InvalidArgument(format!("Failed to init model: {}", e))
+                    })?;
                 self.model = Some(model);
             }
-            
+
             self.model_ready = true;
         }
 
         self.initialized = true;
         self.stats.total_requests = 0;
         self.stats.model_loaded = true;
-        
+
         info!("Burn inference engine initialized successfully");
         Ok(())
     }
@@ -274,7 +286,8 @@ impl BurnInferenceEngine {
         let inference_time = start_time.elapsed().as_secs_f64();
         self.total_inference_time += inference_time;
         #[allow(clippy::cast_precision_loss)]
-        let avg_inference_time_ms = (self.total_inference_time * 1000.0) / (self.request_count as f64);
+        let avg_inference_time_ms =
+            (self.total_inference_time * 1000.0) / (self.request_count as f64);
         self.stats.avg_inference_time_ms = avg_inference_time_ms;
 
         #[allow(clippy::cast_precision_loss)]
@@ -309,12 +322,12 @@ impl BurnInferenceEngine {
         info!("Shutting down Burn inference engine");
         self.initialized = false;
         self.model_ready = false;
-        
+
         #[cfg(feature = "burn-cpu")]
         {
             self.model = None;
         }
-        
+
         Ok(())
     }
 }
@@ -354,7 +367,7 @@ mod tests {
             top_p: 1.0,
             seed: Some(42),
         };
-        
+
         let result = engine.process(request);
         assert!(matches!(result, Err(VLLMError::EngineNotInitialized)));
     }
