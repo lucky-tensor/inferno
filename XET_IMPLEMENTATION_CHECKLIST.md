@@ -2,34 +2,46 @@
 
 ## Phase 1: Dependencies and Setup
 
-- [ ] Add `xet-core` dependency to `crates/inference/Cargo.toml`
-- [ ] Research xet-core API and usage patterns
+- [x] Research xet-core API and usage patterns - **DISCOVERY: xet-core is Python-only**
+- [x] Evaluate implementation approach - **DECISION: Use subprocess to call Python huggingface_hub**
+- [ ] Add subprocess and Python integration dependencies
 - [ ] Create feature flag for xet integration (optional, for conditional compilation)
 - [ ] Update root `Cargo.toml` if needed for workspace dependencies
 
+### Implementation Strategy Update
+After researching xet-core, discovered that:
+- xet-core is primarily Python-based, not available as a direct Rust crate
+- Intended to be used through the `huggingface_hub` Python package
+- The Rust components are internal to HuggingFace Hub's Python implementation
+
+**New Approach**: Implement xet downloads by calling the Python `huggingface_hub` library as a subprocess, which automatically uses xet when available (huggingface_hub >= 0.32.0).
+
 ## Phase 2: Command Interface
 
-- [ ] Extend download subcommand with `--use-xet` flag in CLI argument parsing
-- [ ] Update help text and documentation for the new flag
-- [ ] Ensure backward compatibility - default behavior unchanged
+- [x] Extend download subcommand with `--use-xet` flag in CLI argument parsing
+- [x] Update help text and documentation for the new flag
+- [x] Ensure backward compatibility - default behavior unchanged
 - [ ] Add validation for xet-specific parameters if any
 
 ## Phase 3: Core Implementation
 
-- [ ] Create new module `xet_downloader.rs` in inference crate
-- [ ] Implement `XetDownloader` struct with download functionality
-- [ ] Add error handling specific to xet operations
-- [ ] Implement progress reporting for xet downloads
+- [x] ~~Create new module `xet_downloader.rs` in inference crate~~ **Implemented in model_downloader.rs**
+- [x] Implement `XetDownloader` functionality using Python subprocess calls
+- [x] Add Python environment detection and validation
+- [x] Implement `huggingface_hub` Python script for downloading
+- [x] Add error handling specific to subprocess and Python operations
+- [x] Add home directory and cache setup for xet/huggingface_hub
+- [ ] Implement progress reporting for xet downloads (parse Python output)
 - [ ] Add timeout and retry logic for robustness
 - [ ] Create abstraction layer for download methods (trait-based approach)
 
 ## Phase 4: Integration
 
-- [ ] Modify existing download logic to support multiple backends
-- [ ] Implement fallback mechanism (xet -> git lfs if xet fails)
+- [x] Modify existing download logic to support multiple backends
+- [x] Implement fallback mechanism (xet -> git lfs if xet fails)
+- [x] Handle authentication for xet (HF token support)
 - [ ] Update model discovery and metadata handling for xet
 - [ ] Ensure file integrity verification works with both methods
-- [ ] Handle authentication if required by xet
 
 ## Phase 5: Testing
 

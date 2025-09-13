@@ -18,13 +18,14 @@ use tokio::io::AsyncWriteExt;
 /// * `output_dir` - Directory where the model will be downloaded
 /// * `hf_token` - Optional Hugging Face token for private/gated models
 /// * `resume` - Whether to resume interrupted downloads
+/// * `use_xet` - Whether to use xet via Python huggingface_hub instead of Git LFS
 ///
 /// # Example
 /// ```
 /// use inferno_cli::model_downloader::download_model;
 ///
 /// # tokio_test::block_on(async {
-/// download_model("microsoft/DialoGPT-medium", "./models", None, false).await.unwrap();
+/// download_model("microsoft/DialoGPT-medium", "./models", None, false, false).await.unwrap();
 /// # });
 /// ```
 pub async fn download_model(
@@ -32,6 +33,7 @@ pub async fn download_model(
     output_dir: &str,
     hf_token: Option<&String>,
     resume: bool,
+    use_xet: bool,
 ) -> Result<()> {
     println!("🔄 Starting model download...");
 
@@ -45,7 +47,14 @@ pub async fn download_model(
 
     // Download model from Hugging Face with resume capability
     println!("⬇️  Downloading model from Hugging Face: {}", model_id);
-    download_huggingface_model(model_id, &model_dir, token.as_deref(), resume).await?;
+
+    if use_xet {
+        println!("🚀 Using xet backend via Python huggingface_hub");
+        download_model_with_xet(model_id, &model_dir, token.as_deref()).await?;
+    } else {
+        println!("📦 Using Git LFS backend (default)");
+        download_huggingface_model(model_id, &model_dir, token.as_deref(), resume).await?;
+    }
 
     Ok(())
 }
@@ -530,4 +539,220 @@ async fn verify_file_hash(file_path: &Path, expected_oid: &str) -> Result<bool> 
     println!("    Match: {}", if hash_match { "✅" } else { "❌" });
 
     Ok(hash_match)
+}
+
+/// Download model using xet via Python huggingface_hub
+async fn download_model_with_xet(
+    model_id: &str,
+    output_dir: &str,
+    hf_token: Option<&str>,
+) -> Result<()> {
+    println!("🐍 Checking Python and huggingface_hub availability...");
+
+    // Check if Python is available
+    let python_check = Command::new("python3")
+        .arg("-c")
+        .arg("import huggingface_hub; print(huggingface_hub.__version__)")
+        .output();
+
+    match python_check {
+        Ok(output) if output.status.success() => {
+            let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            println!("✅ Found huggingface_hub version: {}", version);
+
+            // Check if version is >= 0.32.0 (when xet support was added)
+            if is_version_compatible(&version, "0.32.0") {
+                println!("✅ Version supports xet backend");
+            } else {
+                println!("⚠️  Version {} may not support xet (requires >= 0.32.0)", version);
+                println!("💡 Consider upgrading: pip install --upgrade huggingface_hub");
+            }
+        },
+        Ok(output) => {
+            println!("❌ huggingface_hub import failed:");
+            println!("{}", String::from_utf8_lossy(&output.stderr));
+            return Err(anyhow!("huggingface_hub not available. Install with: pip install huggingface_hub"));
+        },
+        Err(e) => {
+            println!("❌ Python3 not found: {}", e);
+            // Try python as fallback
+            let python_fallback = Command::new("python")
+                .arg("-c")
+                .arg("import huggingface_hub; print(huggingface_hub.__version__)")
+                .output();
+
+            match python_fallback {
+                Ok(output) if output.status.success() => {
+                    let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    println!("✅ Found huggingface_hub via 'python': {}", version);
+                },
+                _ => {
+                    return Err(anyhow!("Neither python3 nor python found. Please install Python and huggingface_hub"));
+                }
+            }
+        }
+    }
+
+    println!("📥 Downloading model using Python huggingface_hub with xet...");
+
+    // Create Python script to download the model
+    let python_script = create_xet_download_script(model_id, output_dir, hf_token)?;
+
+    // Write script to temporary file
+    let temp_script_path = format!("{}/download_script.py", output_dir);
+    tokio::fs::write(&temp_script_path, python_script).await?;
+
+    // Execute the Python script
+    let mut cmd = Command::new("python3");
+    cmd.arg(&temp_script_path);
+
+    println!("🏃 Executing Python download script...");
+    let output = cmd.output()?;
+
+    // Clean up temporary script
+    let _ = tokio::fs::remove_file(&temp_script_path).await;
+
+    if output.status.success() {
+        println!("✅ Xet download completed successfully!");
+        println!("{}", String::from_utf8_lossy(&output.stdout));
+    } else {
+        println!("❌ Xet download failed:");
+        println!("{}", String::from_utf8_lossy(&output.stderr));
+
+        // Fallback to Git LFS
+        println!("🔄 Falling back to Git LFS...");
+        return download_huggingface_model(model_id, output_dir, hf_token, false).await;
+    }
+
+    Ok(())
+}
+
+/// Create Python script for xet-based download
+fn create_xet_download_script(
+    model_id: &str,
+    output_dir: &str,
+    hf_token: Option<&str>,
+) -> Result<String> {
+    let token_setup = if let Some(token) = hf_token {
+        format!(r#"
+import os
+os.environ["HF_TOKEN"] = "{}"
+from huggingface_hub import login
+login(token="{}")
+"#, token, token)
+    } else {
+        String::new()
+    };
+
+    let script = format!(r#"#!/usr/bin/env python3
+"""
+Xet-enabled model download script for Inferno
+This script uses huggingface_hub to download models with xet backend when available.
+"""
+
+import os
+import sys
+from pathlib import Path
+
+# Ensure proper home directory setup for xet/huggingface_hub
+home_dir = Path.home()
+hf_cache_dir = home_dir / ".cache" / "huggingface"
+xet_cache_dir = home_dir / ".cache" / "xet"
+
+# Create cache directories if they don't exist
+hf_cache_dir.mkdir(parents=True, exist_ok=True)
+xet_cache_dir.mkdir(parents=True, exist_ok=True)
+
+# Set environment variables for huggingface_hub and xet
+os.environ["HF_HOME"] = str(hf_cache_dir)
+os.environ["HF_CACHE"] = str(hf_cache_dir)
+os.environ["HUGGINGFACE_HUB_CACHE"] = str(hf_cache_dir)
+
+# Set xet-specific environment variables if not already set
+if "XET_HOME" not in os.environ:
+    os.environ["XET_HOME"] = str(xet_cache_dir)
+
+print(f"🏠 HF cache directory: {{hf_cache_dir}}")
+print(f"🏠 Xet cache directory: {{xet_cache_dir}}")
+
+try:
+    from huggingface_hub import snapshot_download
+    print("📦 huggingface_hub imported successfully")
+except ImportError as e:
+    print(f"❌ Failed to import huggingface_hub: {{e}}")
+    print("💡 Install with: pip install huggingface_hub")
+    sys.exit(1)
+
+{token_setup}
+
+def main():
+    model_id = "{}"
+    output_dir = "{}"
+
+    print(f"🚀 Starting xet-enabled download of {{model_id}}")
+    print(f"📁 Output directory: {{output_dir}}")
+
+    try:
+        # Use snapshot_download which automatically uses xet when available
+        downloaded_path = snapshot_download(
+            repo_id=model_id,
+            local_dir=output_dir,
+            local_dir_use_symlinks=False,  # Force actual file downloads
+            resume_download=True,  # Enable resume capability
+            # xet will be used automatically if available (huggingface_hub >= 0.32.0)
+        )
+
+        print(f"✅ Model downloaded successfully to: {{downloaded_path}}")
+
+        # List downloaded files
+        downloaded_files = list(Path(output_dir).rglob("*"))
+        print(f"📄 Downloaded {{len(downloaded_files)}} files:")
+        for file_path in sorted(downloaded_files)[:10]:  # Show first 10 files
+            if file_path.is_file():
+                size_mb = file_path.stat().st_size / (1024 * 1024)
+                print(f"  {{file_path.name}} ({{size_mb:.1f}} MB)")
+
+        if len(downloaded_files) > 10:
+            print(f"  ... and {{len(downloaded_files) - 10}} more files")
+
+    except Exception as e:
+        print(f"❌ Download failed: {{e}}")
+        print("💡 This may be due to network issues, authentication, or missing dependencies")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+"#, model_id, output_dir);
+
+    Ok(script)
+}
+
+/// Check if version string is compatible (simplified semver check)
+fn is_version_compatible(version: &str, min_version: &str) -> bool {
+    // Simple version comparison for major.minor.patch
+    let parse_version = |v: &str| -> Vec<u32> {
+        v.split('.')
+            .take(3)
+            .filter_map(|n| n.parse().ok())
+            .collect()
+    };
+
+    let current = parse_version(version);
+    let minimum = parse_version(min_version);
+
+    if current.len() < 2 || minimum.len() < 2 {
+        return false; // Invalid version format
+    }
+
+    // Compare major.minor.patch
+    for i in 0..std::cmp::min(current.len(), minimum.len()) {
+        match current[i].cmp(&minimum[i]) {
+            std::cmp::Ordering::Greater => return true,
+            std::cmp::Ordering::Less => return false,
+            std::cmp::Ordering::Equal => continue,
+        }
+    }
+
+    // If all compared parts are equal, versions are compatible
+    true
 }

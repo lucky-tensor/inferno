@@ -59,6 +59,10 @@ pub struct DownloadCliOptions {
     /// Resume interrupted download
     #[arg(long = "resume")]
     pub resume: bool,
+
+    /// Use xet instead of Git LFS for downloading (requires Python huggingface_hub >= 0.32.0)
+    #[arg(long = "use-xet")]
+    pub use_xet: bool,
 }
 
 impl Cli {
@@ -84,6 +88,9 @@ impl DownloadCliOptions {
         if self.resume {
             println!("Resume mode: Will attempt to resume interrupted downloads");
         }
+        if self.use_xet {
+            println!("Xet mode: Will use Python huggingface_hub with xet backend");
+        }
         println!("---");
 
         model_downloader::download_model(
@@ -91,6 +98,7 @@ impl DownloadCliOptions {
             &self.output_dir,
             self.hf_token.as_ref(),
             self.resume,
+            self.use_xet,
         )
         .await
         .map_err(|e| {
