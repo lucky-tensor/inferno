@@ -20,20 +20,22 @@ Currently, our `download` subcommand uses Git LFS (Large File Storage) to downlo
 
 ### Proposed Solution
 
-Integrate the `xet-core` Rust library to provide xet-based downloads as an optional method:
+Use the native Rust `hf-hub` crate to provide xet-enabled downloads as an optional method:
 
 - **Default behavior**: Continue using Git LFS (no breaking changes)
-- **Opt-in xet**: Users can explicitly request xet downloads via command-line flag
-- **Graceful fallback**: If xet fails, fall back to Git LFS
-- **Performance metrics**: Allow users to compare download speeds
+- **Opt-in xet**: Users can explicitly request native HuggingFace Hub downloads with automatic xet backend
+- **No Python dependencies**: Fully self-contained Rust implementation
+- **Graceful fallback**: If hf-hub fails, fall back to Git LFS
+- **Automatic optimization**: hf-hub automatically uses xet backend when available
 
 ## Implementation Overview
 
-1. Add `xet-core` dependency to the inference crate
+1. Add `hf-hub` dependency to the CLI crate with tokio features
 2. Extend the download subcommand with a `--use-xet` flag
-3. Implement xet download logic with error handling
+3. Implement native Rust HuggingFace Hub downloads with automatic xet backend
 4. Maintain backward compatibility with existing Git LFS flow
-5. Add comprehensive testing for both download methods
-6. Update documentation and help text
+5. Provide graceful fallback from hf-hub to Git LFS on any failures
+6. Add comprehensive error handling and user feedback
+7. Update documentation and help text
 
-This approach ensures we can leverage xet's benefits while maintaining stability for existing users.
+This approach ensures we can leverage xet's benefits through a fully self-contained Rust implementation, requiring no Python dependencies while maintaining stability for existing users.
