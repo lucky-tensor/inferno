@@ -60,7 +60,7 @@ pub struct DownloadCliOptions {
     #[arg(long = "resume")]
     pub resume: bool,
 
-    /// Use xet instead of Git LFS for downloading (requires Python huggingface_hub >= 0.32.0)
+    /// Use HuggingFace Hub's native API with xet backend for faster downloads
     #[arg(long = "use-xet")]
     pub use_xet: bool,
 }
@@ -89,7 +89,7 @@ impl DownloadCliOptions {
             println!("Resume mode: Will attempt to resume interrupted downloads");
         }
         if self.use_xet {
-            println!("Xet mode: Will use Python huggingface_hub with xet backend");
+            println!("Xet mode: Will use native Rust hf-hub with automatic xet backend");
         }
         println!("---");
 
