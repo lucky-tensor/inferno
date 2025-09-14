@@ -17,6 +17,7 @@
 //! ```
 
 pub mod cli_options;
+pub mod doctor;
 pub mod model_downloader;
 
 #[cfg(test)]

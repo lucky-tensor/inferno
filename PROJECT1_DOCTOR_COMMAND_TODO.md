@@ -16,61 +16,32 @@ Create a CLI subcommand called "doctor" which will check the system for dependen
 ### ✅ Completed Tasks
 - [x] **Explore existing codebase structure** - Analyzed CLI framework (Clap-based) and patterns
 - [x] **Design doctor subcommand architecture** - Planned integration with existing health checking system
+- [x] **Implement GPU detection (NVIDIA and AMD)** - Successfully detects NVIDIA GPUs via nvidia-smi, AMD GPUs via rocm-smi, and fallback lspci detection
+- [x] **Implement driver and accelerator version checking** - Checks NVIDIA driver versions, CUDA versions, ROCm versions, and validates compatibility
+- [x] **Implement CPU inference capability checking** - Detects CPU specs, core count, and instruction set support (AVX, AVX2, AVX512)
+- [x] **Implement model detection in safetensors format** - Scans model directories and detects SafeTensors, PyTorch, ONNX, and GGUF formats
+- [x] **Implement model optimization status checking** - Checks for quantized models and optimization markers
+- [x] **Create compatibility scoring system** - Implemented comprehensive scoring based on hardware and software capabilities
+- [x] **Implement results table display** - Created formatted output with compatibility matrix and system readiness status
+- [x] **Add comprehensive error handling and user-friendly messages** - Proper error handling and informative output messages
 
 ### 🔄 In Progress Tasks
-- [ ] Currently no tasks in progress
+- [⏳] **Test the doctor command across different system configurations** - Currently testing on development system
 
 ### 📋 Pending Tasks
 
-#### Core Implementation
-- [ ] **Implement GPU detection (NVIDIA and AMD)**
-  - Detect NVIDIA GPUs using nvidia-ml-py or system calls
-  - Detect AMD GPUs using ROCm tools or system calls  
-  - Get GPU device information and capabilities
-
-- [ ] **Implement driver and accelerator version checking**
-  - Check NVIDIA driver version (nvidia-smi)
-  - Check CUDA version and compatibility
-  - Check AMD driver version (rocm-smi)
-  - Verify versions are compatible with Burn framework
-
-- [ ] **Implement CPU inference capability checking**  
-  - Check CPU architecture and instruction sets (AVX, AVX2, etc.)
-  - Verify CPU core count and memory availability
-  - Test Burn CPU backend functionality
-
-- [ ] **Implement model detection in safetensors format**
-  - Scan model directories for .safetensors files
-  - Parse model metadata and configuration
-  - Verify model compatibility with inference engines
-
-- [ ] **Implement model optimization status checking**
-  - Check for optimized model variants (quantized, etc.)
-  - Verify architecture-specific optimizations
-  - Compare with available hardware capabilities
-
-#### UI and Reporting
-- [ ] **Create compatibility scoring system**
-  - Define scoring criteria for hardware/software compatibility
-  - Implement scoring algorithm
-  - Generate overall system readiness score
-
-- [ ] **Implement results table display**
-  - Create formatted table showing model/accelerator compatibility matrix
-  - Display compatibility scores and recommendations
-  - Show warnings for potential issues
-
-- [ ] **Add comprehensive error handling and user-friendly messages**
-  - Handle cases where hardware detection fails
-  - Provide clear error messages and troubleshooting tips
-  - Add verbose mode for detailed diagnostics
-
-#### Testing and Validation
-- [ ] **Test the doctor command across different system configurations**
-  - Test on systems with NVIDIA GPUs
-  - Test on systems with AMD GPUs  
+#### Final Testing and Validation
+- [ ] **Test on systems with different GPU configurations**
+  - Test on systems with multiple NVIDIA GPUs
+  - Test on systems with AMD GPUs (ROCm installed vs not installed)
   - Test on CPU-only systems
-  - Test with various model configurations
+  - Test with various CUDA versions and driver combinations
+
+- [ ] **Test with different model configurations**
+  - Test with no models present
+  - Test with large model collections
+  - Test with various model formats and sizes
+  - Test edge cases (corrupted files, permissions issues)
 
 ## Implementation Notes
 
