@@ -9,29 +9,23 @@ use burn::{backend::ndarray::NdArray, tensor::Device};
 
 // CUDA backend imports
 
-#[cfg(any(feature = "burn-cpu", feature = "burn-cuda"))]
+#[cfg(feature = "burn-cpu")]
 use llama_burn::llama::{Llama, LlamaConfig};
 
-#[cfg(any(feature = "burn-cpu", feature = "burn-cuda"))]
+#[cfg(feature = "burn-cpu")]
 use llama_burn::tokenizer::SentiencePieceTokenizer;
 
-#[cfg(any(feature = "burn-cpu", feature = "burn-cuda"))]
+#[cfg(feature = "burn-cpu")]
 use burn::record::FullPrecisionSettings;
-#[cfg(any(feature = "burn-cpu", feature = "burn-cuda"))]
+#[cfg(feature = "burn-cpu")]
 use burn_import::safetensors::{LoadArgs, SafetensorsFileRecorder};
 
 // Backend type aliases
 #[cfg(feature = "burn-cpu")]
 type Backend = NdArray<f32>;
 
-#[cfg(all(feature = "burn-cuda", not(feature = "burn-cpu")))]
-type Backend = Cuda<f32>;
-
 /// Load TinyLlama-1.1B model with pre-trained weights from `SafeTensors`
-#[cfg(all(
-    any(feature = "burn-cpu", feature = "burn-cuda"),
-    feature = "pretrained"
-))]
+#[cfg(all(feature = "burn-cpu", feature = "pretrained"))]
 pub fn load_llama_weights(
     model_path: &Path,
     device: &Device<Backend>,
@@ -94,10 +88,7 @@ pub fn load_llama_weights(
 }
 
 // Helper function to load SafeTensors weights using burn-import
-#[cfg(all(
-    any(feature = "burn-cpu", feature = "burn-cuda"),
-    feature = "pretrained"
-))]
+#[cfg(all(feature = "burn-cpu", feature = "pretrained"))]
 fn load_safetensors_weights(
     weights_path: &Path,
     _model: &mut Llama<Backend, SentiencePieceTokenizer>,
@@ -155,10 +146,7 @@ fn load_safetensors_weights(
 }
 
 /// Fallback for when pretrained feature is not available
-#[cfg(all(
-    any(feature = "burn-cpu", feature = "burn-cuda"),
-    not(feature = "pretrained")
-))]
+#[cfg(all(feature = "burn-cpu", not(feature = "pretrained")))]
 pub fn load_llama_weights(
     model_path: &Path,
     device: &Device<Backend>,

@@ -32,7 +32,6 @@ validator = { workspace = true }
 
 # Burn ML Framework for real model inference
 burn = { workspace = true, optional = true }
-burn-cuda = { workspace = true, optional = true }
 tokenizers = { workspace = true, optional = true }
 hf-hub = { workspace = true, optional = true }
 safetensors = { workspace = true, optional = true }
@@ -63,16 +62,7 @@ burn-cpu = [
     "dep:burn-import",
     "dep:llama-burn"
 ]  # Real deterministic Llama model inference with SafeTensors support
-burn-cuda = [
-    "burn/autodiff",
-    "dep:burn-cuda",
-    "dep:tokenizers",
-    "hf-hub/tokio",
-    "dep:safetensors", 
-    "dep:burn-import",
-    "dep:llama-burn"
-]
-cuda = []  # Reserved for future use
+cuda = []  # Reserved for future CUDA implementation
 
 # Benchmarks will be added in later phases
 # [[bench]]

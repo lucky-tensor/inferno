@@ -14,10 +14,10 @@ use tokio::sync::RwLock;
 // mod burn_engine;
 
 // burn_hello_world module has been removed - using burn_engine directly
-#[cfg(any(feature = "burn-cpu", feature = "burn-cuda"))]
+#[cfg(feature = "burn-cpu")]
 mod burn_engine;
 
-#[cfg(any(feature = "burn-cpu", feature = "burn-cuda"))]
+#[cfg(feature = "burn-cpu")]
 pub use burn_engine::*;
 
 /// Request for inference
