@@ -30,6 +30,7 @@ hf-hub = { workspace = true, features = ["tokio"] }
 
 [dev-dependencies]
 tokio-test = { workspace = true }
+tempfile = "3.8"
 
 [[bin]]
 name = "inferno"
