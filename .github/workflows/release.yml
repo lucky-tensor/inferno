@@ -1,0 +1,182 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - '*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Validate tag (reject v-prefixed tags)
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        TAG_NAME="${GITHUB_REF#refs/tags/}"
+        if [[ "$TAG_NAME" == v* ]]; then
+          echo "Error: Tags prefixed with 'v' are not allowed. Use '$TAG_NAME' without the 'v' prefix."
+          exit 1
+        fi
+        echo "Tag validation passed: $TAG_NAME"
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: stable
+
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: "."
+
+    - name: Determine release type and version
+      id: version_info
+      run: |
+        # Get version from Cargo.toml
+        CARGO_VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+        # Get short commit hash (first 7 characters)
+        COMMIT_HASH=$(git rev-parse --short=7 HEAD)
+
+        if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+          # Tag release - use tag as version, no hash
+          RELEASE_TYPE="tag"
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          RELEASE_VERSION="$TAG_NAME"
+          BINARY_NAME="inferno-$RELEASE_VERSION"
+          ARCHIVE_NAME="inferno-$RELEASE_VERSION-linux-x86_64.tar.gz"
+          IS_PRERELEASE="false"
+        elif [[ "$GITHUB_REF" == refs/heads/main ]]; then
+          # Canary release from main - use cargo version + hash
+          RELEASE_TYPE="canary"
+          RELEASE_VERSION="${CARGO_VERSION}+${COMMIT_HASH}"
+          BINARY_NAME="inferno-$RELEASE_VERSION"
+          ARCHIVE_NAME="inferno-$RELEASE_VERSION-linux-x86_64.tar.gz"
+          IS_PRERELEASE="true"
+        else
+          echo "Error: Unsupported ref: $GITHUB_REF"
+          exit 1
+        fi
+
+        echo "release_type=${RELEASE_TYPE}" >> $GITHUB_OUTPUT
+        echo "cargo_version=${CARGO_VERSION}" >> $GITHUB_OUTPUT
+        echo "commit_hash=${COMMIT_HASH}" >> $GITHUB_OUTPUT
+        echo "release_version=${RELEASE_VERSION}" >> $GITHUB_OUTPUT
+        echo "binary_name=${BINARY_NAME}" >> $GITHUB_OUTPUT
+        echo "archive_name=${ARCHIVE_NAME}" >> $GITHUB_OUTPUT
+        echo "is_prerelease=${IS_PRERELEASE}" >> $GITHUB_OUTPUT
+
+        echo "Release Type: ${RELEASE_TYPE}"
+        echo "Cargo Version: ${CARGO_VERSION}"
+        echo "Commit Hash: ${COMMIT_HASH}"
+        echo "Release Version: ${RELEASE_VERSION}"
+        echo "Binary Name: ${BINARY_NAME}"
+        echo "Archive Name: ${ARCHIVE_NAME}"
+        echo "Is Prerelease: ${IS_PRERELEASE}"
+
+    - name: Build release binary
+      run: |
+        cargo build --release --bin inferno
+
+        # Rename binary to include version
+        cp target/release/inferno "${{ steps.version_info.outputs.binary_name }}"
+
+        # Create archive
+        tar -czf "${{ steps.version_info.outputs.archive_name }}" \
+          "${{ steps.version_info.outputs.binary_name }}"
+
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        if [[ "${{ steps.version_info.outputs.release_type }}" == "canary" ]]; then
+          cat > release_notes.md << 'EOF'
+        ## Inferno CLI Canary Release ${{ steps.version_info.outputs.release_version }}
+
+        🚨 **This is a canary release from the main branch** 🚨
+
+        ### Features
+        - Unified command-line interface for Inferno distributed systems
+        - Model download and management
+        - System diagnostics with `doctor` command
+        - Interactive play mode
+
+        ### Build Information
+        - Cargo Version: ${{ steps.version_info.outputs.cargo_version }}
+        - Commit: ${{ steps.version_info.outputs.commit_hash }}
+        - Platform: Linux x86_64
+        - Built with: Rust stable
+
+        ### Installation
+        ```bash
+        # Download and extract
+        wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version_info.outputs.release_version }}/inferno-${{ steps.version_info.outputs.release_version }}-linux-x86_64.tar.gz
+        tar -xzf inferno-${{ steps.version_info.outputs.release_version }}-linux-x86_64.tar.gz
+
+        # Make executable and move to PATH
+        chmod +x inferno-${{ steps.version_info.outputs.release_version }}
+        sudo mv inferno-${{ steps.version_info.outputs.release_version }} /usr/local/bin/inferno
+        ```
+        EOF
+        else
+          cat > release_notes.md << 'EOF'
+        ## Inferno CLI Release ${{ steps.version_info.outputs.release_version }}
+
+        ### Features
+        - Unified command-line interface for Inferno distributed systems
+        - Model download and management
+        - System diagnostics with `doctor` command
+        - Interactive play mode
+
+        ### Build Information
+        - Version: ${{ steps.version_info.outputs.release_version }}
+        - Platform: Linux x86_64
+        - Built with: Rust stable
+
+        ### Installation
+        ```bash
+        # Download and extract
+        wget https://github.com/${{ github.repository }}/releases/download/${{ steps.version_info.outputs.release_version }}/inferno-${{ steps.version_info.outputs.release_version }}-linux-x86_64.tar.gz
+        tar -xzf inferno-${{ steps.version_info.outputs.release_version }}-linux-x86_64.tar.gz
+
+        # Make executable and move to PATH
+        chmod +x inferno-${{ steps.version_info.outputs.release_version }}
+        sudo mv inferno-${{ steps.version_info.outputs.release_version }} /usr/local/bin/inferno
+        ```
+        EOF
+        fi
+
+    - name: Delete existing release (for overwrites)
+      if: steps.version_info.outputs.release_type == 'tag'
+      continue-on-error: true
+      run: |
+        gh release delete "${{ steps.version_info.outputs.release_version }}" --yes --cleanup-tag
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.version_info.outputs.release_version }}
+        name: "Inferno CLI ${{ steps.version_info.outputs.release_version }}"
+        body_path: release_notes.md
+        files: |
+          ${{ steps.version_info.outputs.archive_name }}
+          ${{ steps.version_info.outputs.binary_name }}
+        draft: false
+        prerelease: ${{ steps.version_info.outputs.is_prerelease }}
+        generate_release_notes: true
+        make_latest: ${{ steps.version_info.outputs.release_type == 'tag' }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
