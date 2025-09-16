@@ -6,7 +6,10 @@
 use crate::health::HealthService;
 use crate::BackendConfig;
 use clap::Parser;
-use inferno_inference::{inference::BurnInferenceEngine, config::VLLMConfig};
+use inferno_inference::{
+    inference::{BurnInferenceEngine, InferenceRequest, InferenceResponse},
+    config::VLLMConfig
+};
 use inferno_shared::{
     HealthCheckOptions, InfernoError, LoggingOptions, MetricsCollector, MetricsOptions, Result,
     ServiceDiscoveryOptions,
@@ -15,6 +18,13 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{info, warn};
+use hyper::server::conn::http1;
+use hyper::service::service_fn;
+use hyper::{body::Incoming, Request, Response, StatusCode};
+use hyper_util::rt::TokioIo;
+use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
+use tokio::net::TcpListener;
+use serde_json;
 
 /// Inferno Backend - AI inference backend server
 #[derive(Parser, Debug, Clone)]
@@ -144,6 +154,18 @@ impl BackendCliOptions {
             warn!("⚠️ Inference engine started but may not be fully ready");
         }
 
+        // Start HTTP inference server
+        let inference_server_task = {
+            let listen_addr = config.listen_addr;
+            let engine = Arc::new(std::sync::Mutex::new(engine));
+
+            tokio::spawn(async move {
+                if let Err(e) = start_inference_server(listen_addr, engine).await {
+                    warn!("HTTP inference server failed: {}", e);
+                }
+            })
+        };
+
         info!("Backend server is running");
 
         // Start HTTP metrics server if enabled
@@ -217,6 +239,10 @@ impl BackendCliOptions {
             let _ = task.await;
         }
 
+        // Clean up the inference server task
+        inference_server_task.abort();
+        let _ = inference_server_task.await;
+
         Ok(())
     }
 
@@ -254,4 +280,146 @@ impl BackendCliOptions {
             service_discovery_shared_secret: None,
         })
     }
+}
+
+/// Start the HTTP inference server
+async fn start_inference_server(
+    addr: SocketAddr,
+    engine: Arc<std::sync::Mutex<BurnInferenceEngine>>,
+) -> Result<()> {
+    let listener = TcpListener::bind(addr).await.map_err(|e| {
+        InfernoError::internal(format!("Failed to bind inference server to {}: {}", addr, e), None)
+    })?;
+
+    info!("🌐 HTTP inference server listening on {}", addr);
+
+    loop {
+        let (stream, _) = listener.accept().await.map_err(|e| {
+            InfernoError::internal(format!("Failed to accept connection: {}", e), None)
+        })?;
+
+        let io = TokioIo::new(stream);
+        let engine_clone = Arc::clone(&engine);
+
+        tokio::task::spawn(async move {
+            if let Err(err) = http1::Builder::new()
+                .serve_connection(
+                    io,
+                    service_fn(move |req| handle_inference_request(req, Arc::clone(&engine_clone))),
+                )
+                .await
+            {
+                warn!("Error serving connection: {:?}", err);
+            }
+        });
+    }
+}
+
+/// Handle individual HTTP inference requests
+async fn handle_inference_request(
+    req: Request<Incoming>,
+    engine: Arc<std::sync::Mutex<BurnInferenceEngine>>,
+) -> std::result::Result<Response<BoxBody<bytes::Bytes, hyper::Error>>, hyper::Error> {
+    let response = match (req.method(), req.uri().path()) {
+        (&hyper::Method::POST, "/v1/completions") | (&hyper::Method::POST, "/inference") => {
+            // Read request body
+            let body_bytes = match req
+                .into_body()
+                .collect()
+                .await
+            {
+                Ok(collected) => collected.to_bytes(),
+                Err(e) => {
+                    warn!("Failed to read request body: {}", e);
+                    return Ok(Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .body(
+                            Full::new("Failed to read request body".into())
+                                .map_err(|never| match never {})
+                                .boxed(),
+                        )
+                        .unwrap());
+                }
+            };
+
+            // Parse JSON request
+            let inference_req: InferenceRequest = match serde_json::from_slice(&body_bytes) {
+                Ok(req) => req,
+                Err(e) => {
+                    warn!("Failed to parse inference request: {}", e);
+                    return Ok(Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .body(
+                            Full::new(format!("Invalid JSON: {}", e).into())
+                                .map_err(|never| match never {})
+                                .boxed(),
+                        )
+                        .unwrap());
+                }
+            };
+
+            // Process inference
+            let inference_response = {
+                let mut engine_guard = engine.lock().unwrap();
+                match engine_guard.process(inference_req) {
+                    Ok(response) => response,
+                    Err(e) => {
+                        warn!("Inference failed: {}", e);
+                        return Ok(Response::builder()
+                            .status(StatusCode::INTERNAL_SERVER_ERROR)
+                            .body(
+                                Full::new(format!("Inference error: {}", e).into())
+                                    .map_err(|never| match never {})
+                                    .boxed(),
+                            )
+                            .unwrap());
+                    }
+                }
+            };
+
+            // Return JSON response
+            let json_response = match serde_json::to_string(&inference_response) {
+                Ok(json) => json,
+                Err(e) => {
+                    warn!("Failed to serialize response: {}", e);
+                    return Ok(Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(
+                            Full::new("Serialization error".into())
+                                .map_err(|never| match never {})
+                                .boxed(),
+                        )
+                        .unwrap());
+                }
+            };
+
+            Response::builder()
+                .status(StatusCode::OK)
+                .header("content-type", "application/json")
+                .body(
+                    Full::new(json_response.into())
+                        .map_err(|never| match never {})
+                        .boxed(),
+                )
+                .unwrap()
+        }
+        (&hyper::Method::GET, "/health") => Response::builder()
+            .status(StatusCode::OK)
+            .body(
+                Full::new("OK".into())
+                    .map_err(|never| match never {})
+                    .boxed(),
+            )
+            .unwrap(),
+        _ => Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(
+                Empty::<bytes::Bytes>::new()
+                    .map_err(|never| match never {})
+                    .boxed(),
+            )
+            .unwrap(),
+    };
+
+    Ok(response)
 }
