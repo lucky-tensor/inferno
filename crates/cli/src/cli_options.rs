@@ -13,6 +13,39 @@ use inferno_proxy::ProxyCliOptions;
 use crate::doctor;
 use crate::model_downloader;
 
+/// CLI options for play mode
+#[derive(Parser, Debug, Clone)]
+pub struct PlayCliOptions {
+    /// Model directory or specific model file path
+    #[arg(
+        short = 'm',
+        long = "model-path",
+        value_name = "PATH",
+        default_value = "/home/jeef/models"
+    )]
+    pub model_path: String,
+
+    /// Maximum number of tokens to generate
+    #[arg(long, default_value_t = 50)]
+    pub max_tokens: usize,
+
+    /// Temperature for sampling (0.0 = deterministic)
+    #[arg(long, default_value_t = 0.7)]
+    pub temperature: f32,
+
+    /// Top-p sampling parameter
+    #[arg(long, default_value_t = 0.9)]
+    pub top_p: f32,
+
+    /// Random seed for reproducible results
+    #[arg(long)]
+    pub seed: Option<u64>,
+
+    /// Run in headless mode with a single prompt
+    #[arg(short = 'p', long = "prompt")]
+    pub prompt: Option<String>,
+}
+
 /// Inferno - Unified command interface for distributed AI inference platform
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -38,6 +71,9 @@ pub enum Commands {
 
     /// Run system diagnostics and check hardware compatibility
     Doctor(DoctorCliOptions),
+
+    /// Interactive Q&A mode for testing inference
+    Play(PlayCliOptions),
 }
 
 /// CLI options for system diagnostics and hardware compatibility checking
@@ -104,6 +140,7 @@ impl Cli {
             Commands::Governator(opts) => opts.run().await,
             Commands::Download(opts) => opts.run().await,
             Commands::Doctor(opts) => opts.run().await,
+            Commands::Play(opts) => crate::play::run_play_mode(opts).await,
         }
     }
 }

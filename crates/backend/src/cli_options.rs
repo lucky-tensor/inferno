@@ -6,6 +6,7 @@
 use crate::health::HealthService;
 use crate::BackendConfig;
 use clap::Parser;
+use inferno_inference::{inference::BurnInferenceEngine, config::VLLMConfig};
 use inferno_shared::{
     HealthCheckOptions, InfernoError, LoggingOptions, MetricsCollector, MetricsOptions, Result,
     ServiceDiscoveryOptions,
@@ -93,13 +94,55 @@ impl BackendCliOptions {
             "Backend server starting"
         );
 
-        // TODO: Implement actual backend server functionality
-        // This would typically:
-        // 1. Load the AI model
-        // 2. Initialize the inference engine
-        // 3. Start the HTTP server
-        // 4. Register with service discovery
-        // 5. Begin serving inference requests
+        // Initialize the inference engine with the model
+        info!("Initializing inference engine...");
+
+        // Convert backend config to inference config format
+        // If model_path is a file, use its parent directory as models dir
+        let (models_dir, model_name) = if config.model_path.is_file() {
+            let parent = config.model_path.parent()
+                .ok_or_else(|| InfernoError::Configuration {
+                    message: "Model file has no parent directory".to_string(),
+                    source: None,
+                })?;
+            let filename = config.model_path.file_name()
+                .ok_or_else(|| InfernoError::Configuration {
+                    message: "Model path has no filename".to_string(),
+                    source: None,
+                })?
+                .to_string_lossy()
+                .to_string();
+            (parent.to_string_lossy().to_string(), filename)
+        } else {
+            // Assume it's a directory and auto-discover
+            (config.model_path.to_string_lossy().to_string(), String::new())
+        };
+
+        let inference_config = VLLMConfig {
+            model_path: models_dir,
+            model_name,
+            device_id: config.gpu_device_id,
+            max_batch_size: config.max_batch_size,
+            max_sequence_length: config.max_context_length,
+            ..Default::default()
+        };
+
+        // Create and initialize the inference engine
+        let mut engine = BurnInferenceEngine::new();
+
+        if let Err(e) = engine.initialize(inference_config).await {
+            warn!("Failed to initialize inference engine: {}", e);
+            return Err(InfernoError::Configuration {
+                message: format!("Inference engine initialization failed: {}", e),
+                source: None,
+            });
+        }
+
+        if engine.is_ready() {
+            info!("🚀 Inference engine ready to receive requests!");
+        } else {
+            warn!("⚠️ Inference engine started but may not be fully ready");
+        }
 
         info!("Backend server is running");
 

@@ -36,6 +36,12 @@ serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 walkdir = "2.4"
 
+# Play mode dependencies
+rustyline = "14.0"
+inferno-inference = { path = "../inference" }
+tracing = { workspace = true }
+rand = "0.8"
+
 [dev-dependencies]
 tokio-test = { workspace = true }
 tempfile = "3.8"

@@ -121,11 +121,39 @@ impl BurnInferenceEngine {
     /// Check if required model files exist locally
     #[cfg(feature = "burn-cpu")]
     fn check_local_model_files(model_dir: &Path) -> bool {
-        let required_files = ["model.safetensors", "tokenizer.json", "config.json"];
+        let required_files = ["tokenizer.json", "config.json"];
 
-        required_files
+        // Check if required config files exist
+        let has_required_files = required_files
             .iter()
-            .all(|file| model_dir.join(file).exists())
+            .all(|file| model_dir.join(file).exists());
+
+        if !has_required_files {
+            return false;
+        }
+
+        // Check if we have either a single model.safetensors or sharded model files
+        let has_single_model = model_dir.join("model.safetensors").exists();
+        let has_sharded_model = model_dir.join("model.safetensors.index.json").exists()
+            && model_dir
+                .read_dir()
+                .map(|entries| {
+                    entries
+                        .filter_map(|entry| entry.ok())
+                        .any(|entry| {
+                            entry
+                                .file_name()
+                                .to_string_lossy()
+                                .starts_with("model-")
+                                && entry
+                                    .file_name()
+                                    .to_string_lossy()
+                                    .ends_with(".safetensors")
+                        })
+                })
+                .unwrap_or(false);
+
+        has_single_model || has_sharded_model
     }
 
     /// Load model from specified path or discover available models
@@ -329,7 +357,7 @@ impl BurnInferenceEngine {
         self.stats.total_requests = 0;
         self.stats.model_loaded = true;
 
-        info!("Burn inference engine initialized successfully");
+        info!("🚀 Burn inference engine initialized and ready to receive inference requests!");
         Ok(())
     }
 

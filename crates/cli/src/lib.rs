@@ -19,6 +19,8 @@
 pub mod cli_options;
 pub mod doctor;
 pub mod model_downloader;
+pub mod models;
+pub mod play;
 
 #[cfg(test)]
 mod xet_tests;

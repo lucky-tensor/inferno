@@ -9,6 +9,7 @@ description = "AI inference backend component of Inferno distributed systems"
 
 [dependencies]
 inferno-shared = { path = "../shared" }
+inferno-inference = { path = "../inference", features = ["burn-cpu"] }
 
 # Core dependencies
 tokio = { workspace = true }
