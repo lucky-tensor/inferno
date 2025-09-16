@@ -27,6 +27,7 @@ futures-util = "0.3"
 sha2 = "0.10"
 hex = "0.4"
 indicatif = "0.17"
+hf-hub = { workspace = true, features = ["tokio"] }
 
 # Doctor command dependencies
 sysinfo = "0.30"

@@ -20,4 +20,7 @@ pub mod cli_options;
 pub mod doctor;
 pub mod model_downloader;
 
+#[cfg(test)]
+mod xet_tests;
+
 pub use cli_options::{Cli, Commands};

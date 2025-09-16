@@ -82,13 +82,17 @@ pub struct DownloadCliOptions {
     )]
     pub output_dir: String,
 
-    /// Hugging Face API token (for gated/private models)
+    /// Hugging Face API token (for gated/private models). Can also use HF_TOKEN environment variable
     #[arg(long = "hf-token", value_name = "TOKEN")]
     pub hf_token: Option<String>,
 
     /// Resume interrupted download
     #[arg(long = "resume")]
     pub resume: bool,
+
+    /// Use Git LFS instead of the default xet backend
+    #[arg(long = "use-lfs")]
+    pub use_lfs: bool,
 }
 
 impl Cli {
@@ -115,6 +119,9 @@ impl DownloadCliOptions {
         if self.resume {
             println!("Resume mode: Will attempt to resume interrupted downloads");
         }
+        if self.use_lfs {
+            println!("LFS mode: Will use Git LFS instead of default xet backend");
+        }
         println!("---");
 
         model_downloader::download_model(
@@ -122,18 +129,14 @@ impl DownloadCliOptions {
             &self.output_dir,
             self.hf_token.as_ref(),
             self.resume,
+            !self.use_lfs, // Xet is default, LFS when flag is set
         )
         .await
         .map_err(|e| {
             inferno_shared::InfernoError::internal(format!("Model download failed: {}", e), None)
         })?;
 
-        println!("✅ Model download completed!");
-        println!(
-            "Model saved to: {}/{}",
-            self.output_dir,
-            self.model_id.replace("/", "_")
-        );
+        // Download completion messages are handled by the download functions
 
         Ok(())
     }
