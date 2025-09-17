@@ -16,12 +16,12 @@
 //! ## Usage
 //!
 //! ```rust,no_run
-//! use inferno_inference::{VLLMBackend, VLLMConfig};
+//! use inferno_inference::{InfernoBackend, InfernoConfig};
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let config = VLLMConfig::from_env()?;
-//!     let backend = VLLMBackend::new(config)?;
+//!     let config = InfernoConfig::from_env()?;
+//!     let backend = InfernoBackend::new(config)?;
 //!     backend.start().await?;
 //!     Ok(())
 //! }
@@ -74,15 +74,15 @@ pub mod service;
 
 // Re-export core types and traits
 pub use config::{
-    HealthConfig, LoggingConfig, ServerConfig, ServiceDiscoveryConfig, VLLMConfig,
-    VLLMConfigBuilder,
+    HealthConfig, InfernoConfig, InfernoConfigBuilder, LoggingConfig, ServerConfig,
+    ServiceDiscoveryConfig,
 };
-pub use engine::{VLLMBackend, VLLMEngine};
+pub use engine::{InfernoBackend, InfernoEngine};
 pub use error::{
-    AllocationError, ServiceRegistrationError, VLLMConfigError, VLLMEngineError, VLLMError,
-    VLLMResult,
+    AllocationError, InfernoConfigError, InfernoEngineError, InfernoError, InfernoResult,
+    ServiceRegistrationError,
 };
-pub use health::{HealthStatus, VLLMHealthChecker};
+pub use health::{HealthStatus, InfernoHealthChecker};
 pub use inference::{
     create_engine, create_math_test_request, InferenceEngine, InferenceRequest, InferenceResponse,
 };
@@ -90,13 +90,13 @@ pub use inference::{
 #[cfg(feature = "burn-cpu")]
 pub use inference::BurnInferenceEngine;
 
-pub use server::VLLMServer;
-pub use service::VLLMServiceRegistration;
+pub use server::InfernoServer;
+pub use service::InfernoServiceRegistration;
 
 // Memory management exports
 pub use memory::{CudaMemoryPool, DeviceMemory, GpuAllocator, MemoryStats, MemoryTracker};
 
-/// Current version of the VLLM backend
+/// Current version of the Inferno inference backend
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Minimum supported CUDA version

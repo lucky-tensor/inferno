@@ -1,7 +1,7 @@
 //! Test BurnInferenceEngine with real pre-trained weights
 
 use inferno_inference::{
-    config::VLLMConfig,
+    config::InfernoConfig,
     inference::{BurnInferenceEngine, InferenceRequest},
 };
 
@@ -10,8 +10,8 @@ use inferno_inference::{
 async fn test_burn_engine_real_weights() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Testing BurnInferenceEngine with real TinyLlama pre-trained weights");
 
-    // Create a basic VLLM config
-    let config = VLLMConfig {
+    // Create a basic Inferno config
+    let config = InfernoConfig {
         model_name: "TinyLlama-1.1B-Chat-v1.0".to_string(),
         model_path: "../../models".to_string(),
         ..Default::default()

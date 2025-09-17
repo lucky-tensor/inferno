@@ -12,7 +12,7 @@ use hyper::service::service_fn;
 use hyper::{body::Incoming, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
 use inferno_inference::{
-    config::VLLMConfig,
+    config::InfernoConfig,
     inference::{create_engine, EngineType, InferenceEngine, InferenceRequest},
 };
 use inferno_shared::{
@@ -142,7 +142,7 @@ impl BackendCliOptions {
             )
         };
 
-        let inference_config = VLLMConfig {
+        let inference_config = InfernoConfig {
             model_path: models_dir,
             model_name,
             device_id: config.gpu_device_id,

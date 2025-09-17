@@ -7,7 +7,7 @@
 #![allow(clippy::float_cmp)]
 #![allow(clippy::cast_lossless)]
 
-use crate::config::VLLMConfig;
+use crate::config::InfernoConfig;
 use crate::inference::{
     InferenceEngine, InferenceError, InferenceRequest, InferenceResponse, InferenceStats,
 };
@@ -283,7 +283,7 @@ impl InferenceEngine for CandleInferenceEngine {
     type Error = InferenceError;
 
     #[allow(clippy::too_many_lines)]
-    async fn initialize(&mut self, config: VLLMConfig) -> Result<(), Self::Error> {
+    async fn initialize(&mut self, config: InfernoConfig) -> Result<(), Self::Error> {
         info!(
             "Initializing Candle inference engine with model: {}",
             config.model_name
@@ -546,7 +546,7 @@ impl CandleInferenceEngine {
 impl InferenceEngine for CandleInferenceEngine {
     type Error = InferenceError;
 
-    async fn initialize(&mut self, _config: VLLMConfig) -> Result<(), Self::Error> {
+    async fn initialize(&mut self, _config: InfernoConfig) -> Result<(), Self::Error> {
         Err(InferenceError::InitializationError(
             "Candle features not enabled. Enable one of: candle-cpu, candle-cuda, candle-metal"
                 .to_string(),

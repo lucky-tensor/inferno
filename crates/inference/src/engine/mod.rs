@@ -1,45 +1,45 @@
-//! VLLM inference engine implementation
+//! Inferno inference engine implementation
 
-use crate::config::VLLMConfig;
-use crate::error::{VLLMEngineError, VLLMError, VLLMResult};
-use crate::health::VLLMHealthChecker;
+use crate::config::InfernoConfig;
+use crate::error::{InfernoEngineError, InfernoError, InfernoResult};
+use crate::health::InfernoHealthChecker;
 use crate::memory::{CudaMemoryPool, MemoryTracker};
-use crate::service::VLLMServiceRegistration;
+use crate::service::InfernoServiceRegistration;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-/// Main VLLM backend interface
-pub struct VLLMBackend {
-    engine: Arc<VLLMEngine>,
-    config: VLLMConfig,
+/// Main Inferno backend interface
+pub struct InfernoBackend {
+    engine: Arc<InfernoEngine>,
+    config: InfernoConfig,
     memory_pool: Arc<CudaMemoryPool>,
     memory_tracker: Arc<MemoryTracker>,
-    health_checker: Arc<VLLMHealthChecker>,
-    service_registration: Arc<VLLMServiceRegistration>,
+    health_checker: Arc<InfernoHealthChecker>,
+    service_registration: Arc<InfernoServiceRegistration>,
 }
 
-impl VLLMBackend {
-    /// Create a new VLLM backend
-    pub fn new(config: VLLMConfig) -> VLLMResult<Self> {
+impl InfernoBackend {
+    /// Create a new Inferno backend
+    pub fn new(config: InfernoConfig) -> InfernoResult<Self> {
         // Initialize memory management
         let memory_pool = Arc::new(CudaMemoryPool::new(config.device_id)?);
         let memory_tracker = Arc::new(MemoryTracker::new(config.device_id));
 
         // Initialize health checker
         let health_checker = Arc::new(
-            VLLMHealthChecker::with_config(config.health.clone())
+            InfernoHealthChecker::with_config(config.health.clone())
                 .with_memory_pool(Arc::clone(&memory_pool))
                 .with_memory_tracker(Arc::clone(&memory_tracker)),
         );
 
         // Initialize service registration
         let service_registration = Arc::new(
-            VLLMServiceRegistration::new(config.clone())
+            InfernoServiceRegistration::new(config.clone())
                 .with_health_checker(Arc::clone(&health_checker)),
         );
 
         // Initialize engine
-        let engine = Arc::new(VLLMEngine::new(&config)?);
+        let engine = Arc::new(InfernoEngine::new(&config)?);
 
         Ok(Self {
             engine,
@@ -52,8 +52,8 @@ impl VLLMBackend {
     }
 
     /// Start the backend
-    pub async fn start(&self) -> VLLMResult<()> {
-        tracing::info!("Starting VLLM backend...");
+    pub async fn start(&self) -> InfernoResult<()> {
+        tracing::info!("Starting Inferno backend...");
 
         // Start the engine first
         self.engine.start().await?;
@@ -64,13 +64,13 @@ impl VLLMBackend {
             // Don't fail startup if registration fails
         }
 
-        tracing::info!("VLLM backend started successfully");
+        tracing::info!("Inferno backend started successfully");
         Ok(())
     }
 
     /// Stop the backend
-    pub async fn stop(&self) -> VLLMResult<()> {
-        tracing::info!("Stopping VLLM backend...");
+    pub async fn stop(&self) -> InfernoResult<()> {
+        tracing::info!("Stopping Inferno backend...");
 
         // Unregister from service discovery first
         if let Err(e) = self.service_registration.unregister().await {
@@ -80,19 +80,19 @@ impl VLLMBackend {
         // Stop the engine
         self.engine.stop().await?;
 
-        tracing::info!("VLLM backend stopped successfully");
+        tracing::info!("Inferno backend stopped successfully");
         Ok(())
     }
 
     /// Get the engine reference
     #[must_use]
-    pub fn engine(&self) -> &VLLMEngine {
+    pub fn engine(&self) -> &InfernoEngine {
         &self.engine
     }
 
     /// Get the configuration
     #[must_use]
-    pub const fn config(&self) -> &VLLMConfig {
+    pub const fn config(&self) -> &InfernoConfig {
         &self.config
     }
 
@@ -110,19 +110,19 @@ impl VLLMBackend {
 
     /// Get the health checker
     #[must_use]
-    pub const fn health_checker(&self) -> &Arc<VLLMHealthChecker> {
+    pub const fn health_checker(&self) -> &Arc<InfernoHealthChecker> {
         &self.health_checker
     }
 
     /// Get the service registration
     #[must_use]
-    pub const fn service_registration(&self) -> &Arc<VLLMServiceRegistration> {
+    pub const fn service_registration(&self) -> &Arc<InfernoServiceRegistration> {
         &self.service_registration
     }
 }
 
-/// Core VLLM inference engine
-pub struct VLLMEngine {
+/// Core Inferno inference engine
+pub struct InfernoEngine {
     state: RwLock<EngineState>,
 }
 
@@ -137,27 +137,29 @@ enum EngineState {
     Error(String),
 }
 
-impl VLLMEngine {
+impl InfernoEngine {
     /// Create a new engine
-    pub fn new(_config: &VLLMConfig) -> VLLMResult<Self> {
+    pub fn new(_config: &InfernoConfig) -> InfernoResult<Self> {
         Ok(Self {
             state: RwLock::new(EngineState::NotStarted),
         })
     }
 
     /// Start the engine
-    pub async fn start(&self) -> VLLMResult<()> {
+    pub async fn start(&self) -> InfernoResult<()> {
         let mut state = self.state.write().await;
 
         match &*state {
-            EngineState::Running => return Err(VLLMError::Engine(VLLMEngineError::AlreadyRunning)),
+            EngineState::Running => {
+                return Err(InfernoError::Engine(InfernoEngineError::AlreadyRunning))
+            }
             EngineState::Starting => return Ok(()),
             _ => {}
         }
 
         *state = EngineState::Starting;
 
-        // TODO: Initialize VLLM engine here
+        // TODO: Initialize Inferno engine here
 
         *state = EngineState::Running;
         drop(state);
@@ -165,7 +167,7 @@ impl VLLMEngine {
     }
 
     /// Stop the engine
-    pub async fn stop(&self) -> VLLMResult<()> {
+    pub async fn stop(&self) -> InfernoResult<()> {
         let mut state = self.state.write().await;
 
         match &*state {
@@ -175,7 +177,7 @@ impl VLLMEngine {
 
         *state = EngineState::Stopping;
 
-        // TODO: Cleanup VLLM engine here
+        // TODO: Cleanup Inferno engine here
 
         *state = EngineState::Stopped;
         drop(state);

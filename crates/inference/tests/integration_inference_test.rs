@@ -1,7 +1,7 @@
 //! Integration test to demonstrate burn-cpu neural network inference working
 //! This test shows real model inference with quality output
 
-use inferno_inference::config::VLLMConfig;
+use inferno_inference::config::InfernoConfig;
 use inferno_inference::inference::{BurnInferenceEngine, InferenceRequest};
 use std::time::Instant;
 
@@ -18,7 +18,7 @@ async fn test_burn_cpu_inference_quality() {
     );
 
     // Configure for CPU inference
-    let config = VLLMConfig {
+    let config = InfernoConfig {
         model_path: "./models/tinyllama-1.1b".to_string(),
         model_name: "tinyllama".to_string(),
         device_id: -1, // CPU
@@ -148,7 +148,7 @@ async fn test_multiple_inference_requests() {
     let mut engine = BurnInferenceEngine::new();
 
     // Quick initialization for multiple tests
-    let config = VLLMConfig {
+    let config = InfernoConfig {
         model_path: "./models/tinyllama-1.1b".to_string(),
         model_name: "tinyllama".to_string(),
         device_id: -1,

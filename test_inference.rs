@@ -10,14 +10,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Import the inference engine directly
     use inferno_inference::inference::{BurnInferenceEngine, InferenceRequest};
-    use inferno_inference::config::VLLMConfig;
+    use inferno_inference::config::InfernoConfig;
 
     // Create and initialize the inference engine
     let mut engine = BurnInferenceEngine::new();
     println!("✅ Created BurnInferenceEngine");
 
     // Configure for CPU inference with minimal setup
-    let config = VLLMConfig {
+    let config = InfernoConfig {
         model_path: "./models/tinyllama-1.1b".to_string(),
         model_name: "test".to_string(),
         device_id: -1, // CPU

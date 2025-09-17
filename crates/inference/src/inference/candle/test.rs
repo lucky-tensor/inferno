@@ -7,7 +7,7 @@
 #[cfg(test)]
 mod tests {
     use super::super::{CandleBackendType, CandleInferenceEngine};
-    use crate::config::VLLMConfig;
+    use crate::config::InfernoConfig;
     use crate::inference::{InferenceEngine, InferenceRequest};
     use std::path::Path;
 
@@ -33,7 +33,7 @@ mod tests {
 
         // Step 2: Initialize with model
         println!("📝 Step 2: Initializing engine with Llama 3.2 model");
-        let config = VLLMConfig {
+        let config = InfernoConfig {
             model_name: "llama3.2-1b-instruct".to_string(),
             model_path: LLAMA32_MODEL_PATH.to_string(),
             device_id: 0, // CUDA device 0
@@ -129,7 +129,7 @@ mod tests {
         let mut engine = CandleInferenceEngine::with_backend(CandleBackendType::Cpu);
 
         // Initialize with model
-        let config = VLLMConfig {
+        let config = InfernoConfig {
             model_name: "llama3.2-1b-instruct".to_string(),
             model_path: LLAMA32_MODEL_PATH.to_string(),
             device_id: 0, // CUDA device 0

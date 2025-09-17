@@ -7,8 +7,8 @@
 //! with unified tensor operations and custom kernel development via `CubeCL`.
 
 use super::{InferenceEngine, InferenceError, InferenceRequest, InferenceResponse};
-use crate::config::VLLMConfig;
-use crate::error::{VLLMError, VLLMResult};
+use crate::config::InfernoConfig;
+use crate::error::{InfernoError, InfernoResult};
 use std::path::PathBuf;
 
 #[cfg(feature = "burn-cpu")]
@@ -42,7 +42,7 @@ pub struct BurnInferenceEngine {
     /// Whether the engine is initialized
     initialized: bool,
     /// Model configuration
-    config: Option<VLLMConfig>,
+    config: Option<InfernoConfig>,
     /// Model files path
     model_path: Option<PathBuf>,
     /// Loaded Llama model (includes tokenizer) - wrapped in Mutex for interior mutability
@@ -72,7 +72,7 @@ impl BurnInferenceEngine {
     /// Initialize device based on backend type
     #[cfg(feature = "burn-cpu")]
     #[allow(clippy::unnecessary_wraps)]
-    fn initialize_device(&mut self) -> VLLMResult<()> {
+    fn initialize_device(&mut self) -> InfernoResult<()> {
         match self.backend_type {
             BurnBackendType::Cpu => {
                 #[cfg(feature = "burn-cpu")]
@@ -162,10 +162,10 @@ impl BurnInferenceEngine {
     async fn load_or_discover_model(
         models_dir: &str,
         model_name: Option<&str>,
-    ) -> VLLMResult<PathBuf> {
+    ) -> InfernoResult<PathBuf> {
         let models_path = Path::new(models_dir);
         std::fs::create_dir_all(models_path).map_err(|e| {
-            VLLMError::InvalidArgument(format!("Failed to create models directory: {}", e))
+            InfernoError::InvalidArgument(format!("Failed to create models directory: {}", e))
         })?;
 
         // If specific model name provided, try that first
@@ -194,7 +194,7 @@ impl BurnInferenceEngine {
             return Self::download_default_model(models_path).await;
         }
 
-        Err(VLLMError::InvalidArgument(format!(
+        Err(InfernoError::InvalidArgument(format!(
             "Model '{}' not found and no fallback available",
             model_name.unwrap_or("unspecified")
         )))
@@ -202,7 +202,7 @@ impl BurnInferenceEngine {
 
     /// Discover any available model in the models directory
     #[cfg(feature = "burn-cpu")]
-    fn discover_available_models(models_path: &Path) -> VLLMResult<PathBuf> {
+    fn discover_available_models(models_path: &Path) -> InfernoResult<PathBuf> {
         // First, check if the provided directory itself contains model files
         if Self::check_local_model_files(models_path) {
             info!("Found model files directly in: {:?}", models_path);
@@ -211,7 +211,7 @@ impl BurnInferenceEngine {
 
         // If not, search subdirectories
         let entries = std::fs::read_dir(models_path).map_err(|e| {
-            VLLMError::InvalidArgument(format!("Failed to read models directory: {}", e))
+            InfernoError::InvalidArgument(format!("Failed to read models directory: {}", e))
         })?;
 
         for entry in entries.flatten() {
@@ -223,14 +223,14 @@ impl BurnInferenceEngine {
             }
         }
 
-        Err(VLLMError::InvalidArgument(
+        Err(InfernoError::InvalidArgument(
             "No valid model directories found".to_string(),
         ))
     }
 
     /// Download a default model as fallback (only used when no model name specified)
     #[cfg(feature = "burn-cpu")]
-    async fn download_default_model(models_path: &Path) -> VLLMResult<PathBuf> {
+    async fn download_default_model(models_path: &Path) -> InfernoResult<PathBuf> {
         let model_cache_dir = models_path.join("tinyllama-1.1b");
 
         // Check if default model already exists
@@ -243,7 +243,7 @@ impl BurnInferenceEngine {
 
         // Initialize Hugging Face API
         let api = Api::new().map_err(|e| {
-            VLLMError::InvalidArgument(format!("Failed to initialize HF API: {}", e))
+            InfernoError::InvalidArgument(format!("Failed to initialize HF API: {}", e))
         })?;
 
         // Access the TinyLlama repository
@@ -257,12 +257,12 @@ impl BurnInferenceEngine {
                 info!("Downloading {}", filename);
 
                 let downloaded_path = repo.get(filename).await.map_err(|e| {
-                    VLLMError::InvalidArgument(format!("Failed to download {}: {}", filename, e))
+                    InfernoError::InvalidArgument(format!("Failed to download {}: {}", filename, e))
                 })?;
 
                 // Copy to our cache directory
                 std::fs::copy(downloaded_path, &file_path).map_err(|e| {
-                    VLLMError::InvalidArgument(format!("Failed to copy {}: {}", filename, e))
+                    InfernoError::InvalidArgument(format!("Failed to copy {}: {}", filename, e))
                 })?;
             }
         }
@@ -275,7 +275,7 @@ impl BurnInferenceEngine {
     }
 
     /// Initialize the engine with configuration
-    pub async fn initialize(&mut self, config: VLLMConfig) -> VLLMResult<()> {
+    pub async fn initialize(&mut self, config: InfernoConfig) -> InfernoResult<()> {
         if self.initialized {
             return Ok(());
         }
@@ -356,7 +356,7 @@ impl BurnInferenceEngine {
                 let model = llama_config
                     .init::<Backend, SentiencePieceTokenizer>(&self.device)
                     .map_err(|e| {
-                        VLLMError::InvalidArgument(format!("Failed to init model: {}", e))
+                        InfernoError::InvalidArgument(format!("Failed to init model: {}", e))
                     })?;
                 self.model = Some(Mutex::new(model));
             }
@@ -371,14 +371,14 @@ impl BurnInferenceEngine {
     }
 
     /// Process a single inference request (internal sync method)
-    pub fn process_sync(&self, mut request: InferenceRequest) -> VLLMResult<InferenceResponse> {
+    pub fn process_sync(&self, mut request: InferenceRequest) -> InfernoResult<InferenceResponse> {
         // Ensure request has an ID
         if request.request_id == 0 {
             let count = self.request_count.lock().unwrap();
             request.request_id = *count + 1;
         }
         if !self.initialized {
-            return Err(VLLMError::EngineNotInitialized);
+            return Err(InfernoError::EngineNotInitialized);
         }
 
         let start_time = Instant::now();
@@ -417,7 +417,9 @@ impl BurnInferenceEngine {
                     }
                 }
             } else {
-                return Err(VLLMError::InvalidArgument("Model not loaded".to_string()));
+                return Err(InfernoError::InvalidArgument(
+                    "Model not loaded".to_string(),
+                ));
             }
         };
 
@@ -466,7 +468,7 @@ impl BurnInferenceEngine {
     }
 
     /// Shutdown the engine
-    pub fn shutdown(&mut self) -> VLLMResult<()> {
+    pub fn shutdown(&mut self) -> InfernoResult<()> {
         info!("Shutting down Burn inference engine");
         self.initialized = false;
         self.model_ready = false;
@@ -485,7 +487,7 @@ impl BurnInferenceEngine {
         model: &mut Llama<Backend, SentiencePieceTokenizer>,
         prompt: &str,
         max_tokens: usize,
-    ) -> VLLMResult<String> {
+    ) -> InfernoResult<String> {
         info!(
             "🧠 REAL NEURAL NETWORK INFERENCE: '{}' (max_tokens: {})",
             prompt, max_tokens
@@ -523,7 +525,7 @@ impl BurnInferenceEngine {
             }
             Err(e) => {
                 warn!("❌ model.generate() panicked: {:?}", e);
-                return Err(VLLMError::InvalidArgument(
+                return Err(InfernoError::InvalidArgument(
                     "Model generation panicked - this likely means the model weights are not properly loaded or there's a compatibility issue".to_string()
                 ));
             }
@@ -540,7 +542,7 @@ impl BurnInferenceEngine {
         );
 
         if generated_text.trim().is_empty() {
-            return Err(VLLMError::InvalidArgument(
+            return Err(InfernoError::InvalidArgument(
                 "Model generated empty response".to_string(),
             ));
         }
@@ -649,8 +651,8 @@ impl Default for BurnInferenceEngine {
 impl InferenceEngine for BurnInferenceEngine {
     type Error = InferenceError;
 
-    async fn initialize(&mut self, config: VLLMConfig) -> Result<(), Self::Error> {
-        // Convert VLLMResult to InferenceError
+    async fn initialize(&mut self, config: InfernoConfig) -> Result<(), Self::Error> {
+        // Convert InfernoResult to InferenceError
         self.initialize(config).await.map_err(|e| {
             InferenceError::InitializationError(format!("Burn engine initialization failed: {}", e))
         })
@@ -696,6 +698,6 @@ mod tests {
         };
 
         let result = engine.process_sync(request);
-        assert!(matches!(result, Err(VLLMError::EngineNotInitialized)));
+        assert!(matches!(result, Err(InfernoError::EngineNotInitialized)));
     }
 }

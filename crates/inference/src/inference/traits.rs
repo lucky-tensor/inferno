@@ -1,6 +1,6 @@
 //! Common inference traits and types shared between Burn and Candle engines
 
-use crate::config::VLLMConfig;
+use crate::config::InfernoConfig;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -127,7 +127,7 @@ pub trait InferenceEngine: Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// Initialize the engine with a model configuration
-    async fn initialize(&mut self, config: VLLMConfig) -> Result<(), Self::Error>;
+    async fn initialize(&mut self, config: InfernoConfig) -> Result<(), Self::Error>;
 
     /// Process a single inference request
     async fn process(&self, request: InferenceRequest) -> Result<InferenceResponse, Self::Error>;

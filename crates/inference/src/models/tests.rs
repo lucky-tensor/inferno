@@ -815,7 +815,7 @@ mod model_loading_tests {
 
 #[cfg(test)]
 mod inference_tests {
-    use crate::config::VLLMConfig;
+    use crate::config::InfernoConfig;
     use crate::inference::burn_engine::*;
     use crate::inference::{InferenceRequest, InferenceResponse};
     use tempfile::TempDir;
@@ -841,7 +841,7 @@ mod inference_tests {
         #[tokio::test]
         async fn test_engine_initialization_with_invalid_config() {
             let mut engine = BurnInferenceEngine::new();
-            let config = VLLMConfig {
+            let config = InfernoConfig {
                 model_path: "/nonexistent/path".to_string(),
                 model_name: "nonexistent".to_string(),
                 ..Default::default()
@@ -1036,7 +1036,7 @@ mod inference_tests {
             let mut engine = BurnInferenceEngine::new();
 
             // Create minimal config
-            let config = VLLMConfig {
+            let config = InfernoConfig {
                 model_path: temp_dir.path().to_str().unwrap().to_string(),
                 model_name: "test-model".to_string(),
                 device_id: -1, // CPU
