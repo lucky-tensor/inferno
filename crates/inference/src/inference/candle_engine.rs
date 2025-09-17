@@ -79,6 +79,7 @@ struct CandleModelConfig {
     max_position_embeddings: usize,
     rms_norm_eps: f64,
     rope_theta: f64,
+    tie_word_embeddings: Option<bool>,
 }
 
 /// Candle-based inference engine
@@ -216,6 +217,7 @@ impl CandleInferenceEngine {
             max_position_embeddings: config["max_position_embeddings"].as_u64().unwrap_or(131_072) as usize,
             rms_norm_eps: config["rms_norm_eps"].as_f64().unwrap_or(1e-5),
             rope_theta: config["rope_theta"].as_f64().unwrap_or(500_000.0),
+            tie_word_embeddings: config["tie_word_embeddings"].as_bool(),
         })
     }
 
@@ -444,11 +446,12 @@ impl CandleInferenceEngine {
         Ok(tokenizer)
     }
 
-    /// Create a `VarBuilder` that remaps tensor names for Llama model compatibility
+    /// Create a `VarBuilder` that handles tensor remapping and weight tying for Llama models
     #[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
     fn create_remapping_var_builder(base_builder: VarBuilder<'_>) -> VarBuilder<'_> {
-        // The previous error "cannot find tensor model.model.embed_tokens.weight" suggests
-        // we're adding one too many "model." prefixes. Let's try without any prefix first.
+        // For Llama 3.2 models with weight tying, we need to handle the case where
+        // lm_head.weight should be the same as model.embed_tokens.weight
+        // Try direct root level access first (no prefix)
         base_builder
     }
 
@@ -601,6 +604,12 @@ impl InferenceEngine for CandleInferenceEngine {
 
             info!("Loading model weights from SafeTensors: {}", safetensors_path.display());
 
+            // Check if this model uses weight tying
+            let is_weight_tied = model_config.tie_word_embeddings.unwrap_or(false);
+            if is_weight_tied {
+                info!("Model uses weight tying (tie_word_embeddings: true) - lm_head.weight will be shared with embed_tokens");
+            }
+
             // Load model weights using VarBuilder from SafeTensors
             let dtype = DType::F32; // Use F32 for CPU inference
             let base_var_builder = unsafe {
@@ -628,7 +637,7 @@ impl InferenceEngine for CandleInferenceEngine {
                 eos_token_id: Some(candle_transformers::models::llama::LlamaEosToks::Single(128_001)),  // Llama 3.2 specific
                 rope_scaling: None,
                 use_flash_attn: false,
-                tie_word_embeddings: false,
+                tie_word_embeddings: is_weight_tied,
             };
 
             // Create the Llama model with loaded weights
