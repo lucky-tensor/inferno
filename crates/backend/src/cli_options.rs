@@ -125,14 +125,9 @@ impl BackendCliOptions {
                     message: "Model file has no parent directory".to_string(),
                     source: None,
                 })?;
-            let filename = config.model_path.file_name()
-                .ok_or_else(|| InfernoError::Configuration {
-                    message: "Model path has no filename".to_string(),
-                    source: None,
-                })?
-                .to_string_lossy()
-                .to_string();
-            (parent.to_string_lossy().to_string(), filename)
+            // For specific SafeTensors files, we want to use the directory containing the file
+            // and let the inference engine auto-discover, rather than treating the filename as a model name
+            (parent.to_string_lossy().to_string(), String::new())
         } else {
             // Assume it's a directory and auto-discover
             (config.model_path.to_string_lossy().to_string(), String::new())

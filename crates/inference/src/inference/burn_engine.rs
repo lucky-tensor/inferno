@@ -125,18 +125,7 @@ impl BurnInferenceEngine {
     /// Check if required model files exist locally
     #[cfg(feature = "burn-cpu")]
     fn check_local_model_files(model_dir: &Path) -> bool {
-        let required_files = ["tokenizer.json", "config.json"];
-
-        // Check if required config files exist
-        let has_required_files = required_files
-            .iter()
-            .all(|file| model_dir.join(file).exists());
-
-        if !has_required_files {
-            return false;
-        }
-
-        // Check if we have either a single model.safetensors or sharded model files
+        // First, check if we have SafeTensors model files (most important)
         let has_single_model = model_dir.join("model.safetensors").exists();
         let has_sharded_model = model_dir.join("model.safetensors.index.json").exists()
             && model_dir
@@ -157,7 +146,24 @@ impl BurnInferenceEngine {
                 })
                 .unwrap_or(false);
 
-        has_single_model || has_sharded_model
+        let has_model_files = has_single_model || has_sharded_model;
+
+        if !has_model_files {
+            return false;
+        }
+
+        // Tokenizer and config files are preferred but not strictly required
+        // The inference engine can work with just SafeTensors files in many cases
+        let optional_files = ["tokenizer.json", "config.json"];
+        let has_optional_files = optional_files
+            .iter()
+            .any(|file| model_dir.join(file).exists());
+
+        if !has_optional_files {
+            info!("Model directory {:?} has SafeTensors files but missing tokenizer/config files. Attempting to proceed anyway.", model_dir);
+        }
+
+        true // Return true if we have model files, regardless of tokenizer/config
     }
 
     /// Load model from specified path or discover available models

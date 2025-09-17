@@ -508,22 +508,33 @@ Session Statistics:
 async fn run_headless_mode(mut context: PlayContext, prompt: String) -> Result<()> {
     info!("Running in headless mode with prompt: {}", prompt);
 
-    let result = context.send_inference_request(prompt).await;
+    // Use tokio::select! to race between inference and Ctrl+C signal
+    let result = tokio::select! {
+        inference_result = context.send_inference_request(prompt) => {
+            Some(inference_result)
+        }
+        _ = tokio::signal::ctrl_c() => {
+            println!("\n^C received, shutting down...");
+            None
+        }
+    };
 
-    match result {
-        Ok(response) => {
-            if let Some(error) = &response.error {
-                eprintln!("Error: {}", error);
+    if let Some(inference_result) = result {
+        match inference_result {
+            Ok(response) => {
+                if let Some(error) = &response.error {
+                    eprintln!("Error: {}", error);
+                    context.cleanup().await;
+                    std::process::exit(1);
+                } else {
+                    println!("{}", response.generated_text);
+                }
+            }
+            Err(e) => {
+                eprintln!("Error: {}", e);
                 context.cleanup().await;
                 std::process::exit(1);
-            } else {
-                println!("{}", response.generated_text);
             }
-        }
-        Err(e) => {
-            eprintln!("Error: {}", e);
-            context.cleanup().await;
-            std::process::exit(1);
         }
     }
 
