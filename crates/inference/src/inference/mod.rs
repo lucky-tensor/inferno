@@ -13,14 +13,14 @@ pub mod burn_engine;
 
 // Candle framework engine (new optimized implementation)
 #[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
-pub mod candle_engine;
+pub mod candle;
 
 // Re-export engines when features are enabled
 #[cfg(feature = "burn-cpu")]
 pub use burn_engine::BurnInferenceEngine;
 
 #[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
-pub use candle_engine::{CandleInferenceEngine, CandleBackendType};
+pub use candle::{CandleInferenceEngine, CandleBackendType};
 
 /// Create an inference engine based on the specified engine type
 pub fn create_engine(engine_type: EngineType) -> Box<dyn InferenceEngine<Error = InferenceError>> {

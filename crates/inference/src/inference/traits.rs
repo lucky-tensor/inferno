@@ -25,6 +25,13 @@ pub enum InferenceError {
     IoError(String),
 }
 
+#[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+impl From<candle_core::Error> for InferenceError {
+    fn from(error: candle_core::Error) -> Self {
+        Self::ProcessingError(format!("Candle error: {}", error))
+    }
+}
+
 /// Request for inference
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InferenceRequest {
