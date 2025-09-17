@@ -61,7 +61,7 @@ burn-cpu = [
     "dep:safetensors",
     "dep:burn-import",
     "dep:llama-burn"
-]  # Real deterministic Llama model inference with SafeTensors support
+]  # Real deterministic Llama model inference with SafeTensors support (default)
 cuda = []  # Reserved for future CUDA implementation
 
 # Benchmarks will be added in later phases

@@ -21,7 +21,7 @@ pub struct PlayCliOptions {
         short = 'm',
         long = "model-path",
         value_name = "PATH",
-        default_value = "/home/jeef/models"
+        default_value_t = inferno_shared::default_models_dir_string()
     )]
     pub model_path: String,
 
@@ -114,7 +114,7 @@ pub struct DownloadCliOptions {
         short = 'o',
         long = "output-dir",
         value_name = "PATH",
-        default_value = "./models"
+        default_value_t = inferno_shared::default_models_dir_string()
     )]
     pub output_dir: String,
 
@@ -148,8 +148,12 @@ impl Cli {
 impl DownloadCliOptions {
     /// Run the download command
     pub async fn run(self) -> Result<()> {
+        // Resolve the models path to handle ~ expansion
+        let resolved_output_dir = inferno_shared::resolve_models_path(&self.output_dir);
+        let output_dir_str = resolved_output_dir.to_string_lossy().to_string();
+
         println!("Downloading model: {}", self.model_id);
-        println!("Output directory: {}", self.output_dir);
+        println!("Output directory: {}", output_dir_str);
         if self.hf_token.is_some() {
             println!("Using Hugging Face API token for authentication");
         }
@@ -163,7 +167,7 @@ impl DownloadCliOptions {
 
         model_downloader::download_model(
             &self.model_id,
-            &self.output_dir,
+            &output_dir_str,
             self.hf_token.as_ref(),
             self.resume,
             !self.use_lfs, // Xet is default, LFS when flag is set

@@ -7,7 +7,7 @@ use crate::health::HealthService;
 use crate::BackendConfig;
 use clap::Parser;
 use inferno_inference::{
-    inference::{BurnInferenceEngine, InferenceRequest, InferenceResponse},
+    inference::{BurnInferenceEngine, InferenceRequest},
     config::VLLMConfig
 };
 use inferno_shared::{
@@ -39,8 +39,13 @@ pub struct BackendCliOptions {
     )]
     pub listen_addr: SocketAddr,
 
-    /// Path to the AI model file
-    #[arg(short, long, default_value = "model.bin", env = "INFERNO_MODEL_PATH")]
+    /// Path to the AI model file or directory
+    #[arg(
+        short,
+        long,
+        default_value = "",  // Will be handled in Default impl
+        env = "INFERNO_MODEL_PATH"
+    )]
     pub model_path: PathBuf,
 
     /// Model type/format (e.g., llama, gguf, onnx)
@@ -90,8 +95,13 @@ pub struct BackendCliOptions {
 
 impl BackendCliOptions {
     /// Run the backend server with the configured options
-    pub async fn run(self) -> Result<()> {
+    pub async fn run(mut self) -> Result<()> {
         info!("Starting Inferno Backend");
+
+        // Set default model path if empty
+        if self.model_path.as_os_str().is_empty() {
+            self.model_path = inferno_shared::default_models_dir();
+        }
 
         // Convert CLI options to BackendConfig
         let config = self.to_config()?;
@@ -262,7 +272,7 @@ impl BackendCliOptions {
 
         Ok(BackendConfig {
             listen_addr: self.listen_addr,
-            model_path: self.model_path.clone(),
+            model_path: inferno_shared::resolve_models_path(&self.model_path),
             model_type: self.model_type.clone(),
             max_batch_size: self.max_batch_size,
             gpu_device_id: self.gpu_device_id,
@@ -360,7 +370,7 @@ async fn handle_inference_request(
 
             // Process inference
             let inference_response = {
-                let mut engine_guard = engine.lock().unwrap();
+                let engine_guard = engine.lock().unwrap();
                 match engine_guard.process(inference_req) {
                     Ok(response) => response,
                     Err(e) => {

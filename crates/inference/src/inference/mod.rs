@@ -15,7 +15,7 @@ use tokio::sync::RwLock;
 
 // burn_hello_world module has been removed - using burn_engine directly
 #[cfg(feature = "burn-cpu")]
-mod burn_engine;
+pub mod burn_engine;
 
 #[cfg(feature = "burn-cpu")]
 pub use burn_engine::*;

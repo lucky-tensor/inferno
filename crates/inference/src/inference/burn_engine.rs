@@ -52,10 +52,10 @@ pub struct BurnInferenceEngine {
     model: Option<Mutex<Llama<Backend, SentiencePieceTokenizer>>>,
     /// Model ready for inference
     model_ready: bool,
-    /// Request count for statistics
-    request_count: u64,
-    /// Total inference time for averaging
-    total_inference_time: f64,
+    /// Request count for statistics - wrapped in Mutex for interior mutability
+    request_count: Mutex<u64>,
+    /// Total inference time for averaging - wrapped in Mutex for interior mutability
+    total_inference_time: Mutex<f64>,
     /// Burn backend type (CPU/CUDA/ROCm)
     backend_type: BurnBackendType,
     /// Device for tensor operations
@@ -96,8 +96,8 @@ impl BurnInferenceEngine {
             #[cfg(feature = "burn-cpu")]
             model: None,
             model_ready: false,
-            request_count: 0,
-            total_inference_time: 0.0,
+            request_count: Mutex::new(0),
+            total_inference_time: Mutex::new(0.0),
             backend_type: BurnBackendType::Cpu,
             #[cfg(feature = "burn-cpu")]
             device: Device::<Backend>::default(),
@@ -114,8 +114,8 @@ impl BurnInferenceEngine {
             #[cfg(feature = "burn-cpu")]
             model: None,
             model_ready: false,
-            request_count: 0,
-            total_inference_time: 0.0,
+            request_count: Mutex::new(0),
+            total_inference_time: Mutex::new(0.0),
             backend_type,
             #[cfg(feature = "burn-cpu")]
             device: Device::<Backend>::default(),
@@ -143,7 +143,7 @@ impl BurnInferenceEngine {
                 .read_dir()
                 .map(|entries| {
                     entries
-                        .filter_map(|entry| entry.ok())
+                        .filter_map(std::result::Result::ok)
                         .any(|entry| {
                             entry
                                 .file_name()
@@ -298,9 +298,13 @@ impl BurnInferenceEngine {
         #[cfg(feature = "burn-cpu")]
         {
             let models_dir = if config.model_path.is_empty() {
-                "./models"
+                // Use shared default models directory (~/.models)
+                inferno_shared::default_models_dir_string()
             } else {
-                &config.model_path
+                // Resolve provided path (handle ~ expansion)
+                inferno_shared::resolve_models_path(&config.model_path)
+                    .to_string_lossy()
+                    .to_string()
             };
             // Extract model name from config if available
             let model_name = if config.model_name.is_empty() {
@@ -309,7 +313,7 @@ impl BurnInferenceEngine {
                 Some(config.model_name.as_str())
             };
 
-            let model_path = Self::load_or_discover_model(models_dir, model_name).await?;
+            let model_path = Self::load_or_discover_model(&models_dir, model_name).await?;
             self.model_path = Some(model_path.clone());
 
             // Load model using SafeTensors with burn-import (no async conflicts)
@@ -357,7 +361,7 @@ impl BurnInferenceEngine {
                     .map_err(|e| {
                         VLLMError::InvalidArgument(format!("Failed to init model: {}", e))
                     })?;
-                self.model = Some(model);
+                self.model = Some(Mutex::new(model));
             }
 
             self.model_ready = true;
@@ -372,33 +376,33 @@ impl BurnInferenceEngine {
     }
 
     /// Process a single inference request
-    pub fn process(&mut self, mut request: InferenceRequest) -> VLLMResult<InferenceResponse> {
+    pub fn process(&self, mut request: InferenceRequest) -> VLLMResult<InferenceResponse> {
         // Ensure request has an ID
         if request.request_id == 0 {
-            request.request_id = self.request_count + 1;
+            let count = self.request_count.lock().unwrap();
+            request.request_id = *count + 1;
         }
         if !self.initialized {
             return Err(VLLMError::EngineNotInitialized);
         }
 
         let start_time = Instant::now();
-        self.request_count += 1;
-        self.stats.total_requests += 1;
+        {
+            let mut count = self.request_count.lock().unwrap();
+            *count += 1;
+        }
 
         debug!("Processing inference request: {}", request.prompt);
 
         // Real inference with Llama model - ACTUAL NEURAL NETWORK INFERENCE
         #[cfg(feature = "burn-cpu")]
         let response_text = {
-            if self.model.is_some() {
-                // Extract model temporarily for mutable access
-                let mut model = self.model.take().unwrap();
+            if let Some(ref model_mutex) = self.model {
+                // Get mutable access to the model through the Mutex
+                let mut model = model_mutex.lock().unwrap();
 
                 // Perform REAL text generation with the neural network
-                let generation_result = self.generate_real_text(&mut model, &request.prompt, request.max_tokens);
-
-                // Put the model back
-                self.model = Some(model);
+                let generation_result = Self::generate_real_text(&mut model, &request.prompt, request.max_tokens);
 
                 match generation_result {
                     Ok(generated_text) => {
@@ -419,14 +423,21 @@ impl BurnInferenceEngine {
         let response_text = format!("No Burn backend enabled. Request: {}", request.prompt);
 
         let inference_time = start_time.elapsed().as_secs_f64();
-        self.total_inference_time += inference_time;
-        #[allow(clippy::cast_precision_loss)]
-        let avg_inference_time_ms =
-            (self.total_inference_time * 1000.0) / (self.request_count as f64);
-        self.stats.avg_inference_time_ms = avg_inference_time_ms;
 
-        #[allow(clippy::cast_precision_loss)]
-        let avg_latency = self.total_inference_time / (self.request_count as f64);
+        // Update statistics with thread-safe access
+        let (_avg_inference_time_ms, avg_latency) = {
+            let mut total_time = self.total_inference_time.lock().unwrap();
+            let count = self.request_count.lock().unwrap();
+
+            *total_time += inference_time;
+
+            #[allow(clippy::cast_precision_loss)]
+            let avg_time_ms = (*total_time * 1000.0) / (*count as f64);
+            #[allow(clippy::cast_precision_loss)]
+            let avg_lat = *total_time / (*count as f64);
+
+            (avg_time_ms, avg_lat)
+        };
         debug!(
             "Inference completed in {:.3}s (avg: {:.3}s)",
             inference_time, avg_latency
@@ -471,10 +482,9 @@ impl BurnInferenceEngine {
         Ok(())
     }
 
-    /// Perform REAL neural network text generation using the loaded TinyLlama model
+    /// Perform REAL neural network text generation using the loaded `TinyLlama` model
     #[cfg(feature = "burn-cpu")]
     fn generate_real_text(
-        &self,
         model: &mut Llama<Backend, SentiencePieceTokenizer>,
         prompt: &str,
         max_tokens: usize,
@@ -488,7 +498,30 @@ impl BurnInferenceEngine {
         info!("⚙️ Using TopP sampling (p=0.9) with temperature={}", temperature);
 
         // Call the ACTUAL Llama model's generate method - this is REAL inference!
-        let generation_output = model.generate(prompt, max_tokens, temperature, &mut sampler);
+        info!("🔄 Calling model.generate() - this may take some time for CPU inference...");
+
+        let start_time = std::time::Instant::now();
+
+        // Try to call the real generate method, but with error handling
+        let generation_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            model.generate(prompt, max_tokens, temperature, &mut sampler)
+        }));
+
+        let elapsed = start_time.elapsed();
+        info!("⏱️ model.generate() call took {:.2}s", elapsed.as_secs_f64());
+
+        let generation_output = match generation_result {
+            Ok(output) => {
+                info!("✅ model.generate() completed successfully");
+                output
+            }
+            Err(e) => {
+                warn!("❌ model.generate() panicked: {:?}", e);
+                return Err(VLLMError::InvalidArgument(
+                    "Model generation panicked - this likely means the model weights are not properly loaded or there's a compatibility issue".to_string()
+                ));
+            }
+        };
 
         let generated_text = generation_output.text;
         let tokens_generated = generation_output.tokens;
@@ -510,7 +543,7 @@ impl BurnInferenceEngine {
 
     /// Generate intelligent text completion that demonstrates real language understanding
     #[cfg(feature = "burn-cpu")]
-    fn generate_intelligent_completion(&self, prompt: &str, max_tokens: usize) -> String {
+    fn generate_intelligent_completion(prompt: &str, max_tokens: usize) -> String {
         let prompt_lower = prompt.to_lowercase();
 
         // Generate contextually appropriate continuations based on the prompt
@@ -542,17 +575,15 @@ impl BurnInferenceEngine {
 
         // Limit to requested token count (roughly)
         let words: Vec<&str> = completion.split_whitespace().collect();
-        let limited_words = if words.len() > max_tokens {
+        if words.len() > max_tokens {
             words[..max_tokens].join(" ")
         } else {
             completion
-        };
-
-        limited_words
+        }
     }
 
     /// Generate a more intelligent fallback response
-    fn generate_fallback_response(&self, prompt: &str) -> String {
+    fn generate_fallback_response(prompt: &str) -> String {
         let prompt_lower = prompt.to_lowercase();
 
         // Provide contextual responses based on prompt content
@@ -586,6 +617,48 @@ impl Default for BurnInferenceEngine {
     }
 }
 
+// Implement the InferenceEngine trait for BurnInferenceEngine
+#[cfg(feature = "burn-cpu")]
+#[async_trait::async_trait]
+impl super::InferenceEngine for BurnInferenceEngine {
+    async fn initialize(&mut self, config: &VLLMConfig, _models_dir: &str) -> VLLMResult<()> {
+        // Use our existing initialize method
+        self.initialize(config.clone()).await
+    }
+
+    fn is_ready(&self) -> bool {
+        self.is_ready()
+    }
+
+    async fn infer(&self, request: InferenceRequest) -> VLLMResult<InferenceResponse> {
+        // Use our existing process method
+        self.process(request)
+    }
+
+    async fn get_stats(&self) -> EngineStats {
+        let count = *self.request_count.lock().unwrap();
+        let total_time = *self.total_inference_time.lock().unwrap();
+
+        #[allow(clippy::cast_precision_loss)]
+        let avg_time_ms = if count > 0 {
+            (total_time * 1000.0) / (count as f64)
+        } else {
+            0.0
+        };
+
+        EngineStats {
+            total_requests: count,
+            avg_inference_time_ms: avg_time_ms,
+            memory_usage_bytes: 0, // TODO: Implement memory tracking
+            model_loaded: self.model_ready,
+        }
+    }
+
+    async fn shutdown(&mut self) -> VLLMResult<()> {
+        self.shutdown()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -606,7 +679,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_uninitialized_inference() {
-        let mut engine = BurnInferenceEngine::new();
+        let engine = BurnInferenceEngine::new();
         let request = InferenceRequest {
             request_id: 1,
             prompt: "Test prompt".to_string(),
