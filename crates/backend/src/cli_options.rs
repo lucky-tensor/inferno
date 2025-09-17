@@ -299,9 +299,15 @@ async fn start_inference_server(
     info!("🌐 HTTP inference server listening on {}", addr);
 
     loop {
-        let (stream, _) = listener.accept().await.map_err(|e| {
-            InfernoError::internal(format!("Failed to accept connection: {}", e), None)
-        })?;
+        // This will be automatically cancelled when the task is aborted
+        let (stream, _) = match listener.accept().await {
+            Ok(connection) => connection,
+            Err(e) => {
+                // If we get an error during shutdown, it's likely because the listener was closed
+                warn!("Accept error (possibly during shutdown): {}", e);
+                break;
+            }
+        };
 
         let io = TokioIo::new(stream);
         let engine_clone = Arc::clone(&engine);
@@ -318,6 +324,8 @@ async fn start_inference_server(
             }
         });
     }
+
+    Ok(())
 }
 
 /// Handle individual HTTP inference requests

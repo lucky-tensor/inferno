@@ -389,6 +389,7 @@ impl PlayContext {
             .client
             .post(&inference_url)
             .json(&request)
+            .timeout(std::time::Duration::from_secs(10)) // 10 second timeout
             .send()
             .await
             .map_err(|e| {
@@ -426,6 +427,7 @@ impl PlayContext {
     pub async fn cleanup(self) {
         info!("Stopping local backend server...");
         self.backend_task.abort();
+        let _ = self.backend_task.await;
         info!("Local backend server stopped");
     }
 }
