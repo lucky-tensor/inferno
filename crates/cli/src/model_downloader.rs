@@ -38,8 +38,8 @@ async fn check_existing_model_files(
 
     // Optional tokenizer files (models may use different tokenizer formats)
     let optional_tokenizer_files = vec![
-        "tokenizer.json",        // HuggingFace tokenizer format
-        "vocab.json",            // Vocabulary file (alternative format)
+        "tokenizer.json", // HuggingFace tokenizer format
+        "vocab.json",     // Vocabulary file (alternative format)
     ];
 
     let mut existing_files = Vec::new();
@@ -123,7 +123,9 @@ pub async fn download_model(
     println!("Starting model download...");
 
     // Check if model files already exist
-    if let Some((existing_files, missing_files)) = check_existing_model_files(output_dir, model_id).await? {
+    if let Some((existing_files, missing_files)) =
+        check_existing_model_files(output_dir, model_id).await?
+    {
         let model_dir_name = format_model_dir_name(model_id);
         let full_output_dir = Path::new(output_dir).join(&model_dir_name);
 
@@ -197,18 +199,26 @@ pub async fn download_model(
     println!("Downloading model from Hugging Face: {}", model_id);
 
     // Check what files to download (all or just missing ones)
-    let files_to_download = if let Some((_, missing_files)) = check_existing_model_files(output_dir, model_id).await? {
-        if !missing_files.is_empty() {
-            Some(missing_files)
+    let files_to_download =
+        if let Some((_, missing_files)) = check_existing_model_files(output_dir, model_id).await? {
+            if !missing_files.is_empty() {
+                Some(missing_files)
+            } else {
+                None // This case shouldn't happen since we already returned above
+            }
         } else {
-            None // This case shouldn't happen since we already returned above
-        }
-    } else {
-        None // No existing files, download all
-    };
+            None // No existing files, download all
+        };
 
     if use_xet {
-        download_model_with_xet(model_id, &model_dir, token.as_deref(), &hf_cache_dir, files_to_download.as_ref()).await?;
+        download_model_with_xet(
+            model_id,
+            &model_dir,
+            token.as_deref(),
+            &hf_cache_dir,
+            files_to_download.as_ref(),
+        )
+        .await?;
     } else {
         println!("Using Git LFS backend");
         download_huggingface_model(model_id, &model_dir, token.as_deref(), resume).await?;
@@ -678,10 +688,10 @@ async fn download_model_files_with_wget(
 
     // Essential files: .safetensors, config, and tokenizer files
     let files_to_try = vec![
-        "model.safetensors",     // Primary model weights (safetensors format only)
-        "config.json",           // Model configuration (architecture, dimensions, etc.)
-        "tokenizer.json",        // Tokenizer configuration
-        "tokenizer_config.json", // Tokenizer metadata
+        "model.safetensors",      // Primary model weights (safetensors format only)
+        "config.json",            // Model configuration (architecture, dimensions, etc.)
+        "tokenizer.json",         // Tokenizer configuration
+        "tokenizer_config.json",  // Tokenizer metadata
         "generation_config.json", // Generation parameters (optional but recommended)
     ];
 
@@ -768,8 +778,7 @@ pub(crate) async fn download_model_with_xet(
             .with_token(Some(token.to_string()))
             .build()
     } else {
-        hf_hub::api::tokio::ApiBuilder::new()
-            .build()
+        hf_hub::api::tokio::ApiBuilder::new().build()
     };
 
     let api = match api_result {
@@ -793,10 +802,10 @@ pub(crate) async fn download_model_with_xet(
     } else {
         println!("Downloading all essential files");
         vec![
-            "model.safetensors".to_string(),     // Primary model weights (safetensors format only)
-            "config.json".to_string(),           // Model configuration (architecture, dimensions, etc.)
-            "tokenizer.json".to_string(),        // Tokenizer configuration (HuggingFace format)
-            "vocab.json".to_string(),            // Vocabulary file (alternative tokenizer format)
+            "model.safetensors".to_string(), // Primary model weights (safetensors format only)
+            "config.json".to_string(),       // Model configuration (architecture, dimensions, etc.)
+            "tokenizer.json".to_string(),    // Tokenizer configuration (HuggingFace format)
+            "vocab.json".to_string(),        // Vocabulary file (alternative tokenizer format)
             "tokenizer_config.json".to_string(), // Tokenizer metadata
             "generation_config.json".to_string(), // Generation parameters (optional but recommended)
         ]
@@ -851,7 +860,10 @@ pub(crate) async fn download_model_with_xet(
                     match download_file_direct(model_id, filename, output_dir).await {
                         Ok(true) => {
                             downloaded_files.push(filename.to_string());
-                            println!("DEBUG: Successfully downloaded {} via direct HTTP", filename);
+                            println!(
+                                "DEBUG: Successfully downloaded {} via direct HTTP",
+                                filename
+                            );
                         }
                         Ok(false) => {
                             failed_files.push(filename.to_string());
@@ -859,7 +871,10 @@ pub(crate) async fn download_model_with_xet(
                         }
                         Err(http_err) => {
                             failed_files.push(filename.to_string());
-                            println!("DEBUG: Direct HTTP download failed for {}: {}", filename, http_err);
+                            println!(
+                                "DEBUG: Direct HTTP download failed for {}: {}",
+                                filename, http_err
+                            );
                         }
                     }
                 } else {
@@ -977,12 +992,11 @@ pub(crate) async fn download_model_with_xet(
 }
 
 /// Direct HTTP download fallback for files that fail with hf-hub
-async fn download_file_direct(
-    model_id: &str,
-    filename: &str,
-    output_dir: &str,
-) -> Result<bool> {
-    let url = format!("https://huggingface.co/{}/resolve/main/{}", model_id, filename);
+async fn download_file_direct(model_id: &str, filename: &str, output_dir: &str) -> Result<bool> {
+    let url = format!(
+        "https://huggingface.co/{}/resolve/main/{}",
+        model_id, filename
+    );
     let target_path = Path::new(output_dir).join(filename);
 
     let client = reqwest::Client::new();
@@ -996,7 +1010,10 @@ async fn download_file_direct(
         return Err(anyhow!(
             "HTTP error {}: {}",
             response.status(),
-            response.status().canonical_reason().unwrap_or("Unknown error")
+            response
+                .status()
+                .canonical_reason()
+                .unwrap_or("Unknown error")
         ));
     }
 

@@ -1,9 +1,13 @@
 //! Candle backend types and device management
 
-use serde::{Deserialize, Serialize};
 use crate::inference::InferenceError;
+use serde::{Deserialize, Serialize};
 
-#[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+#[cfg(any(
+    feature = "candle-cpu",
+    feature = "candle-cuda",
+    feature = "candle-metal"
+))]
 use candle_core::Device;
 
 /// Candle backend types for different hardware acceleration
@@ -33,7 +37,11 @@ impl std::fmt::Display for CandleBackendType {
 
 impl CandleBackendType {
     /// Create device for the specified backend type
-    #[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+    #[cfg(any(
+        feature = "candle-cpu",
+        feature = "candle-cuda",
+        feature = "candle-metal"
+    ))]
     pub fn create_device(&self) -> Result<Device, InferenceError> {
         match self {
             Self::Cpu => {
@@ -51,7 +59,8 @@ impl CandleBackendType {
                     Err(e) => {
                         tracing::error!("Failed to create CUDA device: {}", e);
                         Err(InferenceError::InitializationError(format!(
-                            "CUDA device initialization failed: {}", e
+                            "CUDA device initialization failed: {}",
+                            e
                         )))
                     }
                 }
@@ -67,7 +76,8 @@ impl CandleBackendType {
                     Err(e) => {
                         tracing::error!("Failed to create Metal device: {}", e);
                         Err(InferenceError::InitializationError(format!(
-                            "Metal device initialization failed: {}", e
+                            "Metal device initialization failed: {}",
+                            e
                         )))
                     }
                 }

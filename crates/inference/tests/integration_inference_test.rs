@@ -1,8 +1,8 @@
 //! Integration test to demonstrate burn-cpu neural network inference working
 //! This test shows real model inference with quality output
 
-use inferno_inference::inference::{BurnInferenceEngine, InferenceRequest};
 use inferno_inference::config::VLLMConfig;
+use inferno_inference::inference::{BurnInferenceEngine, InferenceRequest};
 use std::time::Instant;
 
 #[tokio::test]
@@ -12,7 +12,10 @@ async fn test_burn_cpu_inference_quality() {
 
     // Create inference engine
     let mut engine = BurnInferenceEngine::new();
-    println!("✅ Created BurnInferenceEngine with backend: {:?}", engine.backend_type());
+    println!(
+        "✅ Created BurnInferenceEngine with backend: {:?}",
+        engine.backend_type()
+    );
 
     // Configure for CPU inference
     let config = VLLMConfig {
@@ -30,7 +33,10 @@ async fn test_burn_cpu_inference_quality() {
     // Initialize the model (this will use Xavier/He weights if SafeTensors fails)
     match engine.initialize(config).await {
         Ok(()) => {
-            println!("✅ Model initialized successfully in {:.2}s", init_start.elapsed().as_secs_f64());
+            println!(
+                "✅ Model initialized successfully in {:.2}s",
+                init_start.elapsed().as_secs_f64()
+            );
         }
         Err(e) => {
             println!("⚠️ Initialization completed with notes: {}", e);
@@ -48,7 +54,10 @@ async fn test_burn_cpu_inference_quality() {
     let max_tokens = 10;
 
     println!("📝 Input prompt: '{}'", test_prompt);
-    println!("🎯 Requesting {} tokens with temperature=0.7, top_p=0.9", max_tokens);
+    println!(
+        "🎯 Requesting {} tokens with temperature=0.7, top_p=0.9",
+        max_tokens
+    );
 
     let request = InferenceRequest {
         request_id: 1,
@@ -79,15 +88,21 @@ async fn test_burn_cpu_inference_quality() {
             }
 
             // Verify we got a real response
-            assert!(!response.generated_text.is_empty(), "Should generate non-empty text");
-            assert!(response.generated_tokens > 0, "Should generate at least some tokens");
+            assert!(
+                !response.generated_text.is_empty(),
+                "Should generate non-empty text"
+            );
+            assert!(
+                response.generated_tokens > 0,
+                "Should generate at least some tokens"
+            );
             assert_eq!(response.request_id, 1, "Request ID should match");
 
             // Check that the response is not a hardcoded fallback
             assert!(
-                !response.generated_text.contains("fallback") &&
-                !response.generated_text.contains("placeholder") &&
-                !response.generated_text.contains("hardcoded"),
+                !response.generated_text.contains("fallback")
+                    && !response.generated_text.contains("placeholder")
+                    && !response.generated_text.contains("hardcoded"),
                 "Response should not be a fallback/placeholder: '{}'",
                 response.generated_text
             );
@@ -98,7 +113,6 @@ async fn test_burn_cpu_inference_quality() {
             println!("• Tokens generated: ✅");
             println!("• Not hardcoded: ✅");
             println!("• Real neural network: ✅");
-
         }
         Err(e) => {
             println!("❌ Inference failed: {}", e);
@@ -111,10 +125,16 @@ async fn test_burn_cpu_inference_quality() {
     println!("\n📈 Engine Statistics:");
     println!("====================");
     println!("Total requests processed: {}", stats.total_requests);
-    println!("Average inference time: {:.2}ms", stats.avg_inference_time_ms);
+    println!(
+        "Average inference time: {:.2}ms",
+        stats.avg_inference_time_ms
+    );
     println!("Model loaded: {}", stats.model_loaded);
 
-    assert!(stats.total_requests >= 1, "Should have processed at least one request");
+    assert!(
+        stats.total_requests >= 1,
+        "Should have processed at least one request"
+    );
     assert!(stats.model_loaded, "Model should be marked as loaded");
 
     println!("\n🎉 Burn CPU inference test PASSED! Neural network is working!");
@@ -167,7 +187,11 @@ async fn test_multiple_inference_requests() {
                 println!("✅ Response: '{}'", response.generated_text);
                 println!("📊 Tokens: {}", response.generated_tokens);
 
-                assert!(!response.generated_text.is_empty(), "Should generate text for prompt: {}", prompt);
+                assert!(
+                    !response.generated_text.is_empty(),
+                    "Should generate text for prompt: {}",
+                    prompt
+                );
             }
             Err(e) => {
                 println!("⚠️ Inference failed for '{}': {}", prompt, e);
@@ -175,6 +199,13 @@ async fn test_multiple_inference_requests() {
         }
     }
 
-    println!("\n📊 Summary: {}/{} inferences successful", successful_inferences, test_cases.len());
-    assert!(successful_inferences > 0, "At least some inferences should succeed");
+    println!(
+        "\n📊 Summary: {}/{} inferences successful",
+        successful_inferences,
+        test_cases.len()
+    );
+    assert!(
+        successful_inferences > 0,
+        "At least some inferences should succeed"
+    );
 }

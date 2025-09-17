@@ -1,9 +1,9 @@
 //! Llama model loader using the official burn-llama implementation
 
+use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::path::Path;
 use tracing::{info, warn};
-use serde::{Deserialize, Serialize};
 
 // CPU backend imports
 #[cfg(feature = "burn-cpu")]
@@ -47,7 +47,10 @@ pub fn load_llama_weights(
 
     // Check if tokenizer exists, create a minimal fallback if not
     if !tokenizer_path.exists() {
-        warn!("Tokenizer file not found: {}. Creating minimal fallback tokenizer.", tokenizer_path.display());
+        warn!(
+            "Tokenizer file not found: {}. Creating minimal fallback tokenizer.",
+            tokenizer_path.display()
+        );
 
         // Create a minimal tokenizer.json file for basic functionality
         let minimal_tokenizer = r#"{
@@ -69,10 +72,17 @@ pub fn load_llama_weights(
         // Write minimal tokenizer to expected location
         if let Err(e) = std::fs::write(&tokenizer_path, minimal_tokenizer) {
             warn!("Failed to create fallback tokenizer: {}", e);
-            return Err(format!("No tokenizer available and failed to create fallback: {}", e).into());
+            return Err(format!(
+                "No tokenizer available and failed to create fallback: {}",
+                e
+            )
+            .into());
         }
 
-        info!("Created minimal fallback tokenizer at: {}", tokenizer_path.display());
+        info!(
+            "Created minimal fallback tokenizer at: {}",
+            tokenizer_path.display()
+        );
     }
 
     let effective_tokenizer_path = tokenizer_path.to_str().unwrap().to_string();
@@ -145,11 +155,14 @@ fn load_safetensors_weights(
     if std::fs::metadata(weights_path).is_ok() {
         println!("✅ SafeTensors file is accessible and readable");
 
-            // Attempt basic SafeTensors parsing with improved error handling
+        // Attempt basic SafeTensors parsing with improved error handling
         println!("🔍 Reading SafeTensors file: {}", weights_path.display());
         let data = match std::fs::read(weights_path) {
             Ok(data) => {
-                println!("✅ Successfully read {} bytes from SafeTensors file", data.len());
+                println!(
+                    "✅ Successfully read {} bytes from SafeTensors file",
+                    data.len()
+                );
                 data
             }
             Err(e) => {
@@ -164,24 +177,33 @@ fn load_safetensors_weights(
         }
 
         if data.len() < 8 {
-            return Err("SafeTensors file too small to contain valid metadata".to_string().into());
+            return Err("SafeTensors file too small to contain valid metadata"
+                .to_string()
+                .into());
         }
 
         // Debug: Check SafeTensors header format
         let header_len = u64::from_le_bytes([
-            data[0], data[1], data[2], data[3],
-            data[4], data[5], data[6], data[7]
+            data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
         ]);
         println!("📋 SafeTensors header length: {} bytes", header_len);
 
         if header_len > data.len() as u64 {
-            println!("⚠️ Header length ({}) exceeds file size ({})", header_len, data.len());
-            return Err("Corrupted SafeTensors: header length exceeds file size".to_string().into());
+            println!(
+                "⚠️ Header length ({}) exceeds file size ({})",
+                header_len,
+                data.len()
+            );
+            return Err("Corrupted SafeTensors: header length exceeds file size"
+                .to_string()
+                .into());
         }
 
         if header_len == 0 {
             println!("⚠️ Header length is zero");
-            return Err("Corrupted SafeTensors: zero header length".to_string().into());
+            return Err("Corrupted SafeTensors: zero header length"
+                .to_string()
+                .into());
         }
 
         // Try SafeTensors deserialization with detailed error information
@@ -198,7 +220,10 @@ fn load_safetensors_weights(
                     }
                 }
                 if tensor_names.len() < tensors.len() {
-                    println!("   ... and {} more tensors", tensors.len() - tensor_names.len());
+                    println!(
+                        "   ... and {} more tensors",
+                        tensors.len() - tensor_names.len()
+                    );
                 }
 
                 println!("💡 SafeTensors contains valid tensor data but requires manual mapping to Burn model");
@@ -262,7 +287,10 @@ pub fn load_model_config(
         let hf_config: HuggingFaceConfig = serde_json::from_str(&config_content)
             .map_err(|e| format!("Failed to parse config.json: {}", e))?;
 
-        println!("✅ Successfully loaded config from {}", config_path.display());
+        println!(
+            "✅ Successfully loaded config from {}",
+            config_path.display()
+        );
 
         // Convert HuggingFace config to LlamaConfig
         let config = LlamaConfig {

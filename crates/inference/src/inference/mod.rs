@@ -12,15 +12,23 @@ pub use traits::*;
 pub mod burn_engine;
 
 // Candle framework engine (new optimized implementation)
-#[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+#[cfg(any(
+    feature = "candle-cpu",
+    feature = "candle-cuda",
+    feature = "candle-metal"
+))]
 pub mod candle;
 
 // Re-export engines when features are enabled
 #[cfg(feature = "burn-cpu")]
 pub use burn_engine::BurnInferenceEngine;
 
-#[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
-pub use candle::{CandleInferenceEngine, CandleBackendType};
+#[cfg(any(
+    feature = "candle-cpu",
+    feature = "candle-cuda",
+    feature = "candle-metal"
+))]
+pub use candle::{CandleBackendType, CandleInferenceEngine};
 
 /// Create an inference engine based on the specified engine type
 pub fn create_engine(engine_type: EngineType) -> Box<dyn InferenceEngine<Error = InferenceError>> {
@@ -36,11 +44,19 @@ pub fn create_engine(engine_type: EngineType) -> Box<dyn InferenceEngine<Error =
             }
         }
         EngineType::CandleCpu => {
-            #[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+            #[cfg(any(
+                feature = "candle-cpu",
+                feature = "candle-cuda",
+                feature = "candle-metal"
+            ))]
             {
                 Box::new(CandleInferenceEngine::with_backend(CandleBackendType::Cpu))
             }
-            #[cfg(not(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal")))]
+            #[cfg(not(any(
+                feature = "candle-cpu",
+                feature = "candle-cuda",
+                feature = "candle-metal"
+            )))]
             {
                 panic!("Candle CPU engine requested but candle features not enabled")
             }
@@ -50,9 +66,9 @@ pub fn create_engine(engine_type: EngineType) -> Box<dyn InferenceEngine<Error =
             Box::new(CandleInferenceEngine::with_backend(CandleBackendType::Cuda))
         }
         #[cfg(all(feature = "candle-metal", target_os = "macos"))]
-        EngineType::CandleMetal => {
-            Box::new(CandleInferenceEngine::with_backend(CandleBackendType::Metal))
-        }
+        EngineType::CandleMetal => Box::new(CandleInferenceEngine::with_backend(
+            CandleBackendType::Metal,
+        )),
     }
 }
 
@@ -63,7 +79,11 @@ mod tests {
     #[test]
     fn test_engine_creation() {
         // Test that we can create engines when features are enabled
-        #[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+        #[cfg(any(
+            feature = "candle-cpu",
+            feature = "candle-cuda",
+            feature = "candle-metal"
+        ))]
         {
             let _engine = create_engine(EngineType::CandleCpu);
         }

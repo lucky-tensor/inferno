@@ -5,17 +5,28 @@
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::redundant_closure_for_method_calls)]
 
-#[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
-use tokenizers::{Tokenizer, models::bpe::BPE, AddedToken, PaddingParams, TruncationParams, PaddingDirection, TruncationDirection, processors::template::TemplateProcessing};
+#[cfg(any(
+    feature = "candle-cpu",
+    feature = "candle-cuda",
+    feature = "candle-metal"
+))]
+use tokenizers::{
+    models::bpe::BPE, processors::template::TemplateProcessing, AddedToken, PaddingDirection,
+    PaddingParams, Tokenizer, TruncationDirection, TruncationParams,
+};
 
 use crate::inference::InferenceError;
-use tracing::{info, debug};
+use tracing::{debug, info};
 
 pub struct CandleTokenizer;
 
 impl CandleTokenizer {
     /// Load tokenizer from model directory with Llama 3.2 compatibility
-    #[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+    #[cfg(any(
+        feature = "candle-cpu",
+        feature = "candle-cuda",
+        feature = "candle-metal"
+    ))]
     pub async fn load_from_path(model_path: &str) -> Result<Tokenizer, InferenceError> {
         let model_path = std::path::Path::new(model_path);
         let tokenizer_path = model_path.join("tokenizer.json");
@@ -45,15 +56,22 @@ impl CandleTokenizer {
 
             // Read tokenizer config to determine the tokenizer type
             let config_str = std::fs::read_to_string(&config_path).map_err(|e| {
-                InferenceError::InvalidArgument(format!("Failed to read tokenizer_config.json: {}", e))
+                InferenceError::InvalidArgument(format!(
+                    "Failed to read tokenizer_config.json: {}",
+                    e
+                ))
             })?;
 
             let config: serde_json::Value = serde_json::from_str(&config_str).map_err(|e| {
-                InferenceError::InvalidArgument(format!("Failed to parse tokenizer_config.json: {}", e))
+                InferenceError::InvalidArgument(format!(
+                    "Failed to parse tokenizer_config.json: {}",
+                    e
+                ))
             })?;
 
             // Get tokenizer class (e.g., "GPTTokenizer", "PreTrainedTokenizer")
-            let tokenizer_class = config.get("tokenizer_class")
+            let tokenizer_class = config
+                .get("tokenizer_class")
                 .and_then(|v| v.as_str())
                 .unwrap_or("PreTrainedTokenizer");
 
@@ -63,7 +81,10 @@ impl CandleTokenizer {
                 "GPT2Tokenizer" => {
                     // Handle GPT2 tokenizer creation
                     return Tokenizer::from_file(&vocab_path).map_err(|e| {
-                        InferenceError::InvalidArgument(format!("Failed to load GPT2 tokenizer: {}", e))
+                        InferenceError::InvalidArgument(format!(
+                            "Failed to load GPT2 tokenizer: {}",
+                            e
+                        ))
                     });
                 }
                 _ => {
@@ -81,7 +102,11 @@ impl CandleTokenizer {
     }
 
     /// Create a Llama 3.2 compatible tokenizer from tokenizer files
-    #[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+    #[cfg(any(
+        feature = "candle-cpu",
+        feature = "candle-cuda",
+        feature = "candle-metal"
+    ))]
     async fn create_llama32_compatible_tokenizer(
         config_path: &std::path::Path,
         tokenizer_path: &std::path::Path,
@@ -103,9 +128,11 @@ impl CandleTokenizer {
 
         if original_tokenizer_path.exists() {
             info!("Extracting vocabulary from existing tokenizer.json");
-            let tokenizer_str = tokio::fs::read_to_string(original_tokenizer_path).await.map_err(|e| {
-                InferenceError::InvalidArgument(format!("Failed to read tokenizer.json: {}", e))
-            })?;
+            let tokenizer_str = tokio::fs::read_to_string(original_tokenizer_path)
+                .await
+                .map_err(|e| {
+                    InferenceError::InvalidArgument(format!("Failed to read tokenizer.json: {}", e))
+                })?;
 
             if let Ok(tokenizer_data) = serde_json::from_str::<serde_json::Value>(&tokenizer_str) {
                 // Extract vocabulary from the tokenizer.json
@@ -139,14 +166,20 @@ impl CandleTokenizer {
         let mut tokenizer = Tokenizer::new(bpe_tokenizer);
 
         // Add special tokens from config with their proper IDs
-        if let Some(added_tokens) = config.get("added_tokens_decoder").and_then(|v| v.as_object()) {
+        if let Some(added_tokens) = config
+            .get("added_tokens_decoder")
+            .and_then(|v| v.as_object())
+        {
             info!("Adding {} special tokens", added_tokens.len());
             for (id_str, token_info) in added_tokens {
                 if let (Ok(id), Some(content)) = (
                     id_str.parse::<u32>(),
-                    token_info.get("content").and_then(|v| v.as_str())
+                    token_info.get("content").and_then(|v| v.as_str()),
                 ) {
-                    let special = token_info.get("special").and_then(|v| v.as_bool()).unwrap_or(false);
+                    let special = token_info
+                        .get("special")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
                     let added_token = AddedToken::from(content, special);
                     // Try to add the token with correct ID
                     tokenizer.add_tokens(&[added_token]);
@@ -162,7 +195,7 @@ impl CandleTokenizer {
                 strategy: tokenizers::PaddingStrategy::BatchLongest,
                 direction: PaddingDirection::Left,
                 pad_to_multiple_of: None,
-                pad_id: 128_004,  // <|finetune_right_pad_id|> for Llama 3.2
+                pad_id: 128_004, // <|finetune_right_pad_id|> for Llama 3.2
                 pad_type_id: 0,
                 pad_token: pad_token.to_string(),
             };
@@ -184,13 +217,23 @@ impl CandleTokenizer {
         if let Some(bos_token) = config.get("bos_token").and_then(|v| v.as_str()) {
             let post_processor = TemplateProcessing::builder()
                 .try_single(format!("{} $A", bos_token))
-                .map_err(|e| InferenceError::InvalidArgument(format!("Failed to create post-processor: {}", e)))?
+                .map_err(|e| {
+                    InferenceError::InvalidArgument(format!(
+                        "Failed to create post-processor: {}",
+                        e
+                    ))
+                })?
                 .special_tokens(vec![
-                    (bos_token.to_string(), 128_000),  // <|begin_of_text|>
+                    (bos_token.to_string(), 128_000),    // <|begin_of_text|>
                     ("<|eot_id|>".to_string(), 128_009), // <|eot_id|>
                 ])
                 .build()
-                .map_err(|e| InferenceError::InvalidArgument(format!("Failed to build post-processor: {}", e)))?;
+                .map_err(|e| {
+                    InferenceError::InvalidArgument(format!(
+                        "Failed to build post-processor: {}",
+                        e
+                    ))
+                })?;
 
             tokenizer.with_post_processor(post_processor);
         }

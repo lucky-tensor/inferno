@@ -1,9 +1,9 @@
 //! Common inference traits and types shared between Burn and Candle engines
 
+use crate::config::VLLMConfig;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use crate::config::VLLMConfig;
 
 /// Inference engine errors
 #[derive(Error, Debug, Clone)]
@@ -25,7 +25,11 @@ pub enum InferenceError {
     IoError(String),
 }
 
-#[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+#[cfg(any(
+    feature = "candle-cpu",
+    feature = "candle-cuda",
+    feature = "candle-metal"
+))]
 impl From<candle_core::Error> for InferenceError {
     fn from(error: candle_core::Error) -> Self {
         Self::ProcessingError(format!("Candle error: {}", error))

@@ -6,8 +6,8 @@
 
 #[cfg(test)]
 mod model_loading_tests {
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
 
     /// Test model file discovery and validation
     mod file_discovery {
@@ -40,7 +40,11 @@ mod model_loading_tests {
             let config_path = temp_dir.path().join("config.json");
 
             // Create sharded model files
-            fs::write(&index_path, r#"{"weight_map": {"layer.0": "model-00001-of-00002.safetensors"}}"#).unwrap();
+            fs::write(
+                &index_path,
+                r#"{"weight_map": {"layer.0": "model-00001-of-00002.safetensors"}}"#,
+            )
+            .unwrap();
             fs::write(&shard_path, b"fake safetensors data").unwrap();
             fs::write(&tokenizer_path, r#"{"version": "1.0"}"#).unwrap();
             fs::write(&config_path, r#"{"vocab_size": 32000}"#).unwrap();
@@ -61,8 +65,14 @@ mod model_loading_tests {
 
             // Test incomplete file structure
             assert!(model_path.exists(), "SafeTensors file should exist");
-            assert!(!temp_dir.path().join("tokenizer.json").exists(), "Tokenizer file should not exist");
-            assert!(!temp_dir.path().join("config.json").exists(), "Config file should not exist");
+            assert!(
+                !temp_dir.path().join("tokenizer.json").exists(),
+                "Tokenizer file should not exist"
+            );
+            assert!(
+                !temp_dir.path().join("config.json").exists(),
+                "Config file should not exist"
+            );
         }
 
         #[test]
@@ -181,12 +191,21 @@ mod model_loading_tests {
                         assert_eq!(config.num_attention_heads, 32, "num_heads should match");
                         assert_eq!(config.num_key_value_heads, Some(8), "KV heads should match");
                         assert_eq!(config.vocab_size, 128_256, "vocab_size should match");
-                        assert!((config.norm_eps - 1e-5).abs() < f64::EPSILON, "norm_eps should match");
+                        assert!(
+                            (config.norm_eps - 1e-5).abs() < f64::EPSILON,
+                            "norm_eps should match"
+                        );
 
-                        println!("✅ Successfully loaded Llama-3.2-1B configuration from config.json");
-                        println!("📊 Config: d_model={}, layers={}, heads={}, vocab={}",
-                                config.d_model, config.num_hidden_layers,
-                                config.num_attention_heads, config.vocab_size);
+                        println!(
+                            "✅ Successfully loaded Llama-3.2-1B configuration from config.json"
+                        );
+                        println!(
+                            "📊 Config: d_model={}, layers={}, heads={}, vocab={}",
+                            config.d_model,
+                            config.num_hidden_layers,
+                            config.num_attention_heads,
+                            config.vocab_size
+                        );
                     }
                     Err(e) => {
                         // In case the function is not accessible due to visibility,
@@ -209,27 +228,43 @@ mod model_loading_tests {
             // Test loading the actual downloaded Llama-3.2-1B model
             #[cfg(all(feature = "burn-cpu", feature = "pretrained"))]
             {
-                use std::path::PathBuf;
-                use burn::{backend::ndarray::NdArray, tensor::Device};
                 use crate::models::llama_loader::load_llama_weights;
+                use burn::{backend::ndarray::NdArray, tensor::Device};
+                use std::path::PathBuf;
 
                 type Backend = NdArray<f32>;
 
                 let home = std::env::var("HOME").unwrap_or_else(|_| "/home/jeef".to_string());
-                let model_path = PathBuf::from(format!("{}/models/unsloth_Llama-3.2-1B-Instruct", home));
+                let model_path =
+                    PathBuf::from(format!("{}/models/unsloth_Llama-3.2-1B-Instruct", home));
 
                 // Skip test if model not available (for CI/other environments)
                 if !model_path.exists() {
-                    println!("⚠️  Skipping Llama-3.2-1B test - model not found at: {}", model_path.display());
+                    println!(
+                        "⚠️  Skipping Llama-3.2-1B test - model not found at: {}",
+                        model_path.display()
+                    );
                     return;
                 }
 
-                println!("🔄 Testing real Llama-3.2-1B model loading from: {}", model_path.display());
+                println!(
+                    "🔄 Testing real Llama-3.2-1B model loading from: {}",
+                    model_path.display()
+                );
 
                 // Check required files exist
-                assert!(model_path.join("model.safetensors").exists(), "SafeTensors file should exist");
-                assert!(model_path.join("config.json").exists(), "Config file should exist");
-                assert!(model_path.join("tokenizer.json").exists(), "Tokenizer file should exist");
+                assert!(
+                    model_path.join("model.safetensors").exists(),
+                    "SafeTensors file should exist"
+                );
+                assert!(
+                    model_path.join("config.json").exists(),
+                    "Config file should exist"
+                );
+                assert!(
+                    model_path.join("tokenizer.json").exists(),
+                    "Tokenizer file should exist"
+                );
 
                 let device = Device::<Backend>::default();
 
@@ -245,22 +280,31 @@ mod model_loading_tests {
                         println!("⚠️  Model loading failed: {}", error_msg);
 
                         // Validate specific error types - this prevents false positives
-                        if error_msg.contains("data did not match any variant of untagged enum ModelWrapper") {
+                        if error_msg.contains(
+                            "data did not match any variant of untagged enum ModelWrapper",
+                        ) {
                             println!("🔍 Detected tokenizer format incompatibility - HuggingFace tokenizer.json not compatible with SentiencePieceTokenizer");
                             println!("💡 This is expected: Llama-3.2-1B uses HuggingFace tokenizer format, but burn-llama expects SentencePiece format");
 
                             // Test should fail here to indicate the real issue
                             panic!("EXPECTED FAILURE: Tokenizer format incompatibility detected. This test correctly identifies that the tokenizer.json format from Llama-3.2-1B is incompatible with the current llama_burn SentiencePieceTokenizer implementation.");
-                        } else if error_msg.contains("Failed to initialize") && error_msg.contains("model") {
+                        } else if error_msg.contains("Failed to initialize")
+                            && error_msg.contains("model")
+                        {
                             println!("🔍 Model initialization failed - this could be due to weight mapping or architecture mismatch");
-                            println!("💡 Config loading worked, but model structure creation failed");
+                            println!(
+                                "💡 Config loading worked, but model structure creation failed"
+                            );
                         } else {
                             println!("🔍 Unexpected error type: {}", error_msg);
                         }
 
                         // For now, we expect this to fail due to tokenizer incompatibility
-                        assert!(error_msg.contains("Failed to initialize"),
-                               "Expected model initialization failure, got: {}", error_msg);
+                        assert!(
+                            error_msg.contains("Failed to initialize"),
+                            "Expected model initialization failure, got: {}",
+                            error_msg
+                        );
                     }
                 }
             }
@@ -351,13 +395,28 @@ mod model_loading_tests {
             let sp_json: serde_json::Value = serde_json::from_str(&sp_content).unwrap();
 
             // Detect HuggingFace format characteristics
-            assert!(hf_json["model"]["type"] == "BPE", "HF tokenizer should use BPE");
-            assert!(hf_json["added_tokens"].is_array(), "HF tokenizer has added_tokens array");
-            assert!(!hf_json["added_tokens"].as_array().unwrap().is_empty(), "HF has special tokens");
+            assert!(
+                hf_json["model"]["type"] == "BPE",
+                "HF tokenizer should use BPE"
+            );
+            assert!(
+                hf_json["added_tokens"].is_array(),
+                "HF tokenizer has added_tokens array"
+            );
+            assert!(
+                !hf_json["added_tokens"].as_array().unwrap().is_empty(),
+                "HF has special tokens"
+            );
 
             // Detect SentencePiece format characteristics
-            assert!(sp_json["model"]["type"] == "Unigram", "SP tokenizer should use Unigram");
-            assert!(sp_json["added_tokens"].as_array().unwrap().is_empty(), "SP has no added tokens in this format");
+            assert!(
+                sp_json["model"]["type"] == "Unigram",
+                "SP tokenizer should use Unigram"
+            );
+            assert!(
+                sp_json["added_tokens"].as_array().unwrap().is_empty(),
+                "SP has no added tokens in this format"
+            );
 
             println!("✅ Successfully detected different tokenizer formats");
             println!("🔍 HuggingFace format: BPE with special tokens");
@@ -368,7 +427,10 @@ mod model_loading_tests {
         fn test_real_llama_3_2_1b_tokenizer_format_validation() {
             // Test the actual tokenizer format from the downloaded model
             let home = std::env::var("HOME").unwrap_or_else(|_| "/home/jeef".to_string());
-            let tokenizer_path = format!("{}/models/unsloth_Llama-3.2-1B-Instruct/tokenizer.json", home);
+            let tokenizer_path = format!(
+                "{}/models/unsloth_Llama-3.2-1B-Instruct/tokenizer.json",
+                home
+            );
 
             if std::path::Path::new(&tokenizer_path).exists() {
                 let content = fs::read_to_string(&tokenizer_path).unwrap();
@@ -384,15 +446,20 @@ mod model_loading_tests {
 
                 if let Some(added_tokens) = json["added_tokens"].as_array() {
                     println!("📊 Special tokens count: {}", added_tokens.len());
-                    assert!(!added_tokens.is_empty(), "Should have special tokens like <|begin_of_text|>");
+                    assert!(
+                        !added_tokens.is_empty(),
+                        "Should have special tokens like <|begin_of_text|>"
+                    );
                 }
 
                 // This format is incompatible with burn-llama's SentiencePieceTokenizer
                 println!("⚠️  Confirmed: Llama-3.2-1B uses HuggingFace BPE tokenizer format");
                 println!("💡 This explains why model loading fails with 'ModelWrapper' error");
-
             } else {
-                println!("⚠️  Skipping tokenizer validation - file not found: {}", tokenizer_path);
+                println!(
+                    "⚠️  Skipping tokenizer validation - file not found: {}",
+                    tokenizer_path
+                );
             }
         }
 
@@ -420,11 +487,17 @@ mod model_loading_tests {
             let weights_path = temp_dir.path().join("model.safetensors");
 
             // Test with missing file - this is a basic file existence test
-            assert!(!weights_path.exists(), "SafeTensors file should not exist initially");
+            assert!(
+                !weights_path.exists(),
+                "SafeTensors file should not exist initially"
+            );
 
             // Create an empty file and test existence
             fs::write(&weights_path, b"").unwrap();
-            assert!(weights_path.exists(), "SafeTensors file should exist after creation");
+            assert!(
+                weights_path.exists(),
+                "SafeTensors file should exist after creation"
+            );
         }
 
         #[test]
@@ -445,36 +518,52 @@ mod model_loading_tests {
                         if let Ok(entries) = std::fs::read_dir(&models_dir) {
                             for entry in entries.flatten() {
                                 let path = entry.path();
-                                if path.extension().and_then(|s| s.to_str()) == Some("safetensors") {
-                                    let name = path.file_name()
+                                if path.extension().and_then(|s| s.to_str()) == Some("safetensors")
+                                {
+                                    let name = path
+                                        .file_name()
                                         .and_then(|s| s.to_str())
                                         .unwrap_or("unknown")
                                         .replace(".safetensors", "");
-                                    found_models.push((path.to_string_lossy().to_string(), format!("home-models-{}", name)));
+                                    found_models.push((
+                                        path.to_string_lossy().to_string(),
+                                        format!("home-models-{}", name),
+                                    ));
                                 }
 
                                 // Also check subdirectories for SafeTensors files
                                 if path.is_dir() {
                                     let model_file = path.join("model.safetensors");
                                     if model_file.exists() {
-                                        let dir_name = path.file_name()
+                                        let dir_name = path
+                                            .file_name()
                                             .and_then(|s| s.to_str())
                                             .unwrap_or("unknown");
-                                        found_models.push((model_file.to_string_lossy().to_string(), format!("home-models-{}", dir_name)));
+                                        found_models.push((
+                                            model_file.to_string_lossy().to_string(),
+                                            format!("home-models-{}", dir_name),
+                                        ));
                                     }
 
                                     // Also check for other SafeTensors files in subdirectories (like sharded models)
                                     if let Ok(subentries) = std::fs::read_dir(&path) {
                                         for subentry in subentries.flatten() {
                                             let subpath = subentry.path();
-                                            if subpath.extension().and_then(|s| s.to_str()) == Some("safetensors") {
-                                                let subname = subpath.file_name()
+                                            if subpath.extension().and_then(|s| s.to_str())
+                                                == Some("safetensors")
+                                            {
+                                                let subname = subpath
+                                                    .file_name()
                                                     .and_then(|s| s.to_str())
                                                     .unwrap_or("unknown");
-                                                let dir_name = path.file_name()
+                                                let dir_name = path
+                                                    .file_name()
                                                     .and_then(|s| s.to_str())
                                                     .unwrap_or("unknown");
-                                                found_models.push((subpath.to_string_lossy().to_string(), format!("home-models-{}-{}", dir_name, subname)));
+                                                found_models.push((
+                                                    subpath.to_string_lossy().to_string(),
+                                                    format!("home-models-{}-{}", dir_name, subname),
+                                                ));
                                                 // Only take the first few sharded files to avoid overwhelming the test
                                                 if found_models.len() >= 5 {
                                                     break;
@@ -492,7 +581,10 @@ mod model_loading_tests {
                 // Discover models from ~/models/ directory first
                 let mut test_models = discover_home_models();
 
-                println!("🏠 Found {} SafeTensors files in ~/models/", test_models.len());
+                println!(
+                    "🏠 Found {} SafeTensors files in ~/models/",
+                    test_models.len()
+                );
                 for (path, name) in &test_models {
                     println!("  📁 {}: {}", name, path);
                 }
@@ -504,7 +596,10 @@ mod model_loading_tests {
                     ("/home/jeef/inferno/models/tinyllama-1.1b/model.safetensors".to_string(), "tinyllama-1.1b-from-inferno".to_string()),
                 ]);
 
-                println!("🔍 Total {} potential SafeTensors files to test", test_models.len());
+                println!(
+                    "🔍 Total {} potential SafeTensors files to test",
+                    test_models.len()
+                );
 
                 let mut tested_any = false;
 
@@ -513,12 +608,19 @@ mod model_loading_tests {
 
                     // Skip test if model file doesn't exist (for CI/other environments)
                     if !model_path.exists() {
-                        println!("⚠️  Skipping {} SafeTensors test - model file not found at: {}", model_name, model_path.display());
+                        println!(
+                            "⚠️  Skipping {} SafeTensors test - model file not found at: {}",
+                            model_name,
+                            model_path.display()
+                        );
                         continue;
                     }
 
                     tested_any = true;
-                    println!("🔄 Testing SafeTensors loading with {} model using burn framework", model_name);
+                    println!(
+                        "🔄 Testing SafeTensors loading with {} model using burn framework",
+                        model_name
+                    );
 
                     // Test 1: Raw SafeTensors parsing to ensure the file is valid
                     test_raw_safetensors_parsing(&model_path);
@@ -528,11 +630,16 @@ mod model_loading_tests {
                     let file_size = metadata.len();
                     #[allow(clippy::cast_precision_loss)]
                     let file_size_mb = file_size as f64 / 1_048_576.0;
-                    println!("📊 {} SafeTensors file size: {} bytes ({:.1} MB)",
-                            model_name, file_size, file_size_mb);
+                    println!(
+                        "📊 {} SafeTensors file size: {} bytes ({:.1} MB)",
+                        model_name, file_size, file_size_mb
+                    );
 
                     // Basic file size validation (should be at least 1KB)
-                    assert!(file_size > 1024, "File should be at least 1KB for any model");
+                    assert!(
+                        file_size > 1024,
+                        "File should be at least 1KB for any model"
+                    );
 
                     // Test 3: Test burn-import SafeTensors loading (without model structure dependency)
                     test_burn_safetensors_loading(&model_path);
@@ -559,14 +666,26 @@ mod model_loading_tests {
                 Ok(safetensors) => {
                     println!("✅ SafeTensors file successfully parsed");
 
-                    let tensor_names: Vec<&str> = safetensors.names().into_iter().map(std::string::String::as_str).collect();
-                    println!("📊 Found {} tensors in SafeTensors file", tensor_names.len());
+                    let tensor_names: Vec<&str> = safetensors
+                        .names()
+                        .into_iter()
+                        .map(std::string::String::as_str)
+                        .collect();
+                    println!(
+                        "📊 Found {} tensors in SafeTensors file",
+                        tensor_names.len()
+                    );
 
                     // Print first few tensor names for verification
                     for (i, name) in tensor_names.iter().take(5).enumerate() {
                         if let Ok(tensor_view) = safetensors.tensor(name) {
-                            println!("  {}. {} - shape: {:?}, dtype: {:?}",
-                                   i + 1, name, tensor_view.shape(), tensor_view.dtype());
+                            println!(
+                                "  {}. {} - shape: {:?}, dtype: {:?}",
+                                i + 1,
+                                name,
+                                tensor_view.shape(),
+                                tensor_view.dtype()
+                            );
                         }
                     }
 
@@ -574,7 +693,10 @@ mod model_loading_tests {
                     if tensor_names.is_empty() {
                         println!("⚠️  SafeTensors file appears to be empty");
                     } else {
-                        println!("✅ SafeTensors file contains {} model tensors", tensor_names.len());
+                        println!(
+                            "✅ SafeTensors file contains {} model tensors",
+                            tensor_names.len()
+                        );
                     }
                 }
                 Err(e) => {
@@ -607,13 +729,23 @@ mod model_loading_tests {
 
             // Verify that LoadArgs was created successfully (indicates format is compatible)
             println!("✅ Successfully created LoadArgs for SafeTensors file - format is compatible with burn-import");
-            println!("📊 Burn-import can handle SafeTensors format from: {}", model_path.display());
+            println!(
+                "📊 Burn-import can handle SafeTensors format from: {}",
+                model_path.display()
+            );
 
             // Test that the file can be read as bytes (basic file integrity)
-            let file_bytes = std::fs::read(model_path).expect("Should be able to read SafeTensors file");
-            assert!(!file_bytes.is_empty(), "SafeTensors file should not be empty");
+            let file_bytes =
+                std::fs::read(model_path).expect("Should be able to read SafeTensors file");
+            assert!(
+                !file_bytes.is_empty(),
+                "SafeTensors file should not be empty"
+            );
 
-            println!("✅ SafeTensors file is accessible and non-empty ({} bytes)", file_bytes.len());
+            println!(
+                "✅ SafeTensors file is accessible and non-empty ({} bytes)",
+                file_bytes.len()
+            );
         }
 
         #[test]
@@ -629,7 +761,11 @@ mod model_loading_tests {
             let file_size = metadata.len();
 
             assert!(file_size > 0, "File should have some content");
-            assert_eq!(file_size, b"fake safetensors data".len() as u64, "File size should match written data");
+            assert_eq!(
+                file_size,
+                b"fake safetensors data".len() as u64,
+                "File size should match written data"
+            );
         }
 
         fn create_test_config(temp_dir: &TempDir) -> llama_burn::llama::LlamaConfig {
@@ -637,7 +773,7 @@ mod model_loading_tests {
             fs::write(&tokenizer_path, r#"{"version": "1.0"}"#).unwrap();
 
             llama_burn::llama::LlamaConfig {
-                d_model: 64,  // Smaller for testing
+                d_model: 64, // Smaller for testing
                 hidden_size: 128,
                 num_hidden_layers: 2,
                 num_attention_heads: 4,
@@ -666,7 +802,10 @@ mod model_loading_tests {
 
             // Test that we can create and access the models directory
             assert!(temp_dir.path().exists(), "Models directory should exist");
-            assert!(temp_dir.path().is_dir(), "Models path should be a directory");
+            assert!(
+                temp_dir.path().is_dir(),
+                "Models path should be a directory"
+            );
 
             println!("Model loading pipeline test directory: {}", models_dir);
         }
@@ -675,9 +814,9 @@ mod model_loading_tests {
 
 #[cfg(test)]
 mod inference_tests {
+    use crate::config::VLLMConfig;
     use crate::inference::burn_engine::*;
     use crate::inference::{InferenceRequest, InferenceResponse};
-    use crate::config::VLLMConfig;
     use tempfile::TempDir;
 
     /// Test inference engine initialization

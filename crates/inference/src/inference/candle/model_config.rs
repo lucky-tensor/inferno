@@ -5,8 +5,8 @@
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::doc_markdown)]
 
-use serde::{Deserialize, Serialize};
 use crate::inference::InferenceError;
+use serde::{Deserialize, Serialize};
 
 /// Model configuration loaded from HuggingFace config.json
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,7 +50,9 @@ impl CandleModelConfig {
             num_hidden_layers: config["num_hidden_layers"].as_u64().unwrap_or(16) as usize,
             num_key_value_heads: config["num_key_value_heads"].as_u64().map(|v| v as usize),
             vocab_size: config["vocab_size"].as_u64().unwrap_or(128_256) as usize,
-            max_position_embeddings: config["max_position_embeddings"].as_u64().unwrap_or(131_072) as usize,
+            max_position_embeddings: config["max_position_embeddings"]
+                .as_u64()
+                .unwrap_or(131_072) as usize,
             rms_norm_eps: config["rms_norm_eps"].as_f64().unwrap_or(1e-5),
             rope_theta: config["rope_theta"].as_f64().unwrap_or(500_000.0),
             tie_word_embeddings: config["tie_word_embeddings"].as_bool(),
@@ -60,14 +62,15 @@ impl CandleModelConfig {
     /// Estimate model parameters for display
     pub fn estimate_parameters(&self) -> String {
         let embedding_params = self.vocab_size * self.hidden_size;
-        let layer_params = self.num_hidden_layers * (
-            // Multi-head attention
-            4 * self.hidden_size * self.hidden_size +
+        let layer_params = self.num_hidden_layers
+            * (
+                // Multi-head attention
+                4 * self.hidden_size * self.hidden_size +
             // Feed-forward network
             3 * self.hidden_size * self.intermediate_size +
             // Layer norms
             2 * self.hidden_size
-        );
+            );
         let total_params = embedding_params + layer_params;
 
         if total_params >= 1_000_000_000 {

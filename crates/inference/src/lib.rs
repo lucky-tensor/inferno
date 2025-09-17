@@ -84,8 +84,7 @@ pub use error::{
 };
 pub use health::{HealthStatus, VLLMHealthChecker};
 pub use inference::{
-    create_engine, create_math_test_request, InferenceEngine, InferenceRequest,
-    InferenceResponse,
+    create_engine, create_math_test_request, InferenceEngine, InferenceRequest, InferenceResponse,
 };
 
 #[cfg(feature = "burn-cpu")]

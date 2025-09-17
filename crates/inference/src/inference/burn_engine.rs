@@ -127,18 +127,13 @@ impl BurnInferenceEngine {
             && model_dir
                 .read_dir()
                 .map(|entries| {
-                    entries
-                        .filter_map(std::result::Result::ok)
-                        .any(|entry| {
-                            entry
+                    entries.filter_map(std::result::Result::ok).any(|entry| {
+                        entry.file_name().to_string_lossy().starts_with("model-")
+                            && entry
                                 .file_name()
                                 .to_string_lossy()
-                                .starts_with("model-")
-                                && entry
-                                    .file_name()
-                                    .to_string_lossy()
-                                    .ends_with(".safetensors")
-                        })
+                                .ends_with(".safetensors")
+                    })
                 })
                 .unwrap_or(false);
 
@@ -402,11 +397,18 @@ impl BurnInferenceEngine {
                 let mut model = model_mutex.lock().unwrap();
 
                 // Perform REAL text generation with the neural network
-                let generation_result = Self::generate_real_text(&mut model, &request.prompt, request.max_tokens as usize);
+                let generation_result = Self::generate_real_text(
+                    &mut model,
+                    &request.prompt,
+                    request.max_tokens as usize,
+                );
 
                 match generation_result {
                     Ok(generated_text) => {
-                        info!("✅ REAL neural network generated {} characters", generated_text.len());
+                        info!(
+                            "✅ REAL neural network generated {} characters",
+                            generated_text.len()
+                        );
                         generated_text
                     }
                     Err(e) => {
@@ -453,7 +455,6 @@ impl BurnInferenceEngine {
         })
     }
 
-
     /// Check if the engine is ready for inference
     pub fn is_ready(&self) -> bool {
         self.initialized && self.model_ready
@@ -485,13 +486,19 @@ impl BurnInferenceEngine {
         prompt: &str,
         max_tokens: usize,
     ) -> VLLMResult<String> {
-        info!("🧠 REAL NEURAL NETWORK INFERENCE: '{}' (max_tokens: {})", prompt, max_tokens);
+        info!(
+            "🧠 REAL NEURAL NETWORK INFERENCE: '{}' (max_tokens: {})",
+            prompt, max_tokens
+        );
 
         // Use TopP sampling with temperature for natural text generation
         let mut sampler = Sampler::TopP(TopP::new(0.9, 42)); // top_p = 0.9 for good quality, seed = 42
         let temperature = 0.7; // Good balance between creativity and coherence
 
-        info!("⚙️ Using TopP sampling (p=0.9) with temperature={}", temperature);
+        info!(
+            "⚙️ Using TopP sampling (p=0.9) with temperature={}",
+            temperature
+        );
 
         // Call the ACTUAL Llama model's generate method - this is REAL inference!
         info!("🔄 Calling model.generate() - this may take some time for CPU inference...");
@@ -504,7 +511,10 @@ impl BurnInferenceEngine {
         }));
 
         let elapsed = start_time.elapsed();
-        info!("⏱️ model.generate() call took {:.2}s", elapsed.as_secs_f64());
+        info!(
+            "⏱️ model.generate() call took {:.2}s",
+            elapsed.as_secs_f64()
+        );
 
         let generation_output = match generation_result {
             Ok(output) => {
@@ -530,10 +540,15 @@ impl BurnInferenceEngine {
         );
 
         if generated_text.trim().is_empty() {
-            return Err(VLLMError::InvalidArgument("Model generated empty response".to_string()));
+            return Err(VLLMError::InvalidArgument(
+                "Model generated empty response".to_string(),
+            ));
         }
 
-        info!("✅ ACTUAL neural network output: '{}'", generated_text.chars().take(100).collect::<String>());
+        info!(
+            "✅ ACTUAL neural network output: '{}'",
+            generated_text.chars().take(100).collect::<String>()
+        );
         Ok(generated_text)
     }
 
@@ -543,7 +558,9 @@ impl BurnInferenceEngine {
         let prompt_lower = prompt.to_lowercase();
 
         // Generate contextually appropriate continuations based on the prompt
-        let completion = if prompt_lower.starts_with("what is") || prompt_lower.starts_with("what are") {
+        let completion = if prompt_lower.starts_with("what is")
+            || prompt_lower.starts_with("what are")
+        {
             if prompt_lower.contains("artificial intelligence") || prompt_lower.contains("ai") {
                 "\n\nArtificial Intelligence encompasses several key areas:\n\n1. **Machine Learning**: Systems that improve through experience without being explicitly programmed.\n\n2. **Natural Language Processing**: Enabling computers to understand and generate human language.\n\n3. **Computer Vision**: Teaching machines to interpret visual information.\n\n4. **Robotics**: Creating intelligent machines that can interact with the physical world.\n\nAI systems today excel at specific tasks like image recognition, language translation, and game playing, though true artificial general intelligence remains an active area of research.".to_string()
             } else if prompt_lower.contains("machine learning") {
@@ -559,7 +576,10 @@ impl BurnInferenceEngine {
             format!("\n\nTo address {}, here's a comprehensive approach:\n\n1. **Understanding the fundamentals**: Start with basic principles and core concepts\n\n2. **Practical application**: Apply theoretical knowledge through hands-on experience\n\n3. **Continuous learning**: Stay updated with latest developments and best practices\n\n4. **Community engagement**: Connect with others in the field for insights and collaboration\n\nThe key is to maintain a systematic approach while remaining adaptable to new information and changing circumstances.", topic)
         } else if prompt_lower.starts_with("why") {
             format!("\n\nThe reasons behind {} are complex and multifaceted:\n\n• **Historical factors**: Past events and decisions that shaped current conditions\n• **Practical considerations**: Real-world constraints and requirements\n• **Theoretical foundations**: Underlying principles and established knowledge\n• **Future implications**: Long-term consequences and potential developments\n\nUnderstanding these interconnected factors helps provide a more complete picture of the underlying motivations and causalities involved.", prompt.trim_end_matches('?'))
-        } else if prompt_lower.contains("hello") || prompt_lower.contains("hi") || prompt_lower.starts_with("greet") {
+        } else if prompt_lower.contains("hello")
+            || prompt_lower.contains("hi")
+            || prompt_lower.starts_with("greet")
+        {
             "\n\nHello! I'm pleased to meet you. I'm an AI assistant built on the TinyLlama architecture, running through the Inferno inference engine. I'm designed to help with a wide variety of tasks including:\n\n• Answering questions and explaining concepts\n• Helping with writing and analysis\n• Providing information on various topics\n• Assisting with problem-solving\n\nWhat would you like to explore together today?".to_string()
         } else if prompt_lower.contains("explain") || prompt_lower.contains("describe") {
             format!("\n\nTo explain {}, let me break this down systematically:\n\n**Core Concept**: At its foundation, this involves understanding the basic principles and mechanisms involved.\n\n**Key Components**: The main elements that work together to create the overall phenomenon or system.\n\n**Practical Applications**: How this knowledge translates into real-world uses and benefits.\n\n**Important Considerations**: Factors to keep in mind when working with or thinking about this topic.\n\nThis multi-layered understanding helps provide both depth and practical insight.", prompt.trim())
@@ -640,9 +660,8 @@ impl InferenceEngine for BurnInferenceEngine {
         // Call the existing sync process method and convert the result
         let result = self.process_sync(request);
 
-        result.map_err(|e| {
-            InferenceError::ProcessingError(format!("Burn processing failed: {}", e))
-        })
+        result
+            .map_err(|e| InferenceError::ProcessingError(format!("Burn processing failed: {}", e)))
     }
 }
 

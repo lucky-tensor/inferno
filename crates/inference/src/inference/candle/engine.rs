@@ -9,33 +9,51 @@
 
 use crate::config::VLLMConfig;
 use crate::inference::{
-    InferenceEngine, InferenceRequest, InferenceResponse, InferenceError, InferenceStats,
+    InferenceEngine, InferenceError, InferenceRequest, InferenceResponse, InferenceStats,
 };
 
 use super::{
-    backend::CandleBackendType,
-    model_config::CandleModelConfig,
-    tokenizer::CandleTokenizer,
+    backend::CandleBackendType, model_config::CandleModelConfig, tokenizer::CandleTokenizer,
 };
 
 use async_trait::async_trait;
-use std::sync::atomic::{AtomicU64, AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
-use tracing::{info, debug};
+use tracing::{debug, info};
 
-#[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
-use candle_core::{Device, DType, Tensor, IndexOp};
-#[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
-use candle_transformers::models::llama::{Llama, Config as LlamaConfig, Cache};
-#[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+#[cfg(any(
+    feature = "candle-cpu",
+    feature = "candle-cuda",
+    feature = "candle-metal"
+))]
+use candle_core::{DType, Device, IndexOp, Tensor};
+#[cfg(any(
+    feature = "candle-cpu",
+    feature = "candle-cuda",
+    feature = "candle-metal"
+))]
 use candle_nn::VarBuilder;
-#[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+#[cfg(any(
+    feature = "candle-cpu",
+    feature = "candle-cuda",
+    feature = "candle-metal"
+))]
+use candle_transformers::models::llama::{Cache, Config as LlamaConfig, Llama};
+#[cfg(any(
+    feature = "candle-cpu",
+    feature = "candle-cuda",
+    feature = "candle-metal"
+))]
 use tokenizers::Tokenizer;
 
 /// Model wrapper containing the loaded model and related components
-#[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+#[cfg(any(
+    feature = "candle-cpu",
+    feature = "candle-cuda",
+    feature = "candle-metal"
+))]
 struct CandleModelWrapper {
     model: Llama,
     tokenizer: Tokenizer,
@@ -72,7 +90,11 @@ pub struct CandleInferenceEngine {
     ready: AtomicBool,
 
     /// Loaded model and components (when available)
-    #[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+    #[cfg(any(
+        feature = "candle-cpu",
+        feature = "candle-cuda",
+        feature = "candle-metal"
+    ))]
     model: RwLock<Option<CandleModelWrapper>>,
 
     /// Statistics tracking
@@ -88,7 +110,11 @@ impl CandleInferenceEngine {
         Self {
             backend_type,
             ready: AtomicBool::new(false),
-            #[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+            #[cfg(any(
+                feature = "candle-cpu",
+                feature = "candle-cuda",
+                feature = "candle-metal"
+            ))]
             model: RwLock::new(None),
             stats: Arc::new(InferenceStatsInner::default()),
         }
@@ -122,7 +148,11 @@ impl CandleInferenceEngine {
     }
 
     /// Create a `VarBuilder` that handles tensor remapping and weight tying for Llama models
-    #[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+    #[cfg(any(
+        feature = "candle-cpu",
+        feature = "candle-cuda",
+        feature = "candle-metal"
+    ))]
     fn create_remapping_var_builder(base_builder: VarBuilder<'_>) -> VarBuilder<'_> {
         // For Llama 3.2 models with weight tying, we need to handle the case where
         // lm_head.weight should be the same as model.embed_tokens.weight
@@ -131,7 +161,11 @@ impl CandleInferenceEngine {
     }
 
     /// Generate text tokens using the loaded model
-    #[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+    #[cfg(any(
+        feature = "candle-cpu",
+        feature = "candle-cuda",
+        feature = "candle-metal"
+    ))]
     async fn generate_tokens(
         wrapper: &CandleModelWrapper,
         input_tokens: &[u32],
@@ -142,15 +176,19 @@ impl CandleInferenceEngine {
         let start_time = Instant::now();
 
         // Convert input tokens to tensor
-        let input_tensor = Tensor::new(input_tokens, &wrapper.device)
-            .map_err(|e| InferenceError::InvalidArgument(format!("Failed to create input tensor: {}", e)))?;
+        let input_tensor = Tensor::new(input_tokens, &wrapper.device).map_err(|e| {
+            InferenceError::InvalidArgument(format!("Failed to create input tensor: {}", e))
+        })?;
 
-        let input_tensor = input_tensor.unsqueeze(0)
-            .map_err(|e| InferenceError::InvalidArgument(format!("Failed to add batch dimension: {}", e)))?;
+        let input_tensor = input_tensor.unsqueeze(0).map_err(|e| {
+            InferenceError::InvalidArgument(format!("Failed to add batch dimension: {}", e))
+        })?;
 
         // Initialize model cache
         let mut cache = Cache::new(true, DType::F32, &wrapper.llama_config, &wrapper.device)
-            .map_err(|e| InferenceError::InitializationError(format!("Failed to create model cache: {}", e)))?;
+            .map_err(|e| {
+                InferenceError::InitializationError(format!("Failed to create model cache: {}", e))
+            })?;
 
         // Generate tokens
         let mut generated_tokens = Vec::new();
@@ -158,41 +196,71 @@ impl CandleInferenceEngine {
 
         for i in 0..max_tokens {
             // Run forward pass
-            let logits = wrapper.model.forward(&current_input, 0, &mut cache)
-                .map_err(|e| InferenceError::ProcessingError(format!("Model forward pass failed: {}", e)))?;
+            let logits = wrapper
+                .model
+                .forward(&current_input, 0, &mut cache)
+                .map_err(|e| {
+                    InferenceError::ProcessingError(format!("Model forward pass failed: {}", e))
+                })?;
 
             // Get the last token's logits
-            let logits = logits.i((.., logits.dim(1).map_err(|e| InferenceError::ProcessingError(format!("Failed to get sequence length: {}", e)))? - 1, ..))
-                .map_err(|e| InferenceError::ProcessingError(format!("Failed to extract last token logits: {}", e)))?;
+            let logits = logits
+                .i((
+                    ..,
+                    logits.dim(1).map_err(|e| {
+                        InferenceError::ProcessingError(format!(
+                            "Failed to get sequence length: {}",
+                            e
+                        ))
+                    })? - 1,
+                    ..,
+                ))
+                .map_err(|e| {
+                    InferenceError::ProcessingError(format!(
+                        "Failed to extract last token logits: {}",
+                        e
+                    ))
+                })?;
 
             // Apply temperature scaling if specified
             let logits = if temperature > 0.0 && temperature != 1.0 {
-                (logits / temperature)
-                    .map_err(|e| InferenceError::ProcessingError(format!("Temperature scaling failed: {}", e)))?
+                (logits / temperature).map_err(|e| {
+                    InferenceError::ProcessingError(format!("Temperature scaling failed: {}", e))
+                })?
             } else {
                 logits
             };
 
             // Sample next token (simplified sampling - just take argmax for now)
-            let next_token_tensor = logits.argmax(candle_core::D::Minus1)
-                .map_err(|e| InferenceError::ProcessingError(format!("Token sampling failed: {}", e)))?;
+            let next_token_tensor = logits.argmax(candle_core::D::Minus1).map_err(|e| {
+                InferenceError::ProcessingError(format!("Token sampling failed: {}", e))
+            })?;
 
-            let next_token = next_token_tensor.to_vec1::<u32>()
-                .map_err(|e| InferenceError::ProcessingError(format!("Failed to extract token: {}", e)))?[0];
+            let next_token = next_token_tensor.to_vec1::<u32>().map_err(|e| {
+                InferenceError::ProcessingError(format!("Failed to extract token: {}", e))
+            })?[0];
 
             generated_tokens.push(next_token);
 
             // Check for end tokens (simplified - just break for now)
-            if next_token == 128_001 { // <|end_of_text|>
+            if next_token == 128_001 {
+                // <|end_of_text|>
                 debug!("Generated end token, stopping generation");
                 break;
             }
 
             // Prepare next input (just the newly generated token)
             current_input = Tensor::new(&[next_token], &wrapper.device)
-                .map_err(|e| InferenceError::ProcessingError(format!("Failed to create next input tensor: {}", e)))?
+                .map_err(|e| {
+                    InferenceError::ProcessingError(format!(
+                        "Failed to create next input tensor: {}",
+                        e
+                    ))
+                })?
                 .unsqueeze(0)
-                .map_err(|e| InferenceError::ProcessingError(format!("Failed to add batch dimension: {}", e)))?;
+                .map_err(|e| {
+                    InferenceError::ProcessingError(format!("Failed to add batch dimension: {}", e))
+                })?;
 
             debug!("Generated token {} at step {}", next_token, i + 1);
         }
@@ -215,16 +283,28 @@ impl InferenceEngine for CandleInferenceEngine {
     type Error = InferenceError;
 
     async fn initialize(&mut self, config: VLLMConfig) -> Result<(), Self::Error> {
-        info!("Initializing Candle inference engine with model: {}", config.model_name);
+        info!(
+            "Initializing Candle inference engine with model: {}",
+            config.model_name
+        );
 
-        #[cfg(not(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal")))]
+        #[cfg(not(any(
+            feature = "candle-cpu",
+            feature = "candle-cuda",
+            feature = "candle-metal"
+        )))]
         {
             return Err(InferenceError::InitializationError(
-                "No Candle features enabled. Enable one of: candle-cpu, candle-cuda, candle-metal".to_string()
+                "No Candle features enabled. Enable one of: candle-cpu, candle-cuda, candle-metal"
+                    .to_string(),
             ));
         }
 
-        #[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+        #[cfg(any(
+            feature = "candle-cpu",
+            feature = "candle-cuda",
+            feature = "candle-metal"
+        ))]
         {
             let start_time = Instant::now();
 
@@ -234,25 +314,32 @@ impl InferenceEngine for CandleInferenceEngine {
 
             // Load model configuration
             let model_config = CandleModelConfig::load_from_path(&config.model_path).await?;
-            info!("Loaded model config: {} layers, {} heads, vocab_size: {}",
-                  model_config.num_hidden_layers,
-                  model_config.num_attention_heads,
-                  model_config.vocab_size);
+            info!(
+                "Loaded model config: {} layers, {} heads, vocab_size: {}",
+                model_config.num_hidden_layers,
+                model_config.num_attention_heads,
+                model_config.vocab_size
+            );
 
             // Load tokenizer
             let tokenizer = CandleTokenizer::load_from_path(&config.model_path).await?;
             info!("Loaded tokenizer successfully");
 
             // Load model weights using SafeTensors
-            let safetensors_path = std::path::Path::new(&config.model_path).join("model.safetensors");
+            let safetensors_path =
+                std::path::Path::new(&config.model_path).join("model.safetensors");
 
             if !safetensors_path.exists() {
-                return Err(InferenceError::InitializationError(
-                    format!("SafeTensors file not found: {}", safetensors_path.display())
-                ));
+                return Err(InferenceError::InitializationError(format!(
+                    "SafeTensors file not found: {}",
+                    safetensors_path.display()
+                )));
             }
 
-            info!("Loading model weights from SafeTensors: {}", safetensors_path.display());
+            info!(
+                "Loading model weights from SafeTensors: {}",
+                safetensors_path.display()
+            );
 
             // Check if this model uses weight tying
             let is_weight_tied = model_config.tie_word_embeddings.unwrap_or(false);
@@ -264,9 +351,13 @@ impl InferenceEngine for CandleInferenceEngine {
             let dtype = DType::F32; // Use F32 for CPU inference
             let base_var_builder = unsafe {
                 VarBuilder::from_mmaped_safetensors(&[&safetensors_path], dtype, &device)
-            }.map_err(|e| InferenceError::InitializationError(
-                format!("Failed to load SafeTensors weights: {}", e)
-            ))?;
+            }
+            .map_err(|e| {
+                InferenceError::InitializationError(format!(
+                    "Failed to load SafeTensors weights: {}",
+                    e
+                ))
+            })?;
 
             // Create a remapping VarBuilder to handle tensor name differences
             // This model uses "transformer.*" naming while Candle expects "model.*" naming
@@ -279,25 +370,31 @@ impl InferenceEngine for CandleInferenceEngine {
                 vocab_size: model_config.vocab_size,
                 num_hidden_layers: model_config.num_hidden_layers,
                 num_attention_heads: model_config.num_attention_heads,
-                num_key_value_heads: model_config.num_key_value_heads.unwrap_or(model_config.num_attention_heads),
+                num_key_value_heads: model_config
+                    .num_key_value_heads
+                    .unwrap_or(model_config.num_attention_heads),
                 max_position_embeddings: model_config.max_position_embeddings,
                 rms_norm_eps: model_config.rms_norm_eps,
                 rope_theta: model_config.rope_theta as f32,
-                bos_token_id: Some(128_000),  // Llama 3.2 specific
-                eos_token_id: Some(candle_transformers::models::llama::LlamaEosToks::Single(128_001)),  // Llama 3.2 specific
+                bos_token_id: Some(128_000), // Llama 3.2 specific
+                eos_token_id: Some(candle_transformers::models::llama::LlamaEosToks::Single(
+                    128_001,
+                )), // Llama 3.2 specific
                 rope_scaling: None,
                 use_flash_attn: false,
                 tie_word_embeddings: is_weight_tied,
             };
 
             // Create the Llama model with loaded weights
-            let llama_model = Llama::load(var_builder, &llama_config)
-                .map_err(|e| InferenceError::InitializationError(
-                    format!("Failed to create Llama model: {}", e)
-                ))?;
+            let llama_model = Llama::load(var_builder, &llama_config).map_err(|e| {
+                InferenceError::InitializationError(format!("Failed to create Llama model: {}", e))
+            })?;
 
             let param_count = model_config.estimate_parameters();
-            info!("✅ Successfully loaded Llama model with {} parameters", param_count);
+            info!(
+                "✅ Successfully loaded Llama model with {} parameters",
+                param_count
+            );
 
             // Store the model wrapper
             let wrapper = CandleModelWrapper {
@@ -313,33 +410,48 @@ impl InferenceEngine for CandleInferenceEngine {
             self.ready.store(true, Ordering::SeqCst);
 
             let init_time = start_time.elapsed();
-            info!("🚀 Candle inference engine initialized successfully in {:?}", init_time);
+            info!(
+                "🚀 Candle inference engine initialized successfully in {:?}",
+                init_time
+            );
         }
 
         Ok(())
     }
 
     async fn process(&self, request: InferenceRequest) -> Result<InferenceResponse, Self::Error> {
-        #[cfg(not(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal")))]
+        #[cfg(not(any(
+            feature = "candle-cpu",
+            feature = "candle-cuda",
+            feature = "candle-metal"
+        )))]
         {
             return Err(InferenceError::ProcessingError(
-                "Candle features not enabled".to_string()
+                "Candle features not enabled".to_string(),
             ));
         }
 
-        #[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+        #[cfg(any(
+            feature = "candle-cpu",
+            feature = "candle-cuda",
+            feature = "candle-metal"
+        ))]
         {
             let start_time = Instant::now();
             self.stats.total_requests.fetch_add(1, Ordering::SeqCst);
 
             let model_guard = self.model.read().await;
-            let wrapper = model_guard.as_ref().ok_or_else(|| {
-                InferenceError::ProcessingError("Model not loaded".to_string())
-            })?;
+            let wrapper = model_guard
+                .as_ref()
+                .ok_or_else(|| InferenceError::ProcessingError("Model not loaded".to_string()))?;
 
             // Tokenize input
-            let encoding = wrapper.tokenizer.encode(request.prompt, false)
-                .map_err(|e| InferenceError::ProcessingError(format!("Tokenization failed: {}", e)))?;
+            let encoding = wrapper
+                .tokenizer
+                .encode(request.prompt, false)
+                .map_err(|e| {
+                    InferenceError::ProcessingError(format!("Tokenization failed: {}", e))
+                })?;
 
             let input_tokens = encoding.get_ids();
             debug!("Tokenized input: {} tokens", input_tokens.len());
@@ -349,23 +461,31 @@ impl InferenceEngine for CandleInferenceEngine {
             let temperature = request.temperature as f64;
             let top_p = request.top_p as f64;
 
-            let generated_token_ids = Self::generate_tokens(
-                wrapper,
-                input_tokens,
-                max_tokens,
-                temperature,
-                top_p,
-            ).await?;
+            let generated_token_ids =
+                Self::generate_tokens(wrapper, input_tokens, max_tokens, temperature, top_p)
+                    .await?;
 
             // Decode generated tokens
-            let generated_text = wrapper.tokenizer.decode(&generated_token_ids, true)
-                .map_err(|e| InferenceError::ProcessingError(format!("Token decoding failed: {}", e)))?;
+            let generated_text = wrapper
+                .tokenizer
+                .decode(&generated_token_ids, true)
+                .map_err(|e| {
+                    InferenceError::ProcessingError(format!("Token decoding failed: {}", e))
+                })?;
 
             let processing_time = start_time.elapsed();
-            self.stats.total_tokens_generated.fetch_add(generated_token_ids.len() as u64, Ordering::SeqCst);
-            self.stats.total_inference_time_ms.fetch_add(processing_time.as_millis() as u64, Ordering::SeqCst);
+            self.stats
+                .total_tokens_generated
+                .fetch_add(generated_token_ids.len() as u64, Ordering::SeqCst);
+            self.stats
+                .total_inference_time_ms
+                .fetch_add(processing_time.as_millis() as u64, Ordering::SeqCst);
 
-            debug!("Generated {} tokens in {:?}", generated_token_ids.len(), processing_time);
+            debug!(
+                "Generated {} tokens in {:?}",
+                generated_token_ids.len(),
+                processing_time
+            );
 
             Ok(InferenceResponse {
                 request_id: request.request_id,
@@ -380,7 +500,11 @@ impl InferenceEngine for CandleInferenceEngine {
 }
 
 // Stub implementations for when Candle features are not enabled
-#[cfg(not(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal")))]
+#[cfg(not(any(
+    feature = "candle-cpu",
+    feature = "candle-cuda",
+    feature = "candle-metal"
+)))]
 impl CandleInferenceEngine {
     pub fn new() -> Self {
         Self::with_backend(CandleBackendType::Cpu)
@@ -412,25 +536,34 @@ impl CandleInferenceEngine {
     }
 }
 
-#[cfg(not(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal")))]
+#[cfg(not(any(
+    feature = "candle-cpu",
+    feature = "candle-cuda",
+    feature = "candle-metal"
+)))]
 #[async_trait]
 impl InferenceEngine for CandleInferenceEngine {
     type Error = InferenceError;
 
     async fn initialize(&mut self, _config: VLLMConfig) -> Result<(), Self::Error> {
         Err(InferenceError::InitializationError(
-            "Candle features not enabled. Enable one of: candle-cpu, candle-cuda, candle-metal".to_string()
+            "Candle features not enabled. Enable one of: candle-cpu, candle-cuda, candle-metal"
+                .to_string(),
         ))
     }
 
     async fn process(&self, _request: InferenceRequest) -> Result<InferenceResponse, Self::Error> {
         Err(InferenceError::ProcessingError(
-            "Candle features not enabled".to_string()
+            "Candle features not enabled".to_string(),
         ))
     }
 }
 
-#[cfg(not(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal")))]
+#[cfg(not(any(
+    feature = "candle-cpu",
+    feature = "candle-cuda",
+    feature = "candle-metal"
+)))]
 impl Default for CandleInferenceEngine {
     fn default() -> Self {
         Self::new()

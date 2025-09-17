@@ -35,6 +35,7 @@ use crate::models;
 use inferno_backend::BackendCliOptions;
 use inferno_inference::inference::{InferenceRequest, InferenceResponse};
 use inferno_shared::{InfernoError, Result};
+use rand::Rng;
 use reqwest::Client;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
@@ -44,7 +45,6 @@ use std::time::{Duration, Instant};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, error, info};
-use rand::Rng;
 
 /// Maximum time to wait for backend server to start (seconds)
 const BACKEND_STARTUP_TIMEOUT_SECS: u64 = 30;
@@ -154,7 +154,10 @@ fn find_random_available_port(base_port: u16) -> Result<u16> {
     }
 
     Err(InfernoError::internal(
-        format!("Could not find available port in range {}..{}", min_port, max_port),
+        format!(
+            "Could not find available port in range {}..{}",
+            min_port, max_port
+        ),
         None,
     ))
 }
@@ -280,7 +283,10 @@ impl PlayContext {
         let backend_port = find_random_available_port(3000)?;
         let metrics_port = find_random_available_port(6100)?;
 
-        info!("Using backend port: {}, metrics port: {}", backend_port, metrics_port);
+        info!(
+            "Using backend port: {}, metrics port: {}",
+            backend_port, metrics_port
+        );
 
         // Create backend CLI options
         let backend_opts = BackendCliOptions {
@@ -336,7 +342,10 @@ impl PlayContext {
 
     /// Wait for backend server to become ready
     async fn wait_for_backend_ready(&self) -> Result<()> {
-        let health_url = format!("http://127.0.0.1:{}{}", self.backend_port, HEALTH_CHECK_PATH);
+        let health_url = format!(
+            "http://127.0.0.1:{}{}",
+            self.backend_port, HEALTH_CHECK_PATH
+        );
         let start_time = Instant::now();
 
         while start_time.elapsed().as_secs() < BACKEND_STARTUP_TIMEOUT_SECS {
@@ -383,7 +392,10 @@ impl PlayContext {
 
         debug!("Sending inference request: {:?}", request);
 
-        let inference_url = format!("http://127.0.0.1:{}{}", self.backend_port, INFERENCE_ENDPOINT);
+        let inference_url = format!(
+            "http://127.0.0.1:{}{}",
+            self.backend_port, INFERENCE_ENDPOINT
+        );
         let start_time = Instant::now();
 
         let response = self

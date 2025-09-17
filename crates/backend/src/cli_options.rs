@@ -6,25 +6,25 @@
 use crate::health::HealthService;
 use crate::BackendConfig;
 use clap::Parser;
+use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
+use hyper::server::conn::http1;
+use hyper::service::service_fn;
+use hyper::{body::Incoming, Request, Response, StatusCode};
+use hyper_util::rt::TokioIo;
 use inferno_inference::{
+    config::VLLMConfig,
     inference::{create_engine, EngineType, InferenceEngine, InferenceRequest},
-    config::VLLMConfig
 };
 use inferno_shared::{
     HealthCheckOptions, InfernoError, LoggingOptions, MetricsCollector, MetricsOptions, Result,
     ServiceDiscoveryOptions,
 };
+use serde_json;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::{info, warn};
-use hyper::server::conn::http1;
-use hyper::service::service_fn;
-use hyper::{body::Incoming, Request, Response, StatusCode};
-use hyper_util::rt::TokioIo;
-use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
 use tokio::net::TcpListener;
-use serde_json;
+use tracing::{info, warn};
 
 /// Inferno Backend - AI inference backend server
 #[derive(Parser, Debug, Clone)]
@@ -124,7 +124,9 @@ impl BackendCliOptions {
         // Convert backend config to inference config format
         // If model_path is a file, use its parent directory as models dir
         let (models_dir, model_name) = if config.model_path.is_file() {
-            let parent = config.model_path.parent()
+            let parent = config
+                .model_path
+                .parent()
                 .ok_or_else(|| InfernoError::Configuration {
                     message: "Model file has no parent directory".to_string(),
                     source: None,
@@ -134,7 +136,10 @@ impl BackendCliOptions {
             (parent.to_string_lossy().to_string(), String::new())
         } else {
             // Assume it's a directory and auto-discover
-            (config.model_path.to_string_lossy().to_string(), String::new())
+            (
+                config.model_path.to_string_lossy().to_string(),
+                String::new(),
+            )
         };
 
         let inference_config = VLLMConfig {
@@ -155,7 +160,10 @@ impl BackendCliOptions {
             #[cfg(feature = "candle-metal")]
             "candle-metal" => EngineType::CandleMetal,
             _ => {
-                warn!("Unknown engine type '{}', falling back to burn-cpu", self.engine);
+                warn!(
+                    "Unknown engine type '{}', falling back to burn-cpu",
+                    self.engine
+                );
                 EngineType::BurnCpu
             }
         };
@@ -306,10 +314,17 @@ impl BackendCliOptions {
 /// Start the HTTP inference server
 async fn start_inference_server(
     addr: SocketAddr,
-    engine: Arc<tokio::sync::Mutex<Box<dyn InferenceEngine<Error = inferno_inference::inference::InferenceError>>>>,
+    engine: Arc<
+        tokio::sync::Mutex<
+            Box<dyn InferenceEngine<Error = inferno_inference::inference::InferenceError>>,
+        >,
+    >,
 ) -> Result<()> {
     let listener = TcpListener::bind(addr).await.map_err(|e| {
-        InfernoError::internal(format!("Failed to bind inference server to {}: {}", addr, e), None)
+        InfernoError::internal(
+            format!("Failed to bind inference server to {}: {}", addr, e),
+            None,
+        )
     })?;
 
     info!("🌐 HTTP inference server listening on {}", addr);
@@ -347,16 +362,16 @@ async fn start_inference_server(
 /// Handle individual HTTP inference requests
 async fn handle_inference_request(
     req: Request<Incoming>,
-    engine: Arc<tokio::sync::Mutex<Box<dyn InferenceEngine<Error = inferno_inference::inference::InferenceError>>>>,
+    engine: Arc<
+        tokio::sync::Mutex<
+            Box<dyn InferenceEngine<Error = inferno_inference::inference::InferenceError>>,
+        >,
+    >,
 ) -> std::result::Result<Response<BoxBody<bytes::Bytes, hyper::Error>>, hyper::Error> {
     let response = match (req.method(), req.uri().path()) {
         (&hyper::Method::POST, "/v1/completions") | (&hyper::Method::POST, "/inference") => {
             // Read request body
-            let body_bytes = match req
-                .into_body()
-                .collect()
-                .await
-            {
+            let body_bytes = match req.into_body().collect().await {
                 Ok(collected) => collected.to_bytes(),
                 Err(e) => {
                     warn!("Failed to read request body: {}", e);
