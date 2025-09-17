@@ -107,6 +107,7 @@ impl CandleTokenizer {
         feature = "candle-cuda",
         feature = "candle-metal"
     ))]
+    #[allow(clippy::too_many_lines)]
     async fn create_llama32_compatible_tokenizer(
         config_path: &std::path::Path,
         tokenizer_path: &std::path::Path,

@@ -282,6 +282,7 @@ impl Default for CandleInferenceEngine {
 impl InferenceEngine for CandleInferenceEngine {
     type Error = InferenceError;
 
+    #[allow(clippy::too_many_lines)]
     async fn initialize(&mut self, config: VLLMConfig) -> Result<(), Self::Error> {
         info!(
             "Initializing Candle inference engine with model: {}",

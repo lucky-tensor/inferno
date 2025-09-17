@@ -501,6 +501,7 @@ mod model_loading_tests {
         }
 
         #[test]
+        #[allow(clippy::too_many_lines)]
         fn test_real_tinyllama_safetensors_loading() {
             // Test loading actual SafeTensors files using burn framework
             #[cfg(all(feature = "burn-cpu", feature = "pretrained"))]
