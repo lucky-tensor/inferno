@@ -7,7 +7,7 @@ use crate::health::HealthService;
 use crate::BackendConfig;
 use clap::Parser;
 use inferno_inference::{
-    inference::{BurnInferenceEngine, InferenceRequest},
+    inference::{create_engine, EngineType, InferenceEngine, InferenceRequest},
     config::VLLMConfig
 };
 use inferno_shared::{
@@ -51,6 +51,10 @@ pub struct BackendCliOptions {
     /// Model type/format (e.g., llama, gguf, onnx)
     #[arg(long, default_value = "auto", env = "INFERNO_MODEL_TYPE")]
     pub model_type: String,
+
+    /// Inference engine to use (burn-cpu, candle-cpu, candle-cuda, candle-metal)
+    #[arg(long, default_value = "burn-cpu", env = "INFERNO_ENGINE")]
+    pub engine: String,
 
     /// Maximum batch size for inference
     #[arg(long, default_value_t = 32, env = "INFERNO_MAX_BATCH_SIZE")]
@@ -142,8 +146,24 @@ impl BackendCliOptions {
             ..Default::default()
         };
 
+        // Parse engine type from string
+        let engine_type = match self.engine.as_str() {
+            "burn-cpu" => EngineType::BurnCpu,
+            "candle-cpu" => EngineType::CandleCpu,
+            #[cfg(feature = "candle-cuda")]
+            "candle-cuda" => EngineType::CandleCuda,
+            #[cfg(feature = "candle-metal")]
+            "candle-metal" => EngineType::CandleMetal,
+            _ => {
+                warn!("Unknown engine type '{}', falling back to burn-cpu", self.engine);
+                EngineType::BurnCpu
+            }
+        };
+
+        info!("Using inference engine: {}", engine_type);
+
         // Create and initialize the inference engine
-        let mut engine = BurnInferenceEngine::new();
+        let mut engine = create_engine(engine_type);
 
         if let Err(e) = engine.initialize(inference_config).await {
             warn!("Failed to initialize inference engine: {}", e);
@@ -153,16 +173,12 @@ impl BackendCliOptions {
             });
         }
 
-        if engine.is_ready() {
-            info!("🚀 Inference engine ready to receive requests!");
-        } else {
-            warn!("⚠️ Inference engine started but may not be fully ready");
-        }
+        info!("🚀 Inference engine ready to receive requests!");
 
         // Start HTTP inference server
         let inference_server_task = {
             let listen_addr = config.listen_addr;
-            let engine = Arc::new(std::sync::Mutex::new(engine));
+            let engine = Arc::new(tokio::sync::Mutex::new(engine));
 
             tokio::spawn(async move {
                 if let Err(e) = start_inference_server(listen_addr, engine).await {
@@ -290,7 +306,7 @@ impl BackendCliOptions {
 /// Start the HTTP inference server
 async fn start_inference_server(
     addr: SocketAddr,
-    engine: Arc<std::sync::Mutex<BurnInferenceEngine>>,
+    engine: Arc<tokio::sync::Mutex<Box<dyn InferenceEngine<Error = inferno_inference::inference::InferenceError>>>>,
 ) -> Result<()> {
     let listener = TcpListener::bind(addr).await.map_err(|e| {
         InfernoError::internal(format!("Failed to bind inference server to {}: {}", addr, e), None)
@@ -331,7 +347,7 @@ async fn start_inference_server(
 /// Handle individual HTTP inference requests
 async fn handle_inference_request(
     req: Request<Incoming>,
-    engine: Arc<std::sync::Mutex<BurnInferenceEngine>>,
+    engine: Arc<tokio::sync::Mutex<Box<dyn InferenceEngine<Error = inferno_inference::inference::InferenceError>>>>,
 ) -> std::result::Result<Response<BoxBody<bytes::Bytes, hyper::Error>>, hyper::Error> {
     let response = match (req.method(), req.uri().path()) {
         (&hyper::Method::POST, "/v1/completions") | (&hyper::Method::POST, "/inference") => {
@@ -373,8 +389,8 @@ async fn handle_inference_request(
 
             // Process inference
             let inference_response = {
-                let engine_guard = engine.lock().unwrap();
-                match engine_guard.process(inference_req) {
+                let engine_guard = engine.lock().await;
+                match engine_guard.process(inference_req).await {
                     Ok(response) => response,
                     Err(e) => {
                         warn!("Inference failed: {}", e);

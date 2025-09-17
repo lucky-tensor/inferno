@@ -6,7 +6,7 @@
 //! Burn is our primary ML inference framework, supporting CPU/CUDA/ROCm/Metal/WebGPU
 //! with unified tensor operations and custom kernel development via `CubeCL`.
 
-use super::{EngineStats, InferenceRequest, InferenceResponse};
+use super::{InferenceEngine, InferenceError, InferenceRequest, InferenceResponse};
 use crate::config::VLLMConfig;
 use crate::error::{VLLMError, VLLMResult};
 use std::path::PathBuf;
@@ -43,8 +43,6 @@ pub struct BurnInferenceEngine {
     initialized: bool,
     /// Model configuration
     config: Option<VLLMConfig>,
-    /// Request statistics
-    stats: EngineStats,
     /// Model files path
     model_path: Option<PathBuf>,
     /// Loaded Llama model (includes tokenizer) - wrapped in Mutex for interior mutability
@@ -91,7 +89,6 @@ impl BurnInferenceEngine {
         Self {
             initialized: false,
             config: None,
-            stats: EngineStats::default(),
             model_path: None,
             #[cfg(feature = "burn-cpu")]
             model: None,
@@ -109,7 +106,6 @@ impl BurnInferenceEngine {
         Self {
             initialized: false,
             config: None,
-            stats: EngineStats::default(),
             model_path: None,
             #[cfg(feature = "burn-cpu")]
             model: None,
@@ -374,15 +370,13 @@ impl BurnInferenceEngine {
         }
 
         self.initialized = true;
-        self.stats.total_requests = 0;
-        self.stats.model_loaded = true;
 
         info!("🚀 Burn inference engine initialized and ready to receive inference requests!");
         Ok(())
     }
 
-    /// Process a single inference request
-    pub fn process(&self, mut request: InferenceRequest) -> VLLMResult<InferenceResponse> {
+    /// Process a single inference request (internal sync method)
+    pub fn process_sync(&self, mut request: InferenceRequest) -> VLLMResult<InferenceResponse> {
         // Ensure request has an ID
         if request.request_id == 0 {
             let count = self.request_count.lock().unwrap();
@@ -408,7 +402,7 @@ impl BurnInferenceEngine {
                 let mut model = model_mutex.lock().unwrap();
 
                 // Perform REAL text generation with the neural network
-                let generation_result = Self::generate_real_text(&mut model, &request.prompt, request.max_tokens);
+                let generation_result = Self::generate_real_text(&mut model, &request.prompt, request.max_tokens as usize);
 
                 match generation_result {
                     Ok(generated_text) => {
@@ -459,10 +453,6 @@ impl BurnInferenceEngine {
         })
     }
 
-    /// Get current engine statistics
-    pub fn stats(&self) -> EngineStats {
-        self.stats.clone()
-    }
 
     /// Check if the engine is ready for inference
     pub fn is_ready(&self) -> bool {
@@ -615,6 +605,16 @@ impl BurnInferenceEngine {
 
         response
     }
+
+    /// Get engine performance statistics
+    pub fn stats(&self) -> crate::inference::InferenceStats {
+        crate::inference::InferenceStats {
+            total_requests: 0, // TODO: Track actual stats
+            total_tokens_generated: 0,
+            avg_inference_time_ms: 0.0,
+            model_loaded: self.initialized && self.model_ready,
+        }
+    }
 }
 
 impl Default for BurnInferenceEngine {
@@ -626,42 +626,23 @@ impl Default for BurnInferenceEngine {
 // Implement the InferenceEngine trait for BurnInferenceEngine
 #[cfg(feature = "burn-cpu")]
 #[async_trait::async_trait]
-impl super::InferenceEngine for BurnInferenceEngine {
-    async fn initialize(&mut self, config: &VLLMConfig, _models_dir: &str) -> VLLMResult<()> {
-        // Use our existing initialize method
-        self.initialize(config.clone()).await
+impl InferenceEngine for BurnInferenceEngine {
+    type Error = InferenceError;
+
+    async fn initialize(&mut self, config: VLLMConfig) -> Result<(), Self::Error> {
+        // Convert VLLMResult to InferenceError
+        self.initialize(config).await.map_err(|e| {
+            InferenceError::InitializationError(format!("Burn engine initialization failed: {}", e))
+        })
     }
 
-    fn is_ready(&self) -> bool {
-        self.is_ready()
-    }
+    async fn process(&self, request: InferenceRequest) -> Result<InferenceResponse, Self::Error> {
+        // Call the existing sync process method and convert the result
+        let result = self.process_sync(request);
 
-    async fn infer(&self, request: InferenceRequest) -> VLLMResult<InferenceResponse> {
-        // Use our existing process method
-        self.process(request)
-    }
-
-    async fn get_stats(&self) -> EngineStats {
-        let count = *self.request_count.lock().unwrap();
-        let total_time = *self.total_inference_time.lock().unwrap();
-
-        #[allow(clippy::cast_precision_loss)]
-        let avg_time_ms = if count > 0 {
-            (total_time * 1000.0) / (count as f64)
-        } else {
-            0.0
-        };
-
-        EngineStats {
-            total_requests: count,
-            avg_inference_time_ms: avg_time_ms,
-            memory_usage_bytes: 0, // TODO: Implement memory tracking
-            model_loaded: self.model_ready,
-        }
-    }
-
-    async fn shutdown(&mut self) -> VLLMResult<()> {
-        self.shutdown()
+        result.map_err(|e| {
+            InferenceError::ProcessingError(format!("Burn processing failed: {}", e))
+        })
     }
 }
 
@@ -695,7 +676,7 @@ mod tests {
             seed: Some(42),
         };
 
-        let result = engine.process(request);
+        let result = engine.process_sync(request);
         assert!(matches!(result, Err(VLLMError::EngineNotInitialized)));
     }
 }

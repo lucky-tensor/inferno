@@ -287,6 +287,7 @@ impl PlayContext {
             listen_addr: format!("127.0.0.1:{}", backend_port).parse().unwrap(),
             model_path: options.model_path.clone().into(),
             model_type: "auto".to_string(),
+            engine: options.engine.clone(),
             max_batch_size: 32,
             gpu_device_id: -1,
             max_context_length: 2048,
@@ -374,7 +375,7 @@ impl PlayContext {
         let request = InferenceRequest {
             request_id,
             prompt,
-            max_tokens: self.options.max_tokens,
+            max_tokens: self.options.max_tokens as u32,
             temperature: self.options.temperature,
             top_p: self.options.top_p,
             seed: self.options.seed,
@@ -745,6 +746,7 @@ mod tests {
             top_p: 0.9,
             seed: Some(42),
             prompt: None,
+            engine: "burn-cpu".to_string(),
         };
 
         // Since new() is now async and starts a backend, we can't easily test it

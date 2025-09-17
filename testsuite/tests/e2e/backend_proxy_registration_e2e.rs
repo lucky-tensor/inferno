@@ -55,6 +55,7 @@ async fn test_backend_registration_with_proxy() {
         listen_addr: format!("127.0.0.1:{}", backend_port).parse().unwrap(),
         model_path: "test_model.bin".into(),
         model_type: "test".to_string(),
+        engine: "burn-cpu".to_string(),
         max_batch_size: 16,
         gpu_device_id: -1,
         max_context_length: 1024,

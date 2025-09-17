@@ -44,6 +44,10 @@ pub struct PlayCliOptions {
     /// Run in headless mode with a single prompt
     #[arg(short = 'p', long = "prompt")]
     pub prompt: Option<String>,
+
+    /// Inference engine to use (burn-cpu, candle-cpu, candle-cuda, candle-metal)
+    #[arg(long, default_value = "burn-cpu")]
+    pub engine: String,
 }
 
 /// Inferno - Unified command interface for distributed AI inference platform

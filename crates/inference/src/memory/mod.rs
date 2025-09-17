@@ -99,12 +99,12 @@ impl GpuAllocator for CudaMemoryPool {
             })
         } else {
             // GPU allocation would be implemented here with CUDA
-            #[cfg(not(feature = "cuda"))]
+            #[cfg(not(feature = "candle-cuda"))]
             {
                 Err(crate::error::VLLMError::CudaNotAvailable)
             }
 
-            #[cfg(feature = "cuda")]
+            #[cfg(feature = "candle-cuda")]
             {
                 // TODO: Implement actual CUDA allocation using cudarc
                 let allocation_id = self.allocation_counter.fetch_add(1, Ordering::SeqCst);
@@ -146,12 +146,12 @@ impl GpuAllocator for CudaMemoryPool {
             }
         } else {
             // GPU deallocation would be implemented here
-            #[cfg(not(feature = "cuda"))]
+            #[cfg(not(feature = "candle-cuda"))]
             {
                 return Err(crate::error::VLLMError::CudaNotAvailable);
             }
 
-            #[cfg(feature = "cuda")]
+            #[cfg(feature = "candle-cuda")]
             {
                 // TODO: Implement actual CUDA deallocation
                 tracing::debug!(
@@ -177,12 +177,12 @@ impl GpuAllocator for CudaMemoryPool {
             stats.utilization_percentage = 0.5; // Placeholder
             stats.num_allocations = self.allocation_counter.load(Ordering::SeqCst) as usize;
         } else {
-            #[cfg(not(feature = "cuda"))]
+            #[cfg(not(feature = "candle-cuda"))]
             {
                 return Err(crate::error::VLLMError::CudaNotAvailable);
             }
 
-            #[cfg(feature = "cuda")]
+            #[cfg(feature = "candle-cuda")]
             {
                 // TODO: Get actual CUDA memory stats using cudarc
                 stats.total_memory_bytes = 12 * 1024 * 1024 * 1024; // Placeholder: 12GB GPU

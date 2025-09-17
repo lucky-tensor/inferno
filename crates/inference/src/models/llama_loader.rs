@@ -3,6 +3,7 @@
 use std::error::Error;
 use std::path::Path;
 use tracing::{info, warn};
+use serde::{Deserialize, Serialize};
 
 // CPU backend imports
 #[cfg(feature = "burn-cpu")]
@@ -27,13 +28,14 @@ use safetensors::SafeTensors;
 #[cfg(feature = "burn-cpu")]
 type Backend = NdArray<f32>;
 
-/// Load TinyLlama-1.1B model with pre-trained weights from `SafeTensors`
+/// Load Llama model with pre-trained weights from `SafeTensors`
+/// Supports dynamic configuration loading from config.json
 #[cfg(all(feature = "burn-cpu", feature = "pretrained"))]
 pub fn load_llama_weights(
     model_path: &Path,
     device: &Device<Backend>,
 ) -> Result<Llama<Backend, SentiencePieceTokenizer>, Box<dyn Error>> {
-    println!("🔄 Loading pre-trained TinyLlama-1.1B model with real weights...");
+    println!("🔄 Loading pre-trained Llama model with real weights...");
 
     // Check if we have the required files
     let weights_path = model_path.join("model.safetensors");
@@ -75,23 +77,11 @@ pub fn load_llama_weights(
 
     let effective_tokenizer_path = tokenizer_path.to_str().unwrap().to_string();
 
-    // Create TinyLlama configuration matching the actual model
-    let config = LlamaConfig {
-        d_model: 2048,
-        hidden_size: 5632,
-        num_hidden_layers: 22,
-        num_attention_heads: 32,
-        num_key_value_heads: Some(4),
-        vocab_size: 32000,
-        norm_eps: 1e-5,
-        rope: llama_burn::llama::RopeConfig::new(10000.0),
-        max_seq_len: 2048,
-        max_batch_size: 1,
-        tokenizer: effective_tokenizer_path,
-    };
+    // Load model configuration from config.json if available, otherwise use TinyLlama defaults
+    let config = load_model_config(model_path, &effective_tokenizer_path)?;
 
     println!(
-        "📋 TinyLlama Config: {} layers, {} heads, vocab_size: {}",
+        "📋 Model Config: {} layers, {} heads, vocab_size: {}",
         config.num_hidden_layers, config.num_attention_heads, config.vocab_size
     );
 
@@ -107,7 +97,7 @@ pub fn load_llama_weights(
     // proper tensor name mapping from HuggingFace format to Burn format
     match load_safetensors_weights(&weights_path, &model) {
         Ok(()) => {
-            println!("✅ Successfully loaded TinyLlama with pre-trained weights!");
+            println!("✅ Successfully loaded model with pre-trained weights!");
         }
         Err(e) => {
             println!("⚠️ Failed to load pre-trained weights: {}", e);
@@ -239,29 +229,100 @@ fn load_safetensors_weights(
     Ok(())
 }
 
+/// `HuggingFace` model configuration structure from config.json
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct HuggingFaceConfig {
+    pub hidden_size: Option<u32>,
+    pub intermediate_size: Option<u32>,
+    pub num_attention_heads: Option<u32>,
+    pub num_hidden_layers: Option<u32>,
+    pub num_key_value_heads: Option<u32>,
+    pub vocab_size: Option<u32>,
+    pub max_position_embeddings: Option<u32>,
+    pub rms_norm_eps: Option<f64>,
+    pub rope_theta: Option<f64>,
+    #[serde(rename = "model_type")]
+    pub model_type: Option<String>,
+}
+
+/// Load model configuration from config.json or use defaults
+pub fn load_model_config(
+    model_path: &Path,
+    tokenizer_path: &str,
+) -> Result<LlamaConfig, Box<dyn Error>> {
+    let config_path = model_path.join("config.json");
+
+    // Try to load from config.json
+    if config_path.exists() {
+        println!("📋 Loading model configuration from config.json");
+
+        let config_content = std::fs::read_to_string(&config_path)
+            .map_err(|e| format!("Failed to read config.json: {}", e))?;
+
+        let hf_config: HuggingFaceConfig = serde_json::from_str(&config_content)
+            .map_err(|e| format!("Failed to parse config.json: {}", e))?;
+
+        println!("✅ Successfully loaded config from {}", config_path.display());
+
+        // Convert HuggingFace config to LlamaConfig
+        let config = LlamaConfig {
+            d_model: hf_config.hidden_size.unwrap_or(2048) as usize,
+            hidden_size: hf_config.intermediate_size.unwrap_or(5632) as usize,
+            num_hidden_layers: hf_config.num_hidden_layers.unwrap_or(22) as usize,
+            num_attention_heads: hf_config.num_attention_heads.unwrap_or(32) as usize,
+            num_key_value_heads: hf_config.num_key_value_heads.map(|v| v as usize),
+            vocab_size: hf_config.vocab_size.unwrap_or(32000) as usize,
+            norm_eps: hf_config.rms_norm_eps.unwrap_or(1e-5),
+            rope: llama_burn::llama::RopeConfig::new({
+                #[allow(clippy::cast_possible_truncation)]
+                {
+                    hf_config.rope_theta.unwrap_or(10000.0) as f32
+                }
+            }),
+            max_seq_len: hf_config.max_position_embeddings.unwrap_or(2048) as usize,
+            max_batch_size: 1,
+            tokenizer: tokenizer_path.to_string(),
+        };
+
+        println!(
+            "📊 Loaded config - d_model: {}, layers: {}, heads: {}, vocab: {}",
+            config.d_model, config.num_hidden_layers, config.num_attention_heads, config.vocab_size
+        );
+
+        Ok(config)
+    } else {
+        println!("⚠️  config.json not found, using TinyLlama-1.1B defaults");
+
+        // Fallback to TinyLlama configuration
+        Ok(LlamaConfig {
+            d_model: 2048,
+            hidden_size: 5632,
+            num_hidden_layers: 22,
+            num_attention_heads: 32,
+            num_key_value_heads: Some(4),
+            vocab_size: 32000,
+            norm_eps: 1e-5,
+            rope: llama_burn::llama::RopeConfig::new(10000.0),
+            max_seq_len: 2048,
+            max_batch_size: 1,
+            tokenizer: tokenizer_path.to_string(),
+        })
+    }
+}
+
 /// Fallback for when pretrained feature is not available
 #[cfg(all(feature = "burn-cpu", not(feature = "pretrained")))]
 pub fn load_llama_weights(
     model_path: &Path,
     device: &Device<Backend>,
 ) -> Result<Llama<Backend, SentiencePieceTokenizer>, Box<dyn Error>> {
-    println!("⚠️  Loading TinyLlama with random weights (pretrained feature not enabled)");
+    println!("⚠️  Loading Llama with random weights (pretrained feature not enabled)");
 
-    // TinyLlama-1.1B configuration
     let tokenizer_path = model_path.join("tokenizer.json");
-    let config = LlamaConfig {
-        d_model: 2048,
-        hidden_size: 5632,
-        num_hidden_layers: 22,
-        num_attention_heads: 32,
-        num_key_value_heads: Some(4),
-        vocab_size: 32000,
-        norm_eps: 1e-5,
-        rope: llama_burn::llama::RopeConfig::new(10000.0),
-        max_seq_len: 2048,
-        max_batch_size: 1,
-        tokenizer: tokenizer_path.to_str().unwrap().to_string(),
-    };
+    let effective_tokenizer_path = tokenizer_path.to_str().unwrap().to_string();
+
+    // Load configuration from config.json or use defaults
+    let config = load_model_config(model_path, &effective_tokenizer_path)?;
 
     // Initialize the model with random weights
     let model = config.init::<Backend, SentiencePieceTokenizer>(device)?;

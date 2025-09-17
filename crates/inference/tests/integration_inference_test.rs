@@ -62,7 +62,7 @@ async fn test_burn_cpu_inference_quality() {
     let inference_start = Instant::now();
 
     // This will call the REAL neural network model.generate() method
-    let result = engine.process(request);
+    let result = engine.process_sync(request);
     let inference_time = inference_start.elapsed();
 
     match result {
@@ -161,7 +161,7 @@ async fn test_multiple_inference_requests() {
             seed: Some(42 + i as u64),
         };
 
-        match engine.process(request) {
+        match engine.process_sync(request) {
             Ok(response) => {
                 successful_inferences += 1;
                 println!("✅ Response: '{}'", response.generated_text);

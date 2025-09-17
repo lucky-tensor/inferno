@@ -44,7 +44,7 @@ async fn test_burn_engine_real_weights() -> Result<(), Box<dyn std::error::Error
     };
 
     // Try inference
-    match engine.process(request) {
+    match engine.process_sync(request) {
         Ok(response) => {
             println!("🎯 Inference successful!");
             println!("📝 Response: {}", response.generated_text);

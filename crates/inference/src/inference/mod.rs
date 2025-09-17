@@ -1,160 +1,58 @@
-//! CPU-based inference engine implementation
+//! Multi-backend inference engine implementation
 //!
-//! This module implements multi-backend inference using Burn framework for tensor operations
-//! and Hugging Face models. It provides deterministic inference for mathematical queries.
+//! This module implements inference engines using both Burn and Candle frameworks
+//! for flexible model deployment across different hardware backends.
 
-use crate::config::VLLMConfig;
-use crate::error::{VLLMError, VLLMResult};
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use tokio::sync::RwLock;
+// Common inference traits and types
+pub mod traits;
+pub use traits::*;
 
-// Commented out for now - complex module with compilation issues
-// #[cfg(feature = "burn-cpu")]
-// mod burn_engine;
-
-// burn_hello_world module has been removed - using burn_engine directly
+// Burn framework engine (original implementation)
 #[cfg(feature = "burn-cpu")]
 pub mod burn_engine;
 
+// Candle framework engine (new optimized implementation)
+#[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+pub mod candle_engine;
+
+// Re-export engines when features are enabled
 #[cfg(feature = "burn-cpu")]
-pub use burn_engine::*;
+pub use burn_engine::BurnInferenceEngine;
 
-/// Request for inference
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InferenceRequest {
-    /// Unique identifier for this request
-    pub request_id: u64,
-    /// Input prompt text
-    pub prompt: String,
-    /// Maximum number of tokens to generate
-    pub max_tokens: usize,
-    /// Temperature for sampling (0.0 = deterministic)
-    pub temperature: f32,
-    /// Top-p sampling parameter
-    pub top_p: f32,
-    /// Optional seed for reproducible results
-    pub seed: Option<u64>,
-}
+#[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+pub use candle_engine::{CandleInferenceEngine, CandleBackendType};
 
-impl Default for InferenceRequest {
-    fn default() -> Self {
-        Self {
-            request_id: 0,
-            prompt: String::new(),
-            max_tokens: 50,
-            temperature: 0.0, // Deterministic by default
-            top_p: 1.0,
-            seed: Some(42), // Fixed seed for reproducibility
+/// Create an inference engine based on the specified engine type
+pub fn create_engine(engine_type: EngineType) -> Box<dyn InferenceEngine<Error = InferenceError>> {
+    match engine_type {
+        EngineType::BurnCpu => {
+            #[cfg(feature = "burn-cpu")]
+            {
+                Box::new(BurnInferenceEngine::new())
+            }
+            #[cfg(not(feature = "burn-cpu"))]
+            {
+                panic!("Burn CPU engine requested but burn-cpu feature not enabled")
+            }
         }
-    }
-}
-
-/// Response from inference
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InferenceResponse {
-    /// Request ID this response corresponds to
-    pub request_id: u64,
-    /// Generated text
-    pub generated_text: String,
-    /// Number of tokens generated
-    pub generated_tokens: usize,
-    /// Time taken for inference in milliseconds
-    pub inference_time_ms: f64,
-    /// Whether generation is finished
-    pub is_finished: bool,
-    /// Error information if any
-    pub error: Option<String>,
-}
-
-impl Default for InferenceResponse {
-    fn default() -> Self {
-        Self {
-            request_id: 0,
-            generated_text: String::new(),
-            generated_tokens: 0,
-            inference_time_ms: 0.0,
-            is_finished: true,
-            error: None,
+        EngineType::CandleCpu => {
+            #[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+            {
+                Box::new(CandleInferenceEngine::with_backend(CandleBackendType::Cpu))
+            }
+            #[cfg(not(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal")))]
+            {
+                panic!("Candle CPU engine requested but candle features not enabled")
+            }
         }
-    }
-}
-
-/// Main inference engine trait
-#[async_trait::async_trait]
-pub trait InferenceEngine: Send + Sync {
-    /// Initialize the engine with a model
-    async fn initialize(&mut self, config: &VLLMConfig, models_dir: &str) -> VLLMResult<()>;
-
-    /// Check if the engine is ready for inference
-    fn is_ready(&self) -> bool;
-
-    /// Process a single inference request
-    async fn infer(&self, request: InferenceRequest) -> VLLMResult<InferenceResponse>;
-
-    /// Get engine statistics
-    async fn get_stats(&self) -> EngineStats;
-
-    /// Shutdown the engine
-    async fn shutdown(&mut self) -> VLLMResult<()>;
-}
-
-/// Engine performance statistics
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EngineStats {
-    /// Total requests processed
-    pub total_requests: u64,
-    /// Average inference time in milliseconds
-    pub avg_inference_time_ms: f64,
-    /// Current memory usage in bytes
-    pub memory_usage_bytes: usize,
-    /// Whether model is loaded
-    pub model_loaded: bool,
-}
-
-impl Default for EngineStats {
-    fn default() -> Self {
-        Self {
-            total_requests: 0,
-            avg_inference_time_ms: 0.0,
-            memory_usage_bytes: 0,
-            model_loaded: false,
+        #[cfg(feature = "candle-cuda")]
+        EngineType::CandleCuda => {
+            Box::new(CandleInferenceEngine::with_backend(CandleBackendType::Cuda))
         }
-    }
-}
-
-/// Create a new inference engine based on configuration
-pub async fn create_engine(_config: &VLLMConfig) -> VLLMResult<Arc<RwLock<dyn InferenceEngine>>> {
-    // Only Burn framework engine (real model inference)
-    // Note: BurnInferenceEngine currently disabled due to Sync trait issues with Burn's Embedding
-    // TODO: Wrap in Arc<Mutex> or use alternative approach for thread safety
-    /*
-    #[cfg(feature = "burn-cpu")]
-    {
-        info!("Creating Burn framework SmolLM3 inference engine");
-        let mut engine = BurnInferenceEngine::new();
-        engine.initialize(config, "./models").await?;
-        return Ok(Arc::new(RwLock::new(engine)));
-    }
-    */
-
-    // No engine available - no fallback, only real inference
-    // Currently all engines disabled due to implementation issues
-    Err(VLLMError::InvalidArgument(
-        "No inference engine available. BurnInferenceEngine temporarily disabled due to Sync trait issues"
-            .to_string(),
-    ))
-}
-
-/// Utility function to create a deterministic math test request
-pub fn create_math_test_request() -> InferenceRequest {
-    InferenceRequest {
-        request_id: 1,
-        prompt: "What is 2+2? Answer with number only:".to_string(),
-        max_tokens: 5,
-        temperature: 0.0, // Deterministic
-        top_p: 1.0,
-        seed: Some(42),
+        #[cfg(all(feature = "candle-metal", target_os = "macos"))]
+        EngineType::CandleMetal => {
+            Box::new(CandleInferenceEngine::with_backend(CandleBackendType::Metal))
+        }
     }
 }
 
@@ -163,17 +61,38 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_request_creation() {
-        let request = create_math_test_request();
-        assert_eq!(request.prompt, "What is 2+2? Answer with number only:");
-        assert!((request.temperature - 0.0).abs() < f32::EPSILON);
-        assert!(request.seed.is_some());
+    fn test_engine_creation() {
+        // Test that we can create engines when features are enabled
+        #[cfg(any(feature = "candle-cpu", feature = "candle-cuda", feature = "candle-metal"))]
+        {
+            let _engine = create_engine(EngineType::CandleCpu);
+        }
+
+        #[cfg(feature = "burn-cpu")]
+        {
+            let _engine = create_engine(EngineType::BurnCpu);
+        }
     }
 
     #[test]
-    fn test_deterministic_defaults() {
-        let request = InferenceRequest::default();
-        assert!((request.temperature - 0.0).abs() < f32::EPSILON);
-        assert_eq!(request.seed, Some(42));
+    fn test_inference_types() {
+        let request = create_test_request("Hello, world!");
+        assert_eq!(request.prompt, "Hello, world!");
+        assert_eq!(request.max_tokens, 50);
+
+        let math_request = create_math_test_request();
+        assert_eq!(math_request.prompt, "What is 2+2? Answer with number only:");
+        assert!((math_request.temperature - 0.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_engine_type_display() {
+        assert_eq!(format!("{}", EngineType::BurnCpu), "Burn-CPU");
+        assert_eq!(format!("{}", EngineType::CandleCpu), "Candle-CPU");
+
+        #[cfg(feature = "candle-cuda")]
+        {
+            assert_eq!(format!("{}", EngineType::CandleCuda), "Candle-CUDA");
+        }
     }
 }
