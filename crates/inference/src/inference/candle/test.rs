@@ -6,7 +6,7 @@
 
 #[cfg(test)]
 mod tests {
-    use super::super::{CandleBackendType, CandleInferenceEngine};
+    use super::super::{CandleBackendType, CandleInferenceEngine, QuantizedModelConfig};
     use crate::config::InfernoConfig;
     use crate::inference::{InferenceEngine, InferenceRequest};
     use std::path::Path;
@@ -15,6 +15,160 @@ mod tests {
     fn get_tinyllama_model_path() -> String {
         let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
         format!("{}/models/tinyllama-1.1b/TinyLlama-1.1B-Chat-v1.0", home)
+    }
+
+    fn get_llama32_model_path() -> String {
+        let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        format!("{}/models/RedHatAI_Llama-3.2-1B-Instruct-quantized.w8a8", home)
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "candle-cuda")]
+    async fn test_llama32_quantized_detection() {
+        let model_path_str = get_llama32_model_path();
+        // Skip test if model doesn't exist
+        if !Path::new(&model_path_str).exists() {
+            eprintln!(
+                "⚠️ Skipping test: Llama-3.2 model not found at {}",
+                model_path_str
+            );
+            return;
+        }
+
+        println!("🔍 Testing quantized model detection for Llama-3.2");
+
+        // Test quantization detection
+        let quantized_config = QuantizedModelConfig::load_and_detect_quantization(&model_path_str).await
+            .expect("Should load and detect quantization config");
+
+        assert!(quantized_config.is_quantized, "Should detect quantized model");
+        assert!(quantized_config.is_w8a8_quantized(), "Should detect w8a8 quantization");
+
+        println!("✅ Quantized model detection working correctly");
+        println!("   Model is quantized: {}", quantized_config.is_quantized);
+        println!("   W8A8 format: {}", quantized_config.is_w8a8_quantized());
+
+        // Test engine initialization to show current limitation
+        println!("📝 Testing engine initialization (expected to detect quantization but show limitation)");
+        let mut engine = CandleInferenceEngine::with_backend(CandleBackendType::Cuda);
+
+        let config = InfernoConfig {
+            model_name: "llama-3.2-1b-instruct".to_string(),
+            model_path: model_path_str.clone(),
+            device_id: 0,
+            max_batch_size: 4,
+            max_sequence_length: 2048,
+            max_tokens: 50,
+            gpu_memory_pool_size_mb: 4096,
+            max_num_seqs: 16,
+            temperature: 0.7,
+            top_p: 0.9,
+            top_k: -1,
+            worker_threads: 4,
+            enable_async_processing: true,
+            ..Default::default()
+        };
+
+        let init_result = engine.initialize(config).await;
+        match &init_result {
+            Ok(()) => {
+                println!("❌ Unexpected success - should fail with current implementation");
+                panic!("Expected to fail with I8 dtype error - this suggests the implementation changed");
+            }
+            Err(e) => {
+                let error_str = format!("{}", e);
+                if error_str.contains("W8A8 quantized models detected") || error_str.contains("compressed-tensors support is needed") {
+                    println!("✅ Expected failure: quantized model properly detected and rejected");
+                    println!("   Error: {}", e);
+                    println!("   This confirms quantization detection is working");
+                } else if error_str.contains("unsupported safetensor dtype I8") {
+                    println!("✅ Also acceptable: quantized tensors detected at SafeTensors level");
+                    println!("   Error: {}", e);
+                    println!("   This confirms we need special quantized tensor handling");
+                } else {
+                    println!("❌ Unexpected error type: {}", e);
+                    panic!("Expected quantization-related error, got different error: {}", e);
+                }
+            }
+        }
+
+        println!("🎉 Quantized model detection test completed successfully");
+        println!("   Next step: Implement proper compressed-tensors loading");
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "candle-cuda")]
+    async fn test_llama32_quantized_cuda_full_pipeline() {
+        let model_path_str = get_llama32_model_path();
+        // Skip test if model doesn't exist
+        if !Path::new(&model_path_str).exists() {
+            eprintln!(
+                "⚠️ Skipping test: Quantized Llama-3.2 model not found at {}",
+                model_path_str
+            );
+            return;
+        }
+
+        println!("🚀 Testing CUDA full pipeline with quantized Llama-3.2 model");
+
+        // Now that we've implemented compressed-tensors support, let's test it!
+
+        println!("📝 Step 1: Creating Candle CUDA engine with quantized support");
+        let mut engine = CandleInferenceEngine::with_backend(CandleBackendType::Cuda);
+
+        println!("📝 Step 2: Initializing engine with quantized Llama-3.2 model");
+        let config = InfernoConfig {
+            model_name: "llama-3.2-1b-instruct-quantized".to_string(),
+            model_path: model_path_str.clone(),
+            device_id: 0,
+            max_batch_size: 4,
+            max_sequence_length: 2048,
+            max_tokens: 20,
+            gpu_memory_pool_size_mb: 4096,
+            max_num_seqs: 16,
+            temperature: 0.7,
+            top_p: 0.9,
+            top_k: -1,
+            worker_threads: 4,
+            enable_async_processing: true,
+            ..Default::default()
+        };
+
+        let init_result = engine.initialize(config).await;
+        match &init_result {
+            Ok(()) => println!("✅ Engine initialization successful!"),
+            Err(e) => {
+                println!("❌ Engine initialization failed: {}", e);
+                panic!("Failed to initialize quantized model: {}", e);
+            }
+        }
+
+        println!("📝 Step 3: Testing quantized inference");
+        let test_prompt = "what is machine learning?";
+
+        let request = InferenceRequest {
+            request_id: 1,
+            prompt: test_prompt.to_string(),
+            max_tokens: 20,
+            temperature: 0.7,
+            top_p: 0.9,
+            seed: Some(42),
+        };
+
+        let inference_result = engine.process(request).await;
+        assert!(inference_result.is_ok(), "Should successfully run quantized inference");
+
+        let response = inference_result.unwrap();
+        assert!(response.generated_tokens > 0, "Should generate tokens with quantized model");
+        assert!(response.inference_time_ms > 0.0, "Should measure inference time");
+
+        println!("✅ Quantized inference successful!");
+        println!("🎯 Generated: '{}'", response.generated_text);
+        println!("📈 Tokens: {}", response.generated_tokens);
+        println!("⏱️ Time: {:.2}ms", response.inference_time_ms);
+
+        // Quantized models should be faster and use less memory
+        // TODO: Add assertions about performance characteristics
     }
 
     #[tokio::test]

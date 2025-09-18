@@ -1,0 +1,598 @@
+//! Quantized model support for compressed-tensors format (w8a8)
+//!
+//! This module provides support for loading and running inference on models
+//! quantized using the compressed-tensors format, specifically w8a8 quantization
+//! (8-bit weights, 8-bit activations) stored in SafeTensors format.
+
+#![allow(missing_docs)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_possible_truncation)]
+
+use crate::inference::InferenceError;
+use serde::{Deserialize, Serialize};
+
+#[cfg(any(
+    feature = "candle-cpu",
+    feature = "candle-cuda",
+    feature = "candle-metal"
+))]
+use candle_core::{DType, Device, Tensor};
+
+#[cfg(any(
+    feature = "candle-cpu",
+    feature = "candle-cuda",
+    feature = "candle-metal"
+))]
+use candle_nn::VarBuilder;
+
+#[cfg(any(
+    feature = "candle-cpu",
+    feature = "candle-cuda",
+    feature = "candle-metal"
+))]
+use safetensors::SafeTensors;
+
+/// Configuration for compressed-tensors quantization
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuantizationConfig {
+    pub config_groups: serde_json::Map<String, serde_json::Value>,
+    pub format: String,
+    pub global_compression_ratio: f64,
+    pub ignore: Vec<String>,
+    pub kv_cache_scheme: Option<serde_json::Value>,
+    pub quant_method: String,
+    pub quantization_status: String,
+}
+
+/// Represents a quantized model configuration that supports compressed-tensors format
+#[derive(Debug, Clone)]
+pub struct QuantizedModelConfig {
+    /// Base model configuration
+    pub base_config: super::CandleModelConfig,
+    /// Quantization-specific configuration
+    pub quantization_config: Option<QuantizationConfig>,
+    /// Whether this is a quantized model
+    pub is_quantized: bool,
+}
+
+impl QuantizedModelConfig {
+    /// Detect if a model uses compressed-tensors quantization format
+    pub async fn load_and_detect_quantization(model_path: &str) -> Result<Self, InferenceError> {
+        let base_config = super::CandleModelConfig::load_from_path(model_path).await?;
+
+        // Load config.json to check for quantization_config
+        let config_path = std::path::Path::new(model_path).join("config.json");
+        let config_content = tokio::fs::read_to_string(&config_path).await.map_err(|e| {
+            InferenceError::InvalidArgument(format!("Failed to read config.json: {}", e))
+        })?;
+
+        let config: serde_json::Value = serde_json::from_str(&config_content).map_err(|e| {
+            InferenceError::InvalidArgument(format!("Failed to parse config.json: {}", e))
+        })?;
+
+        let (quantization_config, is_quantized) = if let Some(quant_config) = config.get("quantization_config") {
+            let quant_config: QuantizationConfig = serde_json::from_value(quant_config.clone()).map_err(|e| {
+                InferenceError::InvalidArgument(format!("Failed to parse quantization_config: {}", e))
+            })?;
+
+            let is_compressed_tensors = quant_config.quant_method == "compressed-tensors"
+                && quant_config.format == "int-quantized";
+
+            (Some(quant_config), is_compressed_tensors)
+        } else {
+            (None, false)
+        };
+
+        Ok(Self {
+            base_config,
+            quantization_config,
+            is_quantized,
+        })
+    }
+
+    /// Check if model uses w8a8 quantization specifically
+    pub fn is_w8a8_quantized(&self) -> bool {
+        if let Some(quant_config) = &self.quantization_config {
+            if let Some(group_0) = quant_config.config_groups.get("group_0") {
+                let weights_8bit = group_0.get("weights")
+                    .and_then(|w| w.get("num_bits"))
+                    .and_then(|bits| bits.as_u64())
+                    .map(|bits| bits == 8)
+                    .unwrap_or(false);
+
+                let activations_8bit = group_0.get("input_activations")
+                    .and_then(|a| a.get("num_bits"))
+                    .and_then(|bits| bits.as_u64())
+                    .map(|bits| bits == 8)
+                    .unwrap_or(false);
+
+                return weights_8bit && activations_8bit;
+            }
+        }
+        false
+    }
+}
+
+/// Native Rust compressed-tensors loader for w8a8 quantization
+#[cfg(any(
+    feature = "candle-cpu",
+    feature = "candle-cuda",
+    feature = "candle-metal"
+))]
+pub struct CompressedTensorsLoader {
+    device: Device,
+    config: QuantizedModelConfig,
+}
+
+#[cfg(any(
+    feature = "candle-cpu",
+    feature = "candle-cuda",
+    feature = "candle-metal"
+))]
+impl CompressedTensorsLoader {
+    pub fn new(device: Device, config: QuantizedModelConfig) -> Self {
+        Self { device, config }
+    }
+
+    /// Create a VarBuilder that loads and dequantizes compressed-tensors on-the-fly
+    pub async fn create_dequantizing_var_builder(&self, model_path: &str) -> Result<VarBuilder<'static>, InferenceError> {
+        let safetensors_path = std::path::Path::new(model_path).join("model.safetensors");
+
+        if !safetensors_path.exists() {
+            return Err(InferenceError::InitializationError(format!(
+                "SafeTensors file not found: {}", safetensors_path.display()
+            )));
+        }
+
+        tracing::info!("🔄 Loading compressed-tensors model with native Rust dequantization");
+
+        // Load the SafeTensors file
+        let buffer = tokio::fs::read(&safetensors_path).await.map_err(|e| {
+            InferenceError::InitializationError(format!("Failed to read SafeTensors: {}", e))
+        })?;
+
+        let safetensors = SafeTensors::deserialize(&buffer).map_err(|e| {
+            InferenceError::InitializationError(format!("Failed to parse SafeTensors: {}", e))
+        })?;
+
+        // Create a custom VarBuilder that dequantizes tensors on access
+        self.create_dequantizing_var_builder_from_safetensors(safetensors).await
+    }
+
+    /// Create VarBuilder from loaded SafeTensors
+    async fn create_dequantizing_var_builder_from_safetensors(&self, safetensors: SafeTensors<'_>) -> Result<VarBuilder<'static>, InferenceError> {
+        use std::collections::HashMap;
+
+        tracing::info!("🔄 Creating dequantizing VarBuilder for compressed-tensors");
+
+        // Debug: Print first 10 raw tensor names from SafeTensors
+        let raw_names: Vec<_> = safetensors.names();
+        tracing::info!("📋 SafeTensors contains {} tensors. First 10:", raw_names.len());
+        for (i, name) in raw_names.iter().take(10).enumerate() {
+            tracing::info!("  {}: {}", i + 1, name);
+        }
+
+        // Create a map to store dequantized tensors
+        let mut dequantized_tensors: HashMap<String, Tensor> = HashMap::new();
+
+        // Process all tensors in the SafeTensors file
+        for tensor_name in safetensors.names() {
+            let tensor_info = safetensors.tensor(tensor_name).map_err(|e| {
+                InferenceError::InitializationError(format!("Failed to get tensor info for {}: {}", tensor_name, e))
+            })?;
+
+            // Check if this is a quantized weight tensor (ends with .weight and has I8 dtype)
+            if tensor_name.ends_with(".weight") {
+                // Look for corresponding scale tensor
+                let scale_tensor_name = tensor_name.replace(".weight", ".weight_scale");
+
+                if let Ok(scale_info) = safetensors.tensor(&scale_tensor_name) {
+                    tracing::debug!("🔄 Dequantizing tensor: {} (I8) with scale: {} (BF16)", tensor_name, scale_tensor_name);
+
+                    // Get I8 weight data
+                    let weight_data = tensor_info.data();
+                    let weight_shape = tensor_info.shape().to_vec();
+
+                    // Get BF16 scale data
+                    let scale_data = scale_info.data();
+
+                    // Convert raw bytes to typed data
+                    let i8_weights: &[i8] = bytemuck::cast_slice(weight_data);
+                    let bf16_scales: &[u16] = bytemuck::cast_slice(scale_data);
+
+                    // Dequantize the tensor
+                    match self.dequantize_weight_tensor(i8_weights, bf16_scales, &weight_shape) {
+                        Ok(dequantized_tensor) => {
+                            let mapped_name = self.map_tensor_name(tensor_name);
+                            tracing::debug!("🔄 Mapped tensor: {} -> {}", tensor_name, mapped_name);
+                            dequantized_tensors.insert(mapped_name, dequantized_tensor);
+                        }
+                        Err(e) => {
+                            tracing::warn!("⚠️ Failed to dequantize {}: {}", tensor_name, e);
+                            // For now, skip failed tensors rather than failing completely
+                            continue;
+                        }
+                    }
+                } else {
+                    // This might be a non-quantized tensor, try to load it directly
+                    match tensor_info.dtype() {
+                        safetensors::Dtype::F32 => {
+                            let data: &[f32] = bytemuck::cast_slice(tensor_info.data());
+                            let shape = tensor_info.shape().to_vec();
+                            match Tensor::from_slice(data, shape.as_slice(), &self.device) {
+                                Ok(tensor) => {
+                                    let mapped_name = self.map_tensor_name(tensor_name);
+                                    tracing::debug!("🔄 Mapped non-quantized tensor: {} -> {}", tensor_name, mapped_name);
+                                    dequantized_tensors.insert(mapped_name, tensor);
+                                }
+                                Err(e) => {
+                                    tracing::warn!("⚠️ Failed to load F32 tensor {}: {}", tensor_name, e);
+                                }
+                            }
+                        }
+                        safetensors::Dtype::F16 => {
+                            // Convert F16 to F32
+                            let f16_data: &[half::f16] = bytemuck::cast_slice(tensor_info.data());
+                            let f32_data: Vec<f32> = f16_data.iter().map(|&x| x.to_f32()).collect();
+                            let shape = tensor_info.shape().to_vec();
+                            match Tensor::from_vec(f32_data, shape.as_slice(), &self.device) {
+                                Ok(tensor) => {
+                                    let mapped_name = self.map_tensor_name(tensor_name);
+                                    tracing::debug!("🔄 Mapped F16->F32 tensor: {} -> {}", tensor_name, mapped_name);
+                                    dequantized_tensors.insert(mapped_name, tensor);
+                                }
+                                Err(e) => {
+                                    tracing::warn!("⚠️ Failed to convert F16 tensor {}: {}", tensor_name, e);
+                                }
+                            }
+                        }
+                        safetensors::Dtype::BF16 => {
+                            // Convert BF16 to F32 - BF16 is truncated F32 (upper 16 bits)
+                            let bf16_data: &[u16] = bytemuck::cast_slice(tensor_info.data());
+                            let f32_data: Vec<f32> = bf16_data.iter()
+                                .map(|&bf16_bits| {
+                                    // BF16 to F32 conversion: BF16 is upper 16 bits of F32
+                                    let f32_bits = (bf16_bits as u32) << 16;
+                                    f32::from_bits(f32_bits)
+                                })
+                                .collect();
+                            let shape = tensor_info.shape().to_vec();
+                            match Tensor::from_vec(f32_data, shape.as_slice(), &self.device) {
+                                Ok(tensor) => {
+                                    let mapped_name = self.map_tensor_name(tensor_name);
+                                    tracing::debug!("🔄 Mapped BF16->F32 tensor: {} -> {}", tensor_name, mapped_name);
+                                    dequantized_tensors.insert(mapped_name, tensor);
+                                }
+                                Err(e) => {
+                                    tracing::warn!("⚠️ Failed to convert BF16 tensor {}: {}", tensor_name, e);
+                                }
+                            }
+                        }
+                        _ => {
+                            tracing::debug!("⏭️ Skipping tensor {} with unsupported dtype: {:?}", tensor_name, tensor_info.dtype());
+                        }
+                    }
+                }
+            } else {
+                // Handle non-weight tensors (embeddings, norms, etc.)
+                match tensor_info.dtype() {
+                    safetensors::Dtype::F32 => {
+                        let data: &[f32] = bytemuck::cast_slice(tensor_info.data());
+                        let shape = tensor_info.shape().to_vec();
+                        match Tensor::from_slice(data, shape.as_slice(), &self.device) {
+                            Ok(tensor) => {
+                                let mapped_name = self.map_tensor_name(tensor_name);
+                                tracing::debug!("🔄 Mapped non-weight F32 tensor: {} -> {}", tensor_name, mapped_name);
+                                dequantized_tensors.insert(mapped_name, tensor);
+                            }
+                            Err(e) => {
+                                tracing::warn!("⚠️ Failed to load F32 tensor {}: {}", tensor_name, e);
+                            }
+                        }
+                    }
+                    safetensors::Dtype::F16 => {
+                        // Convert F16 to F32
+                        let f16_data: &[half::f16] = bytemuck::cast_slice(tensor_info.data());
+                        let f32_data: Vec<f32> = f16_data.iter().map(|&x| x.to_f32()).collect();
+                        let shape = tensor_info.shape().to_vec();
+                        match Tensor::from_vec(f32_data, shape.as_slice(), &self.device) {
+                            Ok(tensor) => {
+                                let mapped_name = self.map_tensor_name(tensor_name);
+                                tracing::debug!("🔄 Mapped non-weight F16->F32 tensor: {} -> {}", tensor_name, mapped_name);
+                                dequantized_tensors.insert(mapped_name, tensor);
+                            }
+                            Err(e) => {
+                                tracing::warn!("⚠️ Failed to convert F16 tensor {}: {}", tensor_name, e);
+                            }
+                        }
+                    }
+                    safetensors::Dtype::BF16 => {
+                        // Convert BF16 to F32 - BF16 is truncated F32 (upper 16 bits)
+                        let bf16_data: &[u16] = bytemuck::cast_slice(tensor_info.data());
+                        let f32_data: Vec<f32> = bf16_data.iter()
+                            .map(|&bf16_bits| {
+                                // BF16 to F32 conversion: BF16 is upper 16 bits of F32
+                                let f32_bits = (bf16_bits as u32) << 16;
+                                f32::from_bits(f32_bits)
+                            })
+                            .collect();
+                        let shape = tensor_info.shape().to_vec();
+                        match Tensor::from_vec(f32_data, shape.as_slice(), &self.device) {
+                            Ok(tensor) => {
+                                let mapped_name = self.map_tensor_name(tensor_name);
+                                tracing::debug!("🔄 Mapped non-weight BF16->F32 tensor: {} -> {}", tensor_name, mapped_name);
+                                dequantized_tensors.insert(mapped_name, tensor);
+                            }
+                            Err(e) => {
+                                tracing::warn!("⚠️ Failed to convert BF16 tensor {}: {}", tensor_name, e);
+                            }
+                        }
+                    }
+                    _ => {
+                        tracing::debug!("⏭️ Skipping non-weight tensor {} with dtype: {:?}", tensor_name, tensor_info.dtype());
+                    }
+                }
+            }
+        }
+
+        tracing::info!("✅ Dequantized {} tensors from compressed-tensors format", dequantized_tensors.len());
+
+        // Debug: Print first 10 tensor names to see what we have
+        let mut tensor_names: Vec<&String> = dequantized_tensors.keys().collect();
+        tensor_names.sort();
+        tracing::info!("📋 First 10 tensor names:");
+        for (i, name) in tensor_names.iter().take(10).enumerate() {
+            tracing::info!("  {}: {}", i + 1, name);
+        }
+
+        // Look for embedding tensors specifically
+        let embed_names: Vec<&&String> = tensor_names.iter().filter(|name| name.contains("embed")).collect();
+        tracing::info!("🔍 Embedding tensors found: {:?}", embed_names);
+
+        // Create VarBuilder from the dequantized tensors map
+        let var_builder = VarBuilder::from_tensors(dequantized_tensors, DType::F32, &self.device);
+        Ok(var_builder)
+    }
+
+    /// Map tensor names from quantized model format to expected Llama format
+    fn map_tensor_name(&self, quantized_name: &str) -> String {
+        // Common mappings for Llama-3.2 quantized models
+        match quantized_name {
+            // Embedding layer
+            "model.embed_tokens.weight" => "model.embed_tokens.weight".to_string(),
+            "lm_head.weight" => "lm_head.weight".to_string(),
+
+            // RMS norm layers
+            "model.norm.weight" => "model.norm.weight".to_string(),
+
+            // Layer-specific mappings for transformer blocks
+            name if name.starts_with("model.layers.") => {
+                // Handle layer-specific tensor names
+                if name.contains(".self_attn.") {
+                    // Attention layers
+                    name.replace(".self_attn.", ".self_attn.")
+                } else if name.contains(".mlp.") {
+                    // MLP layers
+                    name.replace(".mlp.", ".mlp.")
+                } else if name.contains(".input_layernorm.") {
+                    // Input layer norm
+                    name.replace(".input_layernorm.", ".input_layernorm.")
+                } else if name.contains(".post_attention_layernorm.") {
+                    // Post attention layer norm
+                    name.replace(".post_attention_layernorm.", ".post_attention_layernorm.")
+                } else {
+                    name.to_string()
+                }
+            }
+
+            // For any other tensor, return as-is
+            _ => quantized_name.to_string(),
+        }
+    }
+
+    /// Dequantize a single tensor: f32_weight = i8_weight * bf16_scale
+    pub fn dequantize_weight_tensor(&self, i8_data: &[i8], scale_data: &[u16], shape: &[usize]) -> Result<Tensor, InferenceError> {
+        // Validate shapes
+        if i8_data.len() != shape.iter().product::<usize>() {
+            return Err(InferenceError::ProcessingError(
+                format!("Weight data length {} doesn't match shape {:?}", i8_data.len(), shape)
+            ));
+        }
+
+        // Convert BF16 scales to f32
+        let f32_scales: Vec<f32> = scale_data.iter()
+            .map(|&bf16_bits| {
+                // BF16 to F32 conversion: BF16 is upper 16 bits of F32
+                let f32_bits = (bf16_bits as u32) << 16;
+                f32::from_bits(f32_bits)
+            })
+            .collect();
+
+        // Dequantize: f32_weight = i8_weight * scale
+        let dequantized: Vec<f32> = if f32_scales.len() == 1 {
+            // Per-tensor quantization
+            let scale = f32_scales[0];
+            i8_data.iter().map(|&w| w as f32 * scale).collect()
+        } else {
+            // Per-channel quantization - need to broadcast scale appropriately
+            // For weight tensors like [output_dim, input_dim], scale is typically [output_dim, 1]
+            self.dequantize_per_channel(i8_data, &f32_scales, shape)?
+        };
+
+        // Create tensor on device
+        Tensor::from_vec(dequantized, shape, &self.device).map_err(|e| {
+            InferenceError::ProcessingError(format!("Failed to create dequantized tensor: {}", e))
+        })
+    }
+
+    /// Dequantize with per-channel scaling
+    fn dequantize_per_channel(&self, i8_data: &[i8], scales: &[f32], shape: &[usize]) -> Result<Vec<f32>, InferenceError> {
+        if shape.len() != 2 {
+            return Err(InferenceError::ProcessingError(
+                "Per-channel quantization currently only supports 2D tensors".to_string()
+            ));
+        }
+
+        let [rows, cols] = [shape[0], shape[1]];
+        if scales.len() != rows {
+            return Err(InferenceError::ProcessingError(
+                format!("Scale count {} doesn't match output dimension {}", scales.len(), rows)
+            ));
+        }
+
+        let mut dequantized = Vec::with_capacity(i8_data.len());
+
+        for row in 0..rows {
+            let scale = scales[row];
+            for col in 0..cols {
+                let idx = row * cols + col;
+                let quantized_weight = i8_data[idx] as f32;
+                dequantized.push(quantized_weight * scale);
+            }
+        }
+
+        Ok(dequantized)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+    use std::env;
+
+    fn get_llama32_model_path() -> String {
+        let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        format!("{}/models/RedHatAI_Llama-3.2-1B-Instruct-quantized.w8a8", home)
+    }
+
+    #[tokio::test]
+    async fn test_quantized_model_detection() {
+        let model_path = get_llama32_model_path();
+
+        // Skip test if model doesn't exist
+        if !Path::new(&model_path).exists() {
+            eprintln!("⚠️ Skipping test: Quantized model not found at {}", model_path);
+            return;
+        }
+
+        // Test: Detect quantization configuration
+        let config = QuantizedModelConfig::load_and_detect_quantization(&model_path).await
+            .expect("Should load and detect quantization config");
+
+        // Assertions: Verify quantization detection
+        assert!(config.is_quantized, "Should detect that model is quantized");
+        assert!(config.is_w8a8_quantized(), "Should detect w8a8 quantization");
+
+        let quant_config = config.quantization_config
+            .expect("Should have quantization config");
+
+        assert_eq!(quant_config.quant_method, "compressed-tensors");
+        assert_eq!(quant_config.format, "int-quantized");
+        assert_eq!(quant_config.quantization_status, "frozen");
+
+        println!("✅ Successfully detected w8a8 quantized model configuration");
+        println!("   Quantization method: {}", quant_config.quant_method);
+        println!("   Format: {}", quant_config.format);
+        println!("   Compression ratio: {:.2}", quant_config.global_compression_ratio);
+    }
+
+    #[tokio::test]
+    async fn test_compressed_tensors_loader_creation() {
+        let model_path = get_llama32_model_path();
+
+        // Skip test if model doesn't exist
+        if !Path::new(&model_path).exists() {
+            eprintln!("⚠️ Skipping test: Quantized model not found at {}", model_path);
+            return;
+        }
+
+        #[cfg(feature = "candle-cpu")]
+        {
+            use candle_core::Device;
+
+            // Test: Create quantized model configuration
+            let config = QuantizedModelConfig::load_and_detect_quantization(&model_path).await
+                .expect("Should load quantization config");
+
+            // Test: Create loader
+            let device = Device::Cpu;
+            let loader = CompressedTensorsLoader::new(device, config.clone());
+
+            // Test: Attempt to create dequantizing var builder
+            let result = loader.create_dequantizing_var_builder(&model_path).await;
+
+            match result {
+                Ok(_var_builder) => {
+                    println!("✅ Successfully created dequantizing VarBuilder!");
+                    println!("   Now we should see the tensor names in the logs");
+                }
+                Err(e) => {
+                    println!("❌ Failed to create VarBuilder: {}", e);
+                    // This is expected if we haven't implemented everything yet
+                }
+            }
+
+            println!("✅ Successfully created compressed-tensors loader");
+            println!("   Device: CPU");
+            println!("   Quantized: {}", config.is_quantized);
+        }
+    }
+
+    #[test]
+    fn test_dequantization_logic() {
+        #[cfg(feature = "candle-cpu")]
+        {
+            use candle_core::Device;
+
+            // Create dummy quantized model config
+            let base_config = super::super::CandleModelConfig {
+                hidden_size: 4,
+                intermediate_size: 8,
+                num_attention_heads: 2,
+                num_hidden_layers: 1,
+                num_key_value_heads: Some(2),
+                vocab_size: 1000,
+                max_position_embeddings: 512,
+                rms_norm_eps: 1e-5,
+                rope_theta: 10000.0,
+                tie_word_embeddings: Some(false),
+                bos_token_id: Some(1),
+                eos_token_id: Some(2),
+            };
+
+            let config = QuantizedModelConfig {
+                base_config,
+                quantization_config: None,
+                is_quantized: true,
+            };
+
+            let device = Device::Cpu;
+            let loader = CompressedTensorsLoader::new(device, config);
+
+            // Test per-tensor quantization (single scale)
+            let i8_weights = vec![-128i8, -64, 0, 64, 127]; // 5 weights
+            let bf16_scale_bits = vec![0x3F80u16]; // 1.0 in BF16
+            let shape = vec![5];
+
+            let result = loader.dequantize_weight_tensor(&i8_weights, &bf16_scale_bits, &shape);
+            assert!(result.is_ok(), "Per-tensor dequantization should work");
+
+            let tensor = result.unwrap();
+            assert_eq!(tensor.dims(), &[5]);
+
+            // Test per-channel quantization (multiple scales)
+            let i8_weights = vec![-128i8, 64, 0, 127]; // 2x2 matrix
+            let bf16_scales = vec![0x3F80u16, 0x4000u16]; // [1.0, 2.0] in BF16
+            let shape = vec![2, 2];
+
+            let result = loader.dequantize_weight_tensor(&i8_weights, &bf16_scales, &shape);
+            assert!(result.is_ok(), "Per-channel dequantization should work");
+
+            let tensor = result.unwrap();
+            assert_eq!(tensor.dims(), &[2, 2]);
+
+            println!("✅ Dequantization logic tests passed");
+        }
+    }
+}

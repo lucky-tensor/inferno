@@ -44,7 +44,8 @@ candle-transformers = { version = "0.9.1", optional = true }
 tokenizers = { workspace = true, optional = true }
 hf-hub = { workspace = true, optional = true }
 safetensors = { workspace = true, optional = true }
-# half removed - not used in current implementation
+bytemuck = { version = "1.0", optional = true }
+half = { version = "2.3", optional = true }
 
 [build-dependencies]
 reqwest = { version = "0.11", features = ["blocking"] }
@@ -79,7 +80,9 @@ candle-cpu = [
     "dep:candle-transformers",
     "dep:tokenizers",
     "hf-hub/tokio",
-    "dep:safetensors"
+    "dep:safetensors",
+    "dep:bytemuck",
+    "dep:half"
 ]  # HuggingFace-compatible inference with Candle framework
 
 candle-cuda = [
@@ -89,6 +92,8 @@ candle-cuda = [
     "dep:tokenizers",
     "hf-hub/tokio",
     "dep:safetensors",
+    "dep:bytemuck",
+    "dep:half",
     "candle-core/cuda",
     "candle-nn/cuda",
     "candle-transformers/cuda"
@@ -101,6 +106,8 @@ candle-metal = [
     "dep:tokenizers",
     "hf-hub/tokio",
     "dep:safetensors",
+    "dep:bytemuck",
+    "dep:half",
     "candle-core/metal",
     "candle-nn/metal",
     "candle-transformers/metal"

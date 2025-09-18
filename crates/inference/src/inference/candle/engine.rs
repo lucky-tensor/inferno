@@ -13,7 +13,9 @@ use crate::inference::{
 };
 
 use super::{
-    backend::CandleBackendType, model_config::CandleModelConfig, tokenizer::CandleTokenizer,
+    backend::CandleBackendType, model_config::CandleModelConfig,
+    quantized_model::{QuantizedModelConfig, CompressedTensorsLoader},
+    tokenizer::CandleTokenizer,
 };
 
 use async_trait::async_trait;
@@ -60,6 +62,7 @@ struct CandleModelWrapper {
     device: Device,
     config: CandleModelConfig,
     llama_config: LlamaConfig,
+    quantized_config: Option<QuantizedModelConfig>,
 }
 
 /// Statistics tracking for inference operations
@@ -268,10 +271,17 @@ impl CandleInferenceEngine {
 
             generated_tokens.push(next_token);
 
-            // Check for end tokens (use model-specific EOS token ID)
-            if next_token == 2 {
+            // Check for end tokens (model-specific EOS token IDs)
+            let is_eos = if wrapper.config.vocab_size > 100000 {
+                // Llama-3.2 EOS token: 128009 (also handle other common ones)
+                next_token == 128009 || next_token == 128001 || next_token == 128008
+            } else {
                 // TinyLlama EOS token
-                debug!("Generated end token, stopping generation");
+                next_token == 2
+            };
+
+            if is_eos {
+                debug!("Generated end token {}, stopping generation", next_token);
                 break;
             }
 
@@ -340,8 +350,31 @@ impl InferenceEngine for CandleInferenceEngine {
             let device = self.backend_type.create_device()?;
             info!("Created {} device successfully", self.backend_type);
 
-            // Load model configuration
-            let model_config = CandleModelConfig::load_from_path(&config.model_path).await?;
+            // Load model configuration with quantization detection
+            let quantized_config = QuantizedModelConfig::load_and_detect_quantization(&config.model_path).await?;
+            let model_config = quantized_config.base_config.clone();
+
+            if quantized_config.is_quantized {
+                info!("✨ Detected quantized model!");
+                info!("   Quantization method: {}",
+                    quantized_config.quantization_config.as_ref()
+                        .map(|q| q.quant_method.as_str()).unwrap_or("unknown"));
+
+                if quantized_config.is_w8a8_quantized() {
+                    info!("   Format: W8A8 (8-bit weights, 8-bit activations)");
+                    info!("   Compression ratio: {:.2}x",
+                        quantized_config.quantization_config.as_ref()
+                            .map(|q| q.global_compression_ratio).unwrap_or(1.0));
+                    info!("   🚀 Using compressed-tensors dequantization pipeline");
+                } else {
+                    info!("   Format: Other quantization scheme");
+                    return Err(InferenceError::InitializationError(
+                        "Quantized model detected but not W8A8 format. Only W8A8 compressed-tensors format is currently supported.".to_string()
+                    ));
+                }
+            } else {
+                info!("Standard (non-quantized) model detected");
+            }
             info!(
                 "Loaded model config: {} layers, {} heads, vocab_size: {}",
                 model_config.num_hidden_layers,
@@ -375,21 +408,36 @@ impl InferenceEngine for CandleInferenceEngine {
                 info!("Model uses weight tying (tie_word_embeddings: true) - lm_head.weight will be shared with embed_tokens");
             }
 
-            // Load model weights using VarBuilder from SafeTensors
-            let dtype = DType::F32; // Use F32 for CPU inference
-            let base_var_builder = unsafe {
-                VarBuilder::from_mmaped_safetensors(&[&safetensors_path], dtype, &device)
-            }
-            .map_err(|e| {
-                InferenceError::InitializationError(format!(
-                    "Failed to load SafeTensors weights: {}",
-                    e
-                ))
-            })?;
+            // Load model weights using VarBuilder - handle quantized vs standard models
+            let var_builder = if quantized_config.is_quantized && quantized_config.is_w8a8_quantized() {
+                // Use compressed-tensors loader for quantized models
+                info!("🔄 Loading quantized model using compressed-tensors dequantization");
+                info!("🔄 Creating CompressedTensorsLoader...");
+                let loader = CompressedTensorsLoader::new(device.clone(), quantized_config.clone());
+                info!("🔄 Calling create_dequantizing_var_builder...");
+                let base_var_builder = loader.create_dequantizing_var_builder(&config.model_path).await?;
+                info!("🔄 VarBuilder created successfully, applying remapping...");
 
-            // Create a remapping VarBuilder to handle tensor name differences
-            // This model uses "transformer.*" naming while Candle expects "model.*" naming
-            let var_builder = Self::create_remapping_var_builder(base_var_builder);
+                // Apply remapping for tensor name differences
+                Self::create_remapping_var_builder(base_var_builder)
+            } else {
+                // Use standard SafeTensors loading for non-quantized models
+                info!("🔄 Loading standard model using SafeTensors");
+                let dtype = DType::F32; // Use F32 for CPU inference
+                let base_var_builder = unsafe {
+                    VarBuilder::from_mmaped_safetensors(&[&safetensors_path], dtype, &device)
+                }
+                .map_err(|e| {
+                    InferenceError::InitializationError(format!(
+                        "Failed to load SafeTensors weights: {}",
+                        e
+                    ))
+                })?;
+
+                // Create a remapping VarBuilder to handle tensor name differences
+                // This model uses "transformer.*" naming while Candle expects "model.*" naming
+                Self::create_remapping_var_builder(base_var_builder)
+            };
 
             // Create Llama configuration for candle-transformers
             let llama_config = LlamaConfig {
@@ -431,6 +479,7 @@ impl InferenceEngine for CandleInferenceEngine {
                 device,
                 config: model_config,
                 llama_config,
+                quantized_config: Some(quantized_config),
             };
 
             *self.model.write().await = Some(wrapper);
@@ -473,8 +522,24 @@ impl InferenceEngine for CandleInferenceEngine {
                 .as_ref()
                 .ok_or_else(|| InferenceError::ProcessingError("Model not loaded".to_string()))?;
 
-            // Simple prompt format for TinyLlama
-            let formatted_prompt = format!("Q: {}\nA:", request.prompt);
+            // Check if this is a quantized model
+            let is_quantized = wrapper.quantized_config.as_ref()
+                .map(|qc| qc.is_quantized)
+                .unwrap_or(false);
+
+            if is_quantized {
+                debug!("Running quantized inference (w8a8 compressed-tensors format)");
+                debug!("Note: Currently using standard Llama model - full quantized inference optimization pending");
+            }
+
+            // Format prompt based on model type - try simple format for now
+            let formatted_prompt = if wrapper.config.vocab_size > 100000 {
+                // Simple format for Llama-3.2 to avoid tokenizer issues
+                format!("Question: {}\nAnswer:", request.prompt)
+            } else {
+                // TinyLlama style (smaller vocab)
+                format!("Q: {}\nA:", request.prompt)
+            };
 
             // Tokenize input with special tokens
             let encoding = wrapper

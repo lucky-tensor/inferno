@@ -3,7 +3,11 @@
 pub mod backend;
 pub mod engine;
 pub mod model_config;
+pub mod quantized_model;
 pub mod tokenizer;
+
+#[cfg(test)]
+pub mod debug_tensors;
 
 #[cfg(test)]
 pub mod test;
@@ -14,4 +18,5 @@ pub mod tokenizer_test;
 pub use backend::CandleBackendType;
 pub use engine::CandleInferenceEngine;
 pub use model_config::CandleModelConfig;
+pub use quantized_model::{QuantizedModelConfig, CompressedTensorsLoader};
 pub use tokenizer::CandleTokenizer;

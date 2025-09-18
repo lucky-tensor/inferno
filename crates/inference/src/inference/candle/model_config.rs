@@ -59,7 +59,17 @@ impl CandleModelConfig {
             rope_theta: config["rope_theta"].as_f64().unwrap_or(10000.0),
             tie_word_embeddings: config["tie_word_embeddings"].as_bool(),
             bos_token_id: config["bos_token_id"].as_u64().map(|v| v as u32),
-            eos_token_id: config["eos_token_id"].as_u64().map(|v| v as u32),
+            eos_token_id: config["eos_token_id"]
+                .as_u64()
+                .map(|v| v as u32)
+                .or_else(|| {
+                    // Handle array of EOS tokens - take the first one
+                    config["eos_token_id"]
+                        .as_array()
+                        .and_then(|arr| arr.get(0))
+                        .and_then(|v| v.as_u64())
+                        .map(|v| v as u32)
+                }),
         })
     }
 

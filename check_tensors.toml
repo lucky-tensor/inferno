@@ -1,0 +1,2 @@
+[dependencies]
+safetensors = "0.4"
