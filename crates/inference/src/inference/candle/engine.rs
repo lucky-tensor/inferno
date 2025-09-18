@@ -15,7 +15,8 @@ use crate::inference::{
 use super::{
     backend::CandleBackendType,
     model_config::CandleModelConfig,
-    quantized_model::{CompressedTensorsLoader, QuantizedModelConfig},
+    quantized_model::{CompressedTensorsLoader, QuantizedModelConfig, QuantizedVarBuilder},
+    simple_quantized_llama::HybridQuantizedLlama,
     tokenizer::CandleTokenizer,
 };
 
@@ -51,6 +52,17 @@ use candle_transformers::models::llama::{Cache, Config as LlamaConfig, Llama};
 ))]
 use tokenizers::Tokenizer;
 
+/// Model type enum to support both regular and quantized models
+#[cfg(any(
+    feature = "candle-cpu",
+    feature = "candle-cuda",
+    feature = "candle-metal"
+))]
+enum CandleModelType {
+    Regular(Llama),
+    Quantized(HybridQuantizedLlama),
+}
+
 /// Model wrapper containing the loaded model and related components
 #[cfg(any(
     feature = "candle-cpu",
@@ -58,7 +70,7 @@ use tokenizers::Tokenizer;
     feature = "candle-metal"
 ))]
 struct CandleModelWrapper {
-    model: Llama,
+    model: CandleModelType,
     tokenizer: Tokenizer,
     device: Device,
     config: CandleModelConfig,
@@ -200,13 +212,46 @@ impl CandleInferenceEngine {
         let mut current_input = input_tensor;
 
         for i in 0..max_tokens {
-            // Run forward pass
-            let logits = wrapper
-                .model
-                .forward(&current_input, 0, &mut cache)
-                .map_err(|e| {
-                    InferenceError::ProcessingError(format!("Model forward pass failed: {}", e))
-                })?;
+            // Run forward pass - TRUE quantized vs regular
+            let logits = match &wrapper.model {
+                CandleModelType::Regular(llama_model) => {
+                    llama_model.forward(&current_input, 0, &mut cache).map_err(|e| {
+                        InferenceError::ProcessingError(format!("Regular model forward pass failed: {}", e))
+                    })?
+                }
+                CandleModelType::Quantized(quantized_llama) => {
+                    debug!("🔥 Running TRUE quantized inference with INT8 weights!");
+
+                    // Create simplified cache structure for quantized model
+                    let seqlen_offsets = vec![0; current_input.dim(0).unwrap_or(1)];
+                    let start_offsets_kernel = Tensor::zeros(
+                        (seqlen_offsets.len(),),
+                        DType::U32,
+                        &wrapper.device,
+                    ).map_err(|e| {
+                        InferenceError::ProcessingError(format!("Failed to create start offsets: {}", e))
+                    })?;
+                    let context_lens = vec![(0, current_input.dim(1).unwrap_or(1)); seqlen_offsets.len()];
+
+                    // Create per-layer caches (simplified for now)
+                    let mut kv_caches: Vec<Cache> = (0..wrapper.llama_config.num_hidden_layers)
+                        .map(|_| {
+                            Cache::new(true, DType::F32, &wrapper.llama_config, &wrapper.device)
+                                .map_err(|e| InferenceError::InitializationError(format!("Failed to create layer cache: {}", e)))
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+
+                    quantized_llama.forward(
+                        &current_input,
+                        &seqlen_offsets,
+                        start_offsets_kernel,
+                        context_lens,
+                        &mut kv_caches,
+                    ).map_err(|e| {
+                        InferenceError::ProcessingError(format!("🔥 Quantized model forward pass failed: {}", e))
+                    })?
+                }
+            };
 
             // Get the last token's logits
             let logits = if logits.dims().len() == 3 {
@@ -267,9 +312,25 @@ impl CandleInferenceEngine {
                 InferenceError::ProcessingError(format!("Token sampling failed: {}", e))
             })?;
 
-            let next_token = next_token_tensor.to_scalar::<u32>().map_err(|e| {
-                InferenceError::ProcessingError(format!("Failed to extract token: {}", e))
-            })?;
+            let next_token = if next_token_tensor.rank() == 0 {
+                // Scalar tensor
+                next_token_tensor.to_scalar::<u32>().map_err(|e| {
+                    InferenceError::ProcessingError(format!("Failed to extract token: {}", e))
+                })?
+            } else if next_token_tensor.rank() == 1 {
+                // 1D tensor with batch dimension, extract first element
+                let token_vec = next_token_tensor.to_vec1::<u32>().map_err(|e| {
+                    InferenceError::ProcessingError(format!("Failed to extract token from 1D tensor: {}", e))
+                })?;
+                if token_vec.is_empty() {
+                    return Err(InferenceError::ProcessingError("Empty token tensor".to_string()));
+                }
+                token_vec[0]
+            } else {
+                return Err(InferenceError::ProcessingError(
+                    format!("Unexpected token tensor rank: {}, expected 0 or 1", next_token_tensor.rank())
+                ));
+            };
 
             generated_tokens.push(next_token);
 
@@ -475,10 +536,42 @@ impl InferenceEngine for CandleInferenceEngine {
                 tie_word_embeddings: is_weight_tied,
             };
 
-            // Create the Llama model with loaded weights
-            let llama_model = Llama::load(var_builder, &llama_config).map_err(|e| {
-                InferenceError::InitializationError(format!("Failed to create Llama model: {}", e))
-            })?;
+            // Use TRUE runtime quantized inference - preserve INT8 weights
+            let model_type = if quantized_config.is_quantized && quantized_config.is_w8a8_quantized() {
+                info!("🚀 Loading TRUE quantized model - INT8 weights preserved in memory!");
+                info!("   Memory savings: 4x smaller weights in GPU memory");
+                info!("   Compute: Runtime INT8 x INT8 -> INT32 matrix multiplication");
+                info!("   NO ahead-of-time dequantization!");
+
+                // Load quantized tensors (preserves INT8 weights)
+                let loader = CompressedTensorsLoader::new(device.clone(), quantized_config.clone());
+                let quantized_builder = loader.create_quantized_var_builder(&config.model_path).await?;
+
+                // Also load non-quantized tensors (embeddings, norms) as FP32
+                let base_var_builder = loader.create_dequantizing_var_builder(&config.model_path).await?;
+                let regular_var_builder = Self::create_remapping_var_builder(base_var_builder);
+
+                let quantized_llama = HybridQuantizedLlama::load(quantized_builder, regular_var_builder, &llama_config)?;
+                CandleModelType::Quantized(quantized_llama)
+            } else {
+                // Create regular model
+                let dtype = DType::F32;
+                let base_var_builder = unsafe {
+                    VarBuilder::from_mmaped_safetensors(&[&safetensors_path], dtype, &device)
+                }
+                .map_err(|e| {
+                    InferenceError::InitializationError(format!(
+                        "Failed to load SafeTensors weights: {}",
+                        e
+                    ))
+                })?;
+                let var_builder = Self::create_remapping_var_builder(base_var_builder);
+
+                let llama_model = Llama::load(var_builder, &llama_config).map_err(|e| {
+                    InferenceError::InitializationError(format!("Failed to create Llama model: {}", e))
+                })?;
+                CandleModelType::Regular(llama_model)
+            };
 
             let param_count = model_config.estimate_parameters();
             info!(
@@ -488,7 +581,7 @@ impl InferenceEngine for CandleInferenceEngine {
 
             // Store the model wrapper
             let wrapper = CandleModelWrapper {
-                model: llama_model,
+                model: model_type,
                 tokenizer,
                 device,
                 config: model_config,

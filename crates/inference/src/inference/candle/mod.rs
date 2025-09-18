@@ -4,6 +4,8 @@ pub mod backend;
 pub mod engine;
 pub mod model_config;
 pub mod quantized_model;
+pub mod quantized_llama;
+pub mod simple_quantized_llama;
 pub mod tokenizer;
 
 #[cfg(test)]

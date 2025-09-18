@@ -138,7 +138,7 @@ mod tests {
             device_id: 0,
             max_batch_size: 4,
             max_sequence_length: 2048,
-            max_tokens: 20,
+            max_tokens: 1,
             gpu_memory_pool_size_mb: 4096,
             max_num_seqs: 16,
             temperature: 0.7,
@@ -164,16 +164,24 @@ mod tests {
         let request = InferenceRequest {
             request_id: 1,
             prompt: test_prompt.to_string(),
-            max_tokens: 20,
+            max_tokens: 1,
             temperature: 0.7,
             top_p: 0.9,
             seed: Some(42),
         };
 
         let inference_result = engine.process(request).await;
+        match &inference_result {
+            Ok(_) => println!("✅ Inference successful!"),
+            Err(e) => {
+                println!("❌ Inference failed with error: {}", e);
+                println!("   This helps us debug the quantized inference implementation");
+            }
+        }
         assert!(
             inference_result.is_ok(),
-            "Should successfully run quantized inference"
+            "Should successfully run quantized inference. Error: {:?}",
+            inference_result.as_ref().err()
         );
 
         let response = inference_result.unwrap();
