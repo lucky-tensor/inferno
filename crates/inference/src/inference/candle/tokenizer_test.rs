@@ -8,8 +8,8 @@
 mod tests {
     use super::super::tokenizer::CandleTokenizer;
     use serde_json::Value;
-    use std::path::Path;
     use std::env;
+    use std::path::Path;
 
     fn get_small_model_path() -> String {
         let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
@@ -92,7 +92,8 @@ mod tests {
         // Accept both PreTrainedTokenizer and GPT2Tokenizer as valid tokenizer classes
         assert!(
             tokenizer_class == "PreTrainedTokenizer" || tokenizer_class == "GPT2Tokenizer",
-            "Should be PreTrainedTokenizer or GPT2Tokenizer, got: {}", tokenizer_class
+            "Should be PreTrainedTokenizer or GPT2Tokenizer, got: {}",
+            tokenizer_class
         );
 
         // Test model config.json parsing
@@ -111,7 +112,8 @@ mod tests {
         // Different models have different vocab sizes - just check it's reasonable
         assert!(
             vocab_size > 1000 && vocab_size < 200_000,
-            "Should have a reasonable vocab size (1000-200000), got: {}", vocab_size
+            "Should have a reasonable vocab size (1000-200000), got: {}",
+            vocab_size
         );
 
         // Test tokenizer.json parsing
@@ -165,8 +167,9 @@ mod tests {
         println!("  ✅ Found {} special tokens", added_tokens.len());
         // Different models have different numbers of special tokens - just check it's reasonable
         assert!(
-            added_tokens.len() > 0 && added_tokens.len() < 500,
-            "Should have a reasonable number of special tokens (1-500), got: {}", added_tokens.len()
+            !added_tokens.is_empty() && added_tokens.len() < 500,
+            "Should have a reasonable number of special tokens (1-500), got: {}",
+            added_tokens.len()
         );
 
         // Test parsing any special tokens that exist (model-agnostic)
@@ -178,7 +181,10 @@ mod tests {
                 token_count += 1;
             }
         }
-        assert!(token_count > 0, "Should be able to parse at least one special token");
+        assert!(
+            token_count > 0,
+            "Should be able to parse at least one special token"
+        );
     }
 
     #[tokio::test]

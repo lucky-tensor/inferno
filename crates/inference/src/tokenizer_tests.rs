@@ -8,8 +8,8 @@
 #[cfg(test)]
 mod tests {
     use serde_json::Value;
-    use std::path::Path;
     use std::env;
+    use std::path::Path;
 
     fn get_small_model_path() -> String {
         let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
@@ -85,7 +85,8 @@ mod tests {
         // Accept both PreTrainedTokenizer and GPT2Tokenizer as valid tokenizer classes
         assert!(
             tokenizer_class == "PreTrainedTokenizer" || tokenizer_class == "GPT2Tokenizer",
-            "Should be PreTrainedTokenizer or GPT2Tokenizer, got: {}", tokenizer_class
+            "Should be PreTrainedTokenizer or GPT2Tokenizer, got: {}",
+            tokenizer_class
         );
 
         // Test model config.json parsing
@@ -104,7 +105,8 @@ mod tests {
         // Different models have different vocab sizes - just check it's reasonable
         assert!(
             vocab_size > 1000 && vocab_size < 200_000,
-            "Should have a reasonable vocab size (1000-200000), got: {}", vocab_size
+            "Should have a reasonable vocab size (1000-200000), got: {}",
+            vocab_size
         );
 
         // Test tokenizer.json parsing
@@ -169,10 +171,7 @@ mod tests {
                                 "    ✅ Direct tokenization successful: {} tokens",
                                 tokens.len()
                             );
-                            assert!(
-                                tokens.len() > 0,
-                                "Should produce at least one token"
-                            );
+                            assert!(!tokens.is_empty(), "Should produce at least one token");
                         }
                         Err(e) => {
                             println!("    ❌ Direct tokenization failed: {}", e);

@@ -577,7 +577,7 @@ mod tests {
         let config = InfernoConfig {
             model_path: "test-model".to_string(),
             gpu_memory_pool_size_mb: 32768, // 32GB
-            max_batch_size: 4, // This will exceed 65536 limit (32768 * 4 = 131072)
+            max_batch_size: 4,              // This will exceed 65536 limit (32768 * 4 = 131072)
             ..Default::default()
         };
 

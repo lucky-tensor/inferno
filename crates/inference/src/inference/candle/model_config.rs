@@ -52,9 +52,8 @@ impl CandleModelConfig {
             num_hidden_layers: config["num_hidden_layers"].as_u64().unwrap_or(22) as usize,
             num_key_value_heads: config["num_key_value_heads"].as_u64().map(|v| v as usize),
             vocab_size: config["vocab_size"].as_u64().unwrap_or(32000) as usize,
-            max_position_embeddings: config["max_position_embeddings"]
-                .as_u64()
-                .unwrap_or(2048) as usize,
+            max_position_embeddings: config["max_position_embeddings"].as_u64().unwrap_or(2048)
+                as usize,
             rms_norm_eps: config["rms_norm_eps"].as_f64().unwrap_or(1e-5),
             rope_theta: config["rope_theta"].as_f64().unwrap_or(10000.0),
             tie_word_embeddings: config["tie_word_embeddings"].as_bool(),
@@ -66,8 +65,8 @@ impl CandleModelConfig {
                     // Handle array of EOS tokens - take the first one
                     config["eos_token_id"]
                         .as_array()
-                        .and_then(|arr| arr.get(0))
-                        .and_then(|v| v.as_u64())
+                        .and_then(|arr| arr.first())
+                        .and_then(serde_json::Value::as_u64)
                         .map(|v| v as u32)
                 }),
         })

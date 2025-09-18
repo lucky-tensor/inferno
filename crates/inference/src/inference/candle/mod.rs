@@ -18,5 +18,5 @@ pub mod tokenizer_test;
 pub use backend::CandleBackendType;
 pub use engine::CandleInferenceEngine;
 pub use model_config::CandleModelConfig;
-pub use quantized_model::{QuantizedModelConfig, CompressedTensorsLoader};
+pub use quantized_model::{CompressedTensorsLoader, QuantizedModelConfig};
 pub use tokenizer::CandleTokenizer;

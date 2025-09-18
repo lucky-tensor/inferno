@@ -7,8 +7,8 @@ use burn::{
         Int, Tensor, TensorData,
     },
 };
-use std::error::Error;
 use std::env;
+use std::error::Error;
 use std::path::PathBuf;
 use tokenizers::Tokenizer;
 

@@ -3,8 +3,8 @@
 
 use inferno_inference::config::InfernoConfig;
 use inferno_inference::inference::{BurnInferenceEngine, InferenceRequest};
-use std::time::Instant;
 use std::env;
+use std::time::Instant;
 
 #[tokio::test]
 async fn test_burn_cpu_inference_quality() {
@@ -20,7 +20,10 @@ async fn test_burn_cpu_inference_quality() {
 
     // Configure for CPU inference
     let config = InfernoConfig {
-        model_path: format!("{}/models/tinyllama-1.1b", env::var("HOME").unwrap_or_else(|_| ".".to_string())),
+        model_path: format!(
+            "{}/models/tinyllama-1.1b",
+            env::var("HOME").unwrap_or_else(|_| ".".to_string())
+        ),
         model_name: "tinyllama".to_string(),
         device_id: -1, // CPU
         max_batch_size: 1,
@@ -150,7 +153,10 @@ async fn test_multiple_inference_requests() {
 
     // Quick initialization for multiple tests
     let config = InfernoConfig {
-        model_path: format!("{}/models/tinyllama-1.1b", env::var("HOME").unwrap_or_else(|_| ".".to_string())),
+        model_path: format!(
+            "{}/models/tinyllama-1.1b",
+            env::var("HOME").unwrap_or_else(|_| ".".to_string())
+        ),
         model_name: "tinyllama".to_string(),
         device_id: -1,
         max_batch_size: 1,

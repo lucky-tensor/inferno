@@ -13,8 +13,9 @@ use crate::inference::{
 };
 
 use super::{
-    backend::CandleBackendType, model_config::CandleModelConfig,
-    quantized_model::{QuantizedModelConfig, CompressedTensorsLoader},
+    backend::CandleBackendType,
+    model_config::CandleModelConfig,
+    quantized_model::{CompressedTensorsLoader, QuantizedModelConfig},
     tokenizer::CandleTokenizer,
 };
 
@@ -169,6 +170,7 @@ impl CandleInferenceEngine {
         feature = "candle-cuda",
         feature = "candle-metal"
     ))]
+    #[allow(clippy::too_many_lines)]
     async fn generate_tokens(
         wrapper: &CandleModelWrapper,
         input_tokens: &[u32],
@@ -272,9 +274,9 @@ impl CandleInferenceEngine {
             generated_tokens.push(next_token);
 
             // Check for end tokens (model-specific EOS token IDs)
-            let is_eos = if wrapper.config.vocab_size > 100000 {
+            let is_eos = if wrapper.config.vocab_size > 100_000 {
                 // Llama-3.2 EOS token: 128009 (also handle other common ones)
-                next_token == 128009 || next_token == 128001 || next_token == 128008
+                next_token == 128_009 || next_token == 128_001 || next_token == 128_008
             } else {
                 // TinyLlama EOS token
                 next_token == 2
@@ -306,7 +308,6 @@ impl CandleInferenceEngine {
 
         Ok(generated_tokens)
     }
-
 }
 
 impl Default for CandleInferenceEngine {
@@ -351,20 +352,29 @@ impl InferenceEngine for CandleInferenceEngine {
             info!("Created {} device successfully", self.backend_type);
 
             // Load model configuration with quantization detection
-            let quantized_config = QuantizedModelConfig::load_and_detect_quantization(&config.model_path).await?;
+            let quantized_config =
+                QuantizedModelConfig::load_and_detect_quantization(&config.model_path).await?;
             let model_config = quantized_config.base_config.clone();
 
             if quantized_config.is_quantized {
                 info!("✨ Detected quantized model!");
-                info!("   Quantization method: {}",
-                    quantized_config.quantization_config.as_ref()
-                        .map(|q| q.quant_method.as_str()).unwrap_or("unknown"));
+                info!(
+                    "   Quantization method: {}",
+                    quantized_config
+                        .quantization_config
+                        .as_ref()
+                        .map_or("unknown", |q| q.quant_method.as_str())
+                );
 
                 if quantized_config.is_w8a8_quantized() {
                     info!("   Format: W8A8 (8-bit weights, 8-bit activations)");
-                    info!("   Compression ratio: {:.2}x",
-                        quantized_config.quantization_config.as_ref()
-                            .map(|q| q.global_compression_ratio).unwrap_or(1.0));
+                    info!(
+                        "   Compression ratio: {:.2}x",
+                        quantized_config
+                            .quantization_config
+                            .as_ref()
+                            .map_or(1.0, |q| q.global_compression_ratio)
+                    );
                     info!("   🚀 Using compressed-tensors dequantization pipeline");
                 } else {
                     info!("   Format: Other quantization scheme");
@@ -409,13 +419,17 @@ impl InferenceEngine for CandleInferenceEngine {
             }
 
             // Load model weights using VarBuilder - handle quantized vs standard models
-            let var_builder = if quantized_config.is_quantized && quantized_config.is_w8a8_quantized() {
+            let var_builder = if quantized_config.is_quantized
+                && quantized_config.is_w8a8_quantized()
+            {
                 // Use compressed-tensors loader for quantized models
                 info!("🔄 Loading quantized model using compressed-tensors dequantization");
                 info!("🔄 Creating CompressedTensorsLoader...");
                 let loader = CompressedTensorsLoader::new(device.clone(), quantized_config.clone());
                 info!("🔄 Calling create_dequantizing_var_builder...");
-                let base_var_builder = loader.create_dequantizing_var_builder(&config.model_path).await?;
+                let base_var_builder = loader
+                    .create_dequantizing_var_builder(&config.model_path)
+                    .await?;
                 info!("🔄 VarBuilder created successfully, applying remapping...");
 
                 // Apply remapping for tensor name differences
@@ -453,9 +467,9 @@ impl InferenceEngine for CandleInferenceEngine {
                 rms_norm_eps: model_config.rms_norm_eps,
                 rope_theta: model_config.rope_theta as f32,
                 bos_token_id: model_config.bos_token_id,
-                eos_token_id: model_config.eos_token_id.map(|id| {
-                    candle_transformers::models::llama::LlamaEosToks::Single(id)
-                }),
+                eos_token_id: model_config
+                    .eos_token_id
+                    .map(candle_transformers::models::llama::LlamaEosToks::Single),
                 rope_scaling: None,
                 use_flash_attn: false,
                 tie_word_embeddings: is_weight_tied,
@@ -523,9 +537,10 @@ impl InferenceEngine for CandleInferenceEngine {
                 .ok_or_else(|| InferenceError::ProcessingError("Model not loaded".to_string()))?;
 
             // Check if this is a quantized model
-            let is_quantized = wrapper.quantized_config.as_ref()
-                .map(|qc| qc.is_quantized)
-                .unwrap_or(false);
+            let is_quantized = wrapper
+                .quantized_config
+                .as_ref()
+                .is_some_and(|qc| qc.is_quantized);
 
             if is_quantized {
                 debug!("Running quantized inference (w8a8 compressed-tensors format)");
@@ -533,7 +548,7 @@ impl InferenceEngine for CandleInferenceEngine {
             }
 
             // Format prompt based on model type - try simple format for now
-            let formatted_prompt = if wrapper.config.vocab_size > 100000 {
+            let formatted_prompt = if wrapper.config.vocab_size > 100_000 {
                 // Simple format for Llama-3.2 to avoid tokenizer issues
                 format!("Question: {}\nAnswer:", request.prompt)
             } else {

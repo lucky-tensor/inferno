@@ -1,7 +1,7 @@
 //! Direct test of TinyLlama weight loading
 
-use std::path::PathBuf;
 use std::env;
+use std::path::PathBuf;
 
 #[cfg(feature = "burn-cpu")]
 #[tokio::test]

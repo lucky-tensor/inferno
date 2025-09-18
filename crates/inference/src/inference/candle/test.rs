@@ -1,4 +1,4 @@
-//! Tests for Candle inference engine with TinyLlama model
+//! Tests for Candle inference engine with `TinyLlama` model
 
 #![allow(missing_docs)]
 #![allow(clippy::cast_precision_loss)]
@@ -9,8 +9,8 @@ mod tests {
     use super::super::{CandleBackendType, CandleInferenceEngine, QuantizedModelConfig};
     use crate::config::InfernoConfig;
     use crate::inference::{InferenceEngine, InferenceRequest};
-    use std::path::Path;
     use std::env;
+    use std::path::Path;
 
     fn get_tinyllama_model_path() -> String {
         let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
@@ -19,7 +19,10 @@ mod tests {
 
     fn get_llama32_model_path() -> String {
         let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
-        format!("{}/models/RedHatAI_Llama-3.2-1B-Instruct-quantized.w8a8", home)
+        format!(
+            "{}/models/RedHatAI_Llama-3.2-1B-Instruct-quantized.w8a8",
+            home
+        )
     }
 
     #[tokio::test]
@@ -38,11 +41,18 @@ mod tests {
         println!("🔍 Testing quantized model detection for Llama-3.2");
 
         // Test quantization detection
-        let quantized_config = QuantizedModelConfig::load_and_detect_quantization(&model_path_str).await
+        let quantized_config = QuantizedModelConfig::load_and_detect_quantization(&model_path_str)
+            .await
             .expect("Should load and detect quantization config");
 
-        assert!(quantized_config.is_quantized, "Should detect quantized model");
-        assert!(quantized_config.is_w8a8_quantized(), "Should detect w8a8 quantization");
+        assert!(
+            quantized_config.is_quantized,
+            "Should detect quantized model"
+        );
+        assert!(
+            quantized_config.is_w8a8_quantized(),
+            "Should detect w8a8 quantization"
+        );
 
         println!("✅ Quantized model detection working correctly");
         println!("   Model is quantized: {}", quantized_config.is_quantized);
@@ -77,7 +87,9 @@ mod tests {
             }
             Err(e) => {
                 let error_str = format!("{}", e);
-                if error_str.contains("W8A8 quantized models detected") || error_str.contains("compressed-tensors support is needed") {
+                if error_str.contains("W8A8 quantized models detected")
+                    || error_str.contains("compressed-tensors support is needed")
+                {
                     println!("✅ Expected failure: quantized model properly detected and rejected");
                     println!("   Error: {}", e);
                     println!("   This confirms quantization detection is working");
@@ -87,7 +99,10 @@ mod tests {
                     println!("   This confirms we need special quantized tensor handling");
                 } else {
                     println!("❌ Unexpected error type: {}", e);
-                    panic!("Expected quantization-related error, got different error: {}", e);
+                    panic!(
+                        "Expected quantization-related error, got different error: {}",
+                        e
+                    );
                 }
             }
         }
@@ -156,11 +171,20 @@ mod tests {
         };
 
         let inference_result = engine.process(request).await;
-        assert!(inference_result.is_ok(), "Should successfully run quantized inference");
+        assert!(
+            inference_result.is_ok(),
+            "Should successfully run quantized inference"
+        );
 
         let response = inference_result.unwrap();
-        assert!(response.generated_tokens > 0, "Should generate tokens with quantized model");
-        assert!(response.inference_time_ms > 0.0, "Should measure inference time");
+        assert!(
+            response.generated_tokens > 0,
+            "Should generate tokens with quantized model"
+        );
+        assert!(
+            response.inference_time_ms > 0.0,
+            "Should measure inference time"
+        );
 
         println!("✅ Quantized inference successful!");
         println!("🎯 Generated: '{}'", response.generated_text);

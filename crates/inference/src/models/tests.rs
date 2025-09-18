@@ -235,8 +235,7 @@ mod model_loading_tests {
                 type Backend = NdArray<f32>;
 
                 let home = std::env::var("HOME").unwrap_or_else(|_| "/home/jeef".to_string());
-                let model_path =
-                    PathBuf::from(format!("{}/models/tinyllama-1.1b", home));
+                let model_path = PathBuf::from(format!("{}/models/tinyllama-1.1b", home));
 
                 // Skip test if model not available (for CI/other environments)
                 if !model_path.exists() {
@@ -427,10 +426,7 @@ mod model_loading_tests {
         fn test_real_tinyllama_tokenizer_format_validation() {
             // Test the actual tokenizer format from the TinyLlama model
             let home = std::env::var("HOME").unwrap_or_else(|_| "/home/jeef".to_string());
-            let tokenizer_path = format!(
-                "{}/models/tinyllama-1.1b/tokenizer.json",
-                home
-            );
+            let tokenizer_path = format!("{}/models/tinyllama-1.1b/tokenizer.json", home);
 
             if std::path::Path::new(&tokenizer_path).exists() {
                 let content = fs::read_to_string(&tokenizer_path).unwrap();
