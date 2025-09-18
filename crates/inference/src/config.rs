@@ -279,7 +279,7 @@ impl Default for ServiceDiscoveryConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            service_name: "vllm-backend".to_string(),
+            service_name: "inferno-backend".to_string(),
             registration_ttl_secs: 60,
             heartbeat_interval_secs: 30,
             capabilities: vec!["text-generation".to_string()],
@@ -497,14 +497,7 @@ impl InfernoConfig {
             return Err(InfernoConfigError::MissingField("model_path".to_string()).into());
         }
 
-        // Check if model path exists (if it's a local path)
-        if !self.model_path.starts_with("http") && !Path::new(&self.model_path).exists() {
-            return Err(InfernoConfigError::ValidationFailed(format!(
-                "Model path does not exist: {}",
-                self.model_path
-            ))
-            .into());
-        }
+        // Note: Model path existence is checked at runtime during model loading
 
         // Validate memory configuration
         if self.gpu_memory_pool_size_mb * self.max_batch_size > 65536 {
@@ -576,18 +569,20 @@ mod tests {
             .port(8080)
             .build();
 
-        assert!(config.is_err()); // Should fail due to non-existent model path
+        assert!(config.is_ok()); // Should succeed as path validation is now at runtime
     }
 
     #[test]
     fn test_config_validation() {
         let config = InfernoConfig {
-            model_path: "/nonexistent/path".to_string(),
+            model_path: "test-model".to_string(),
+            gpu_memory_pool_size_mb: 32768, // 32GB
+            max_batch_size: 4, // This will exceed 65536 limit (32768 * 4 = 131072)
             ..Default::default()
         };
 
         let result = config.validate();
-        assert!(result.is_err());
+        assert!(result.is_err()); // Should fail due to memory limit exceeded
     }
 
     #[test]

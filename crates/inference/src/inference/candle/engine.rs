@@ -204,23 +204,49 @@ impl CandleInferenceEngine {
                 })?;
 
             // Get the last token's logits
-            let logits = logits
-                .i((
-                    ..,
-                    logits.dim(1).map_err(|e| {
+            let logits = if logits.dims().len() == 3 {
+                // Shape: (batch, sequence, vocab) - standard case
+                logits
+                    .i((
+                        ..,
+                        logits.dim(1).map_err(|e| {
+                            InferenceError::ProcessingError(format!(
+                                "Failed to get sequence length: {}",
+                                e
+                            ))
+                        })? - 1,
+                        ..,
+                    ))
+                    .map_err(|e| {
                         InferenceError::ProcessingError(format!(
-                            "Failed to get sequence length: {}",
+                            "Failed to index logits tensor: {}",
                             e
                         ))
-                    })? - 1,
-                    ..,
-                ))
-                .map_err(|e| {
-                    InferenceError::ProcessingError(format!(
-                        "Failed to extract last token logits: {}",
-                        e
+                    })?
+            } else if logits.dims().len() == 2 {
+                // Shape: (sequence, vocab) - single batch case
+                logits
+                    .i((
+                        logits.dim(0).map_err(|e| {
+                            InferenceError::ProcessingError(format!(
+                                "Failed to get sequence length: {}",
+                                e
+                            ))
+                        })? - 1,
+                        ..,
                     ))
-                })?;
+                    .map_err(|e| {
+                        InferenceError::ProcessingError(format!(
+                            "Failed to extract last token logits: {}",
+                            e
+                        ))
+                    })?
+            } else {
+                return Err(InferenceError::ProcessingError(format!(
+                    "Unexpected logits tensor shape: {:?}",
+                    logits.dims()
+                )));
+            };
 
             // Apply temperature scaling if specified
             let logits = if temperature > 0.0 && temperature != 1.0 {
@@ -231,20 +257,20 @@ impl CandleInferenceEngine {
                 logits
             };
 
-            // Sample next token (simplified sampling - just take argmax for now)
+            // Simple argmax sampling for speed
             let next_token_tensor = logits.argmax(candle_core::D::Minus1).map_err(|e| {
                 InferenceError::ProcessingError(format!("Token sampling failed: {}", e))
             })?;
 
-            let next_token = next_token_tensor.to_vec1::<u32>().map_err(|e| {
+            let next_token = next_token_tensor.to_scalar::<u32>().map_err(|e| {
                 InferenceError::ProcessingError(format!("Failed to extract token: {}", e))
-            })?[0];
+            })?;
 
             generated_tokens.push(next_token);
 
-            // Check for end tokens (simplified - just break for now)
-            if next_token == 128_001 {
-                // <|end_of_text|>
+            // Check for end tokens (use model-specific EOS token ID)
+            if next_token == 2 {
+                // TinyLlama EOS token
                 debug!("Generated end token, stopping generation");
                 break;
             }
@@ -270,6 +296,7 @@ impl CandleInferenceEngine {
 
         Ok(generated_tokens)
     }
+
 }
 
 impl Default for CandleInferenceEngine {
@@ -377,10 +404,10 @@ impl InferenceEngine for CandleInferenceEngine {
                 max_position_embeddings: model_config.max_position_embeddings,
                 rms_norm_eps: model_config.rms_norm_eps,
                 rope_theta: model_config.rope_theta as f32,
-                bos_token_id: Some(128_000), // Llama 3.2 specific
-                eos_token_id: Some(candle_transformers::models::llama::LlamaEosToks::Single(
-                    128_001,
-                )), // Llama 3.2 specific
+                bos_token_id: model_config.bos_token_id,
+                eos_token_id: model_config.eos_token_id.map(|id| {
+                    candle_transformers::models::llama::LlamaEosToks::Single(id)
+                }),
                 rope_scaling: None,
                 use_flash_attn: false,
                 tie_word_embeddings: is_weight_tied,
@@ -446,10 +473,13 @@ impl InferenceEngine for CandleInferenceEngine {
                 .as_ref()
                 .ok_or_else(|| InferenceError::ProcessingError("Model not loaded".to_string()))?;
 
-            // Tokenize input
+            // Simple prompt format for TinyLlama
+            let formatted_prompt = format!("Q: {}\nA:", request.prompt);
+
+            // Tokenize input with special tokens
             let encoding = wrapper
                 .tokenizer
-                .encode(request.prompt, false)
+                .encode(formatted_prompt.as_str(), true)
                 .map_err(|e| {
                     InferenceError::ProcessingError(format!("Tokenization failed: {}", e))
                 })?;

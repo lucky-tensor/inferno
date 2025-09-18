@@ -8,6 +8,7 @@ use burn::{
     },
 };
 use std::error::Error;
+use std::env;
 use std::path::PathBuf;
 use tokenizers::Tokenizer;
 
@@ -289,7 +290,8 @@ async fn test_weight_loading_only() -> Result<(), Box<dyn Error>> {
     println!("✅ Created small TinyLlama model structure (2 layers)");
 
     // Test weight loading
-    let model_path = PathBuf::from("../../models/tinyllama-1.1b");
+    let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let model_path = PathBuf::from(format!("{}/models/tinyllama-1.1b", home));
     let weights_path = model_path.join("model.safetensors");
 
     match std::fs::metadata(&weights_path) {
@@ -321,7 +323,8 @@ async fn test_real_tinyllama_inference() -> Result<(), Box<dyn Error>> {
     println!("⚠️  Using random weights for demonstration");
 
     // Load tokenizer
-    let model_path = PathBuf::from("../../models/tinyllama-1.1b");
+    let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let model_path = PathBuf::from(format!("{}/models/tinyllama-1.1b", home));
     let tokenizer_path = model_path.join("tokenizer.json");
     let tokenizer =
         Tokenizer::from_file(tokenizer_path).map_err(|e| format!("Tokenizer error: {}", e))?;
@@ -420,7 +423,8 @@ async fn test_complete_inference_architecture() -> Result<(), Box<dyn Error>> {
     );
 
     // Load REAL tokenizer (same as what would be used with real weights)
-    let model_path = PathBuf::from("../../models/tinyllama-1.1b");
+    let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let model_path = PathBuf::from(format!("{}/models/tinyllama-1.1b", home));
     let tokenizer_path = model_path.join("tokenizer.json");
     let tokenizer =
         Tokenizer::from_file(tokenizer_path).map_err(|e| format!("Tokenizer error: {}", e))?;

@@ -224,8 +224,8 @@ mod model_loading_tests {
         }
 
         #[test]
-        fn test_real_llama_3_2_1b_model_loading() {
-            // Test loading the actual downloaded Llama-3.2-1B model
+        fn test_real_tinyllama_model_loading() {
+            // Test loading the actual TinyLlama model
             #[cfg(all(feature = "burn-cpu", feature = "pretrained"))]
             {
                 use crate::models::llama_loader::load_llama_weights;
@@ -236,19 +236,19 @@ mod model_loading_tests {
 
                 let home = std::env::var("HOME").unwrap_or_else(|_| "/home/jeef".to_string());
                 let model_path =
-                    PathBuf::from(format!("{}/models/unsloth_Llama-3.2-1B-Instruct", home));
+                    PathBuf::from(format!("{}/models/tinyllama-1.1b", home));
 
                 // Skip test if model not available (for CI/other environments)
                 if !model_path.exists() {
                     println!(
-                        "⚠️  Skipping Llama-3.2-1B test - model not found at: {}",
+                        "⚠️  Skipping TinyLlama test - model not found at: {}",
                         model_path.display()
                     );
                     return;
                 }
 
                 println!(
-                    "🔄 Testing real Llama-3.2-1B model loading from: {}",
+                    "🔄 Testing real TinyLlama model loading from: {}",
                     model_path.display()
                 );
 
@@ -424,11 +424,11 @@ mod model_loading_tests {
         }
 
         #[test]
-        fn test_real_llama_3_2_1b_tokenizer_format_validation() {
-            // Test the actual tokenizer format from the downloaded model
+        fn test_real_tinyllama_tokenizer_format_validation() {
+            // Test the actual tokenizer format from the TinyLlama model
             let home = std::env::var("HOME").unwrap_or_else(|_| "/home/jeef".to_string());
             let tokenizer_path = format!(
-                "{}/models/unsloth_Llama-3.2-1B-Instruct/tokenizer.json",
+                "{}/models/tinyllama-1.1b/tokenizer.json",
                 home
             );
 

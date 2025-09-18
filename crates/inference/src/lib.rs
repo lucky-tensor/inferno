@@ -72,6 +72,9 @@ pub mod health;
 pub mod server;
 pub mod service;
 
+// Test modules
+mod tokenizer_tests;
+
 // Re-export core types and traits
 pub use config::{
     HealthConfig, InfernoConfig, InfernoConfigBuilder, LoggingConfig, ServerConfig,

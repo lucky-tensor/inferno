@@ -21,6 +21,8 @@ pub struct CandleModelConfig {
     pub rms_norm_eps: f64,
     pub rope_theta: f64,
     pub tie_word_embeddings: Option<bool>,
+    pub bos_token_id: Option<u32>,
+    pub eos_token_id: Option<u32>,
 }
 
 impl CandleModelConfig {
@@ -45,17 +47,19 @@ impl CandleModelConfig {
 
         Ok(Self {
             hidden_size: config["hidden_size"].as_u64().unwrap_or(2048) as usize,
-            intermediate_size: config["intermediate_size"].as_u64().unwrap_or(8192) as usize,
+            intermediate_size: config["intermediate_size"].as_u64().unwrap_or(5632) as usize,
             num_attention_heads: config["num_attention_heads"].as_u64().unwrap_or(32) as usize,
-            num_hidden_layers: config["num_hidden_layers"].as_u64().unwrap_or(16) as usize,
+            num_hidden_layers: config["num_hidden_layers"].as_u64().unwrap_or(22) as usize,
             num_key_value_heads: config["num_key_value_heads"].as_u64().map(|v| v as usize),
-            vocab_size: config["vocab_size"].as_u64().unwrap_or(128_256) as usize,
+            vocab_size: config["vocab_size"].as_u64().unwrap_or(32000) as usize,
             max_position_embeddings: config["max_position_embeddings"]
                 .as_u64()
-                .unwrap_or(131_072) as usize,
+                .unwrap_or(2048) as usize,
             rms_norm_eps: config["rms_norm_eps"].as_f64().unwrap_or(1e-5),
-            rope_theta: config["rope_theta"].as_f64().unwrap_or(500_000.0),
+            rope_theta: config["rope_theta"].as_f64().unwrap_or(10000.0),
             tie_word_embeddings: config["tie_word_embeddings"].as_bool(),
+            bos_token_id: config["bos_token_id"].as_u64().map(|v| v as u32),
+            eos_token_id: config["eos_token_id"].as_u64().map(|v| v as u32),
         })
     }
 

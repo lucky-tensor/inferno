@@ -1,13 +1,15 @@
 //! Direct test of TinyLlama weight loading
 
 use std::path::PathBuf;
+use std::env;
 
 #[cfg(feature = "burn-cpu")]
 #[tokio::test]
 async fn test_direct_weight_loading() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔧 Testing direct TinyLlama weight loading");
 
-    let model_path = PathBuf::from("../../models/tinyllama-1.1b");
+    let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let model_path = PathBuf::from(format!("{}/models/tinyllama-1.1b", home));
     println!("📁 Model path: {:?}", model_path);
 
     // Check if files exist
