@@ -168,12 +168,12 @@ pub async fn download_model(
                     let size = metadata.len();
                     total_size += size;
                     let size_mb = size as f64 / (1024.0 * 1024.0);
-                    println!("  ✅ {} ({:.1} MB)", filename, size_mb);
+                    println!("  {} ({:.1} MB)", filename, size_mb);
                 }
             }
 
             for filename in &missing_files {
-                println!("  ❌ {} (missing)", filename);
+                println!("  {} (missing)", filename);
             }
 
             let total_mb = total_size as f64 / (1024.0 * 1024.0);
@@ -235,12 +235,12 @@ async fn get_hf_token(provided_token: Option<&String>) -> Result<Option<String>>
 
     // 2. Check environment variables
     if let Ok(token) = env::var("HUGGINGFACE_HUB_TOKEN") {
-        println!("🔑 Using HF token from HUGGINGFACE_HUB_TOKEN environment variable");
+        println!("Using HF token from HUGGINGFACE_HUB_TOKEN environment variable");
         return Ok(Some(token));
     }
 
     if let Ok(token) = env::var("HF_TOKEN") {
-        println!("🔑 Using HF token from HF_TOKEN environment variable");
+        println!("Using HF token from HF_TOKEN environment variable");
         return Ok(Some(token));
     }
 
@@ -250,7 +250,7 @@ async fn get_hf_token(provided_token: Option<&String>) -> Result<Option<String>>
         if let Ok(token) = tokio::fs::read_to_string(&token_file).await {
             let token = token.trim().to_string();
             if !token.is_empty() {
-                println!("🔑 Using HF token from cache file: {}", token_file);
+                println!("Using HF token from cache file: {}", token_file);
                 return Ok(Some(token));
             }
         }
@@ -300,7 +300,7 @@ async fn download_huggingface_model(
     }
 
     // Method 2: Fallback to wget for individual files
-    println!("🌐 Using wget to download model files...");
+    println!("Using wget to download model files...");
     download_model_files_with_wget(model_id, output_dir, hf_token).await?;
 
     Ok(())
@@ -338,7 +338,7 @@ async fn clone_repo_with_lfs(
         let mut callbacks = RemoteCallbacks::new();
         callbacks.credentials(|_url, _username_from_url, _allowed_types| {
             if let Some(token) = hf_token {
-                println!("🔑 Using HF token for Git authentication");
+                println!("Using HF token for Git authentication");
                 // Use the token as username and empty password for HuggingFace
                 Cred::userpass_plaintext(token, "")
             } else {
@@ -711,7 +711,7 @@ async fn download_model_files_with_wget(
         // Add authorization header if token is provided
         let auth_header;
         if let Some(token) = hf_token {
-            println!("🔑 Using HF token for wget authentication");
+            println!("Using HF token for wget authentication");
             auth_header = format!("Authorization: Bearer {}", token);
             wget_args.extend_from_slice(&["--header", &auth_header]);
         }
@@ -778,7 +778,7 @@ pub(crate) async fn download_model_with_xet(
 
     // Initialize the API client with proper token authentication
     let api_result = if let Some(token) = hf_token {
-        println!("🔑 Using HF token for authentication");
+        println!("Using HF token for authentication");
         hf_hub::api::tokio::ApiBuilder::new()
             .with_token(Some(token.to_string()))
             .with_cache_dir(_cache_dir.to_path_buf())
@@ -865,14 +865,14 @@ pub(crate) async fn download_model_with_xet(
                 // Handle different types of authentication errors with helpful messages
                 if error_msg.contains("401 Unauthorized") {
                     println!(
-                        "❌ Authentication failed for {}: No valid token provided",
+                        "Authentication failed for {}: No valid token provided",
                         filename
                     );
-                    println!("   💡 Please provide a valid HuggingFace token using --hf-token or HF_TOKEN environment variable");
+                    println!("   Please provide a valid HuggingFace token using --hf-token or HF_TOKEN environment variable");
                 } else if error_msg.contains("403 Forbidden") {
-                    println!("❌ Access denied for {}: Token lacks permissions or model requires license acceptance", filename);
-                    println!("   💡 This model may require accepting license terms at https://huggingface.co/{}", model_id);
-                    println!("   💡 Or your token may not have access to this gated model");
+                    println!("Access denied for {}: Token lacks permissions or model requires license acceptance", filename);
+                    println!("   This model may require accepting license terms at https://huggingface.co/{}", model_id);
+                    println!("   Or your token may not have access to this gated model");
                 } else {
                     println!("DEBUG: Failed to download {} via hf-hub: {}", filename, e);
                 }
@@ -946,7 +946,7 @@ pub(crate) async fn download_model_with_xet(
         if !failed_files.is_empty() {
             let has_auth_error = failed_files.iter().any(|_| hf_token.is_some());
             if has_auth_error {
-                println!("💡 This appears to be a gated model that requires:");
+                println!("  This appears to be a gated model that requires:");
                 println!("   1. A valid HuggingFace token with access permissions");
                 println!(
                     "   2. Accepting the model's license terms at https://huggingface.co/{}",

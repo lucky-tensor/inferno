@@ -31,7 +31,7 @@ impl SimpleQuantizedLinear {
     /// Perform TRUE quantized matrix multiplication at runtime - preserving INT8 weights
     pub fn quantized_forward(&self, input: &Tensor) -> Result<Tensor, InferenceError> {
         tracing::debug!(
-            "🔥 TRUE quantized forward pass - input shape: {:?}",
+            "TRUE quantized forward pass - input shape: {:?}",
             input.dims()
         );
 
@@ -39,7 +39,7 @@ impl SimpleQuantizedLinear {
         let activation_scale = 1.0f32; // Simplified - should compute from input statistics
         let activation_zero_point = 0i8;
 
-        tracing::debug!("🔥 Calling quantized_matmul with INT8 weights preserved");
+        tracing::debug!("Calling quantized_matmul with INT8 weights preserved");
 
         // This is the TRUE quantized path - INT8 weights × quantized activations
         let result = self.quantized_tensor.quantized_matmul(
@@ -49,7 +49,7 @@ impl SimpleQuantizedLinear {
         )?;
 
         tracing::debug!(
-            "🔥 Quantized matrix multiplication completed - result shape: {:?}",
+            "Quantized matrix multiplication completed - result shape: {:?}",
             result.dims()
         );
 
@@ -249,7 +249,7 @@ impl HybridQuantizedLlama {
     }
 
     fn forward_attention(&self, x: &Tensor, layer_idx: usize) -> candle_core::Result<Tensor> {
-        tracing::debug!("🔥 Layer {} attention forward start", layer_idx);
+        tracing::debug!("Layer {} attention forward start", layer_idx);
         let (batch_size, seq_len, hidden_size) = x.dims3()?;
 
         // Get quantized attention projections
@@ -261,7 +261,7 @@ impl HybridQuantizedLlama {
         // Perform quantized matrix multiplications
         let q = if let Some(q_proj) = self.quantized_layers.get(&q_key) {
             q_proj.quantized_forward(x).map_err(|e| {
-                candle_core::Error::Msg(format!("🔥 Quantized Q projection failed: {}", e))
+                candle_core::Error::Msg(format!("Quantized Q projection failed: {}", e))
             })?
         } else {
             return Err(candle_core::Error::Msg(format!(
@@ -272,7 +272,7 @@ impl HybridQuantizedLlama {
 
         let k = if let Some(k_proj) = self.quantized_layers.get(&k_key) {
             k_proj.quantized_forward(x).map_err(|e| {
-                candle_core::Error::Msg(format!("🔥 Quantized K projection failed: {}", e))
+                candle_core::Error::Msg(format!("Quantized K projection failed: {}", e))
             })?
         } else {
             return Err(candle_core::Error::Msg(format!(
@@ -283,7 +283,7 @@ impl HybridQuantizedLlama {
 
         let v = if let Some(v_proj) = self.quantized_layers.get(&v_key) {
             v_proj.quantized_forward(x).map_err(|e| {
-                candle_core::Error::Msg(format!("🔥 Quantized V projection failed: {}", e))
+                candle_core::Error::Msg(format!("Quantized V projection failed: {}", e))
             })?
         } else {
             return Err(candle_core::Error::Msg(format!(
@@ -351,7 +351,7 @@ impl HybridQuantizedLlama {
         #[allow(clippy::option_if_let_else)]
         if let Some(o_proj) = self.quantized_layers.get(&o_key) {
             o_proj.quantized_forward(&attn_output).map_err(|e| {
-                candle_core::Error::Msg(format!("🔥 Quantized O projection failed: {}", e))
+                candle_core::Error::Msg(format!("Quantized O projection failed: {}", e))
             })
         } else {
             Err(candle_core::Error::Msg(format!(
@@ -369,7 +369,7 @@ impl HybridQuantizedLlama {
         // Gate projection (quantized)
         let gate_out = if let Some(gate_proj) = self.quantized_layers.get(&gate_key) {
             gate_proj.quantized_forward(x).map_err(|e| {
-                candle_core::Error::Msg(format!("🔥 Quantized gate projection failed: {}", e))
+                candle_core::Error::Msg(format!("Quantized gate projection failed: {}", e))
             })?
         } else {
             return Err(candle_core::Error::Msg(format!(
@@ -381,7 +381,7 @@ impl HybridQuantizedLlama {
         // Up projection (quantized)
         let up_out = if let Some(up_proj) = self.quantized_layers.get(&up_key) {
             up_proj.quantized_forward(x).map_err(|e| {
-                candle_core::Error::Msg(format!("🔥 Quantized up projection failed: {}", e))
+                candle_core::Error::Msg(format!("Quantized up projection failed: {}", e))
             })?
         } else {
             return Err(candle_core::Error::Msg(format!(
@@ -398,7 +398,7 @@ impl HybridQuantizedLlama {
         #[allow(clippy::option_if_let_else)]
         if let Some(down_proj) = self.quantized_layers.get(&down_key) {
             down_proj.quantized_forward(&intermediate).map_err(|e| {
-                candle_core::Error::Msg(format!("🔥 Quantized down projection failed: {}", e))
+                candle_core::Error::Msg(format!("Quantized down projection failed: {}", e))
             })
         } else {
             Err(candle_core::Error::Msg(format!(

@@ -204,7 +204,7 @@ impl BackendCliOptions {
             });
         }
 
-        info!("🚀 Inference engine ready to receive requests!");
+        info!("  Inference engine ready to receive requests!");
 
         // Start HTTP inference server
         let inference_server_task = {

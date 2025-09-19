@@ -13,14 +13,14 @@
 //! This implementation leverages Candle's CUDA backend for GPU-accelerated quantized inference:
 //!
 //! ## Current Implementation (Hybrid Approach)
-//! - ✅ **INT8 weights preserved** in memory (4x memory savings)
-//! - ✅ **Runtime activation quantization** to INT8
-//! - ✅ **CPU-optimized INT8 x INT8 -> INT32** matrix multiplication
-//! - ✅ **GPU-accelerated scaling** and tensor operations
-//! - ✅ **Per-tensor and per-channel** quantization support
+//! -   **INT8 weights preserved** in memory (4x memory savings)
+//! -   **Runtime activation quantization** to INT8
+//! -   **CPU-optimized INT8 x INT8 -> INT32** matrix multiplication
+//! -   **GPU-accelerated scaling** and tensor operations
+//! -   **Per-tensor and per-channel** quantization support
 //!
 //! ## Future Enhancement Path (Pure cuBLAS INT8)
-//! - 🚀 **Direct cublasGemmEx INT8 GEMM** using:
+//! -   **Direct cublasGemmEx INT8 GEMM** using:
 //!   - `CUDA_R_8I` for INT8 inputs (activations + weights)
 //!   - `CUDA_R_32I` for INT32 accumulation
 //!   - `CUBLAS_COMPUTE_32I` for INT32 compute type
@@ -299,7 +299,7 @@ impl QuantizedTensor {
         activation_zero_point: i8,
     ) -> Result<Tensor, InferenceError> {
         tracing::debug!(
-            "🚀 CUDA quantized matmul - input shape: {:?}, weight shape: {:?}",
+            "  CUDA quantized matmul - input shape: {:?}, weight shape: {:?}",
             input_activations.dims(),
             self.shape
         );
@@ -311,11 +311,11 @@ impl QuantizedTensor {
         }
 
         // Simplified working implementation:
-        // 1. ✅ INT8 weights preserved in memory (4x memory savings)
-        // 2. ✅ Use CPU for INT8 x INT8 computation (avoids CUDA kernel complexity for now)
-        // 3. ✅ Return result as GPU tensor for subsequent operations
+        // 1.   INT8 weights preserved in memory (4x memory savings)
+        // 2.   Use CPU for INT8 x INT8 computation (avoids CUDA kernel complexity for now)
+        // 3.   Return result as GPU tensor for subsequent operations
 
-        tracing::debug!("🔥 Performing INT8 quantized matrix multiplication");
+        tracing::debug!("  Performing INT8 quantized matrix multiplication");
 
         // Use CPU implementation but keep result on GPU
         let cpu_result =
@@ -406,7 +406,7 @@ impl QuantizedTensor {
         _activation_zero_point: i8,
     ) -> Result<Tensor, InferenceError> {
         tracing::debug!(
-            "🔥 CPU quantized matmul - input shape: {:?}, weight shape: {:?}",
+            "  CPU quantized matmul - input shape: {:?}, weight shape: {:?}",
             input_activations.dims(),
             self.shape
         );
@@ -433,7 +433,7 @@ impl QuantizedTensor {
             )));
         };
 
-        tracing::debug!("🔥 Reshaped input for matmul: {:?}", input_2d.dims());
+        tracing::debug!("  Reshaped input for matmul: {:?}", input_2d.dims());
 
         // Dequantize weights with quantization factor applied
         let fp32_weights = self.dequantize_weights_to_tensor()?;
@@ -448,7 +448,7 @@ impl QuantizedTensor {
         let input_dims = input_2d.dims();
 
         tracing::debug!(
-            "🔥 Checking matmul compatibility: input {:?} x weights {:?}",
+            "  Checking matmul compatibility: input {:?} x weights {:?}",
             input_dims,
             weight_dims
         );
@@ -462,7 +462,7 @@ impl QuantizedTensor {
             if weight_shape[1] == input_hidden {
                 // Weight is [out_features, in_features], transpose to [in_features, out_features]
                 tracing::debug!(
-                    "🔥 Transposing weight matrix for correct matmul: {:?} -> [{}, {}]",
+                    "  Transposing weight matrix for correct matmul: {:?} -> [{}, {}]",
                     weight_shape,
                     weight_shape[1],
                     weight_shape[0]
@@ -475,7 +475,7 @@ impl QuantizedTensor {
                 })?
             } else if weight_shape[0] == input_hidden {
                 // Weight is already [in_features, out_features], use as-is
-                tracing::debug!("🔥 Weight matrix already in correct orientation");
+                tracing::debug!("  Weight matrix already in correct orientation");
                 scaled_weights
             } else {
                 return Err(InferenceError::ProcessingError(format!(
@@ -488,7 +488,7 @@ impl QuantizedTensor {
         };
 
         tracing::debug!(
-            "🔥 Performing matmul: {:?} x {:?}",
+            "  Performing matmul: {:?} x {:?}",
             input_2d.dims(),
             weight_for_matmul.dims()
         );
@@ -891,7 +891,7 @@ impl CompressedTensorsLoader {
         }
 
         tracing::warn!(
-            "⚠️ Using backward-compatible dequantizing VarBuilder. Consider migrating to QuantizedVarBuilder for memory efficiency."
+            "  Using backward-compatible dequantizing VarBuilder. Consider migrating to QuantizedVarBuilder for memory efficiency."
         );
 
         let var_builder =
@@ -919,7 +919,7 @@ impl CompressedTensorsLoader {
             )));
         }
 
-        tracing::info!("🔄 Loading compressed-tensors model with runtime quantized inference (INT8 preservation)");
+        tracing::info!("  Loading compressed-tensors model with runtime quantized inference (INT8 preservation)");
 
         // Load the SafeTensors file
         let buffer = tokio::fs::read(&safetensors_path).await.map_err(|e| {
@@ -965,13 +965,13 @@ impl CompressedTensorsLoader {
         use std::collections::HashMap;
 
         tracing::info!(
-            "🔄 Creating quantized VarBuilder for compressed-tensors (preserving INT8 weights)"
+            "  Creating quantized VarBuilder for compressed-tensors (preserving INT8 weights)"
         );
 
         // Debug: Print first 10 raw tensor names from SafeTensors
         let raw_names: Vec<_> = safetensors.names();
         tracing::info!(
-            "📋 SafeTensors contains {} tensors. First 10:",
+            "  SafeTensors contains {} tensors. First 10:",
             raw_names.len()
         );
         for (i, name) in raw_names.iter().take(10).enumerate() {
@@ -999,7 +999,7 @@ impl CompressedTensorsLoader {
 
                 if let Ok(scale_info) = safetensors.tensor(&scale_tensor_name) {
                     tracing::debug!(
-                        "🔄 Loading quantized tensor: {} (I8) with scale: {} (BF16) - preserving INT8 format",
+                        "  Loading quantized tensor: {} (I8) with scale: {} (BF16) - preserving INT8 format",
                         tensor_name,
                         scale_tensor_name
                     );
@@ -1020,7 +1020,7 @@ impl CompressedTensorsLoader {
                         Ok(quantized_tensor) => {
                             let mapped_name = self.map_tensor_name(tensor_name);
                             tracing::debug!(
-                                "🔄 Mapped quantized tensor: {} -> {}",
+                                "  Mapped quantized tensor: {} -> {}",
                                 tensor_name,
                                 mapped_name
                             );
@@ -1028,7 +1028,7 @@ impl CompressedTensorsLoader {
                         }
                         Err(e) => {
                             tracing::warn!(
-                                "⚠️ Failed to create quantized tensor {}: {}",
+                                "  Failed to create quantized tensor {}: {}",
                                 tensor_name,
                                 e
                             );
@@ -1049,7 +1049,7 @@ impl CompressedTensorsLoader {
                                 Ok(tensor) => {
                                     let mapped_name = self.map_tensor_name(tensor_name);
                                     tracing::debug!(
-                                        "🔄 Mapped non-quantized tensor: {} -> {}",
+                                        "  Mapped non-quantized tensor: {} -> {}",
                                         tensor_name,
                                         mapped_name
                                     );
@@ -1057,7 +1057,7 @@ impl CompressedTensorsLoader {
                                 }
                                 Err(e) => {
                                     tracing::warn!(
-                                        "⚠️ Failed to load F32 tensor {}: {}",
+                                        "  Failed to load F32 tensor {}: {}",
                                         tensor_name,
                                         e
                                     );
@@ -1073,7 +1073,7 @@ impl CompressedTensorsLoader {
                                 Ok(tensor) => {
                                     let mapped_name = self.map_tensor_name(tensor_name);
                                     tracing::debug!(
-                                        "🔄 Mapped F16->F32 tensor: {} -> {}",
+                                        "  Mapped F16->F32 tensor: {} -> {}",
                                         tensor_name,
                                         mapped_name
                                     );
@@ -1081,7 +1081,7 @@ impl CompressedTensorsLoader {
                                 }
                                 Err(e) => {
                                     tracing::warn!(
-                                        "⚠️ Failed to convert F16 tensor {}: {}",
+                                        "  Failed to convert F16 tensor {}: {}",
                                         tensor_name,
                                         e
                                     );
@@ -1104,7 +1104,7 @@ impl CompressedTensorsLoader {
                                 Ok(tensor) => {
                                     let mapped_name = self.map_tensor_name(tensor_name);
                                     tracing::debug!(
-                                        "🔄 Mapped BF16->F32 tensor: {} -> {}",
+                                        "  Mapped BF16->F32 tensor: {} -> {}",
                                         tensor_name,
                                         mapped_name
                                     );
@@ -1112,7 +1112,7 @@ impl CompressedTensorsLoader {
                                 }
                                 Err(e) => {
                                     tracing::warn!(
-                                        "⚠️ Failed to convert BF16 tensor {}: {}",
+                                        "  Failed to convert BF16 tensor {}: {}",
                                         tensor_name,
                                         e
                                     );
@@ -1138,7 +1138,7 @@ impl CompressedTensorsLoader {
                             Ok(tensor) => {
                                 let mapped_name = self.map_tensor_name(tensor_name);
                                 tracing::debug!(
-                                    "🔄 Mapped non-weight F32 tensor: {} -> {}",
+                                    "  Mapped non-weight F32 tensor: {} -> {}",
                                     tensor_name,
                                     mapped_name
                                 );
@@ -1146,7 +1146,7 @@ impl CompressedTensorsLoader {
                             }
                             Err(e) => {
                                 tracing::warn!(
-                                    "⚠️ Failed to load F32 tensor {}: {}",
+                                    "  Failed to load F32 tensor {}: {}",
                                     tensor_name,
                                     e
                                 );
@@ -1162,7 +1162,7 @@ impl CompressedTensorsLoader {
                             Ok(tensor) => {
                                 let mapped_name = self.map_tensor_name(tensor_name);
                                 tracing::debug!(
-                                    "🔄 Mapped non-weight F16->F32 tensor: {} -> {}",
+                                    "  Mapped non-weight F16->F32 tensor: {} -> {}",
                                     tensor_name,
                                     mapped_name
                                 );
@@ -1170,7 +1170,7 @@ impl CompressedTensorsLoader {
                             }
                             Err(e) => {
                                 tracing::warn!(
-                                    "⚠️ Failed to convert F16 tensor {}: {}",
+                                    "  Failed to convert F16 tensor {}: {}",
                                     tensor_name,
                                     e
                                 );
@@ -1193,7 +1193,7 @@ impl CompressedTensorsLoader {
                             Ok(tensor) => {
                                 let mapped_name = self.map_tensor_name(tensor_name);
                                 tracing::debug!(
-                                    "🔄 Mapped non-weight BF16->F32 tensor: {} -> {}",
+                                    "  Mapped non-weight BF16->F32 tensor: {} -> {}",
                                     tensor_name,
                                     mapped_name
                                 );
@@ -1201,7 +1201,7 @@ impl CompressedTensorsLoader {
                             }
                             Err(e) => {
                                 tracing::warn!(
-                                    "⚠️ Failed to convert BF16 tensor {}: {}",
+                                    "  Failed to convert BF16 tensor {}: {}",
                                     tensor_name,
                                     e
                                 );
@@ -1220,7 +1220,7 @@ impl CompressedTensorsLoader {
         }
 
         tracing::info!(
-            "✅ Loaded {} quantized tensors and {} FP32 tensors from compressed-tensors format",
+            "  Loaded {} quantized tensors and {} FP32 tensors from compressed-tensors format",
             quantized_tensors.len(),
             fp32_tensors.len()
         );
@@ -1228,7 +1228,7 @@ impl CompressedTensorsLoader {
         // Debug: Print first 10 quantized tensor names
         let mut qtensor_names: Vec<&String> = quantized_tensors.keys().collect();
         qtensor_names.sort();
-        tracing::info!("📋 First 10 quantized tensor names:");
+        tracing::info!("  First 10 quantized tensor names:");
         for (i, name) in qtensor_names.iter().take(10).enumerate() {
             tracing::info!("  {}: {}", i + 1, name);
         }
@@ -1236,7 +1236,7 @@ impl CompressedTensorsLoader {
         // Debug: Print first 10 FP32 tensor names
         let mut fp32_names: Vec<&String> = fp32_tensors.keys().collect();
         fp32_names.sort();
-        tracing::info!("📋 First 10 FP32 tensor names:");
+        tracing::info!("  First 10 FP32 tensor names:");
         for (i, name) in fp32_names.iter().take(10).enumerate() {
             tracing::info!("  {}: {}", i + 1, name);
         }
@@ -1419,7 +1419,7 @@ mod tests {
         // Skip test if model doesn't exist
         if !Path::new(&model_path).exists() {
             eprintln!(
-                "⚠️ Skipping test: Quantized model not found at {}",
+                "  Skipping test: Quantized model not found at {}",
                 model_path
             );
             return;
@@ -1445,7 +1445,7 @@ mod tests {
         assert_eq!(quant_config.format, "int-quantized");
         assert_eq!(quant_config.quantization_status, "frozen");
 
-        println!("✅ Successfully detected w8a8 quantized model configuration");
+        println!("  Successfully detected w8a8 quantized model configuration");
         println!("   Quantization method: {}", quant_config.quant_method);
         println!("   Format: {}", quant_config.format);
         println!(
@@ -1461,7 +1461,7 @@ mod tests {
         // Skip test if model doesn't exist
         if !Path::new(&model_path).exists() {
             eprintln!(
-                "⚠️ Skipping test: Quantized model not found at {}",
+                "  Skipping test: Quantized model not found at {}",
                 model_path
             );
             return;
@@ -1485,16 +1485,16 @@ mod tests {
 
             match result {
                 Ok(_var_builder) => {
-                    println!("✅ Successfully created dequantizing VarBuilder!");
+                    println!("  Successfully created dequantizing VarBuilder!");
                     println!("   Now we should see the tensor names in the logs");
                 }
                 Err(e) => {
-                    println!("❌ Failed to create VarBuilder: {}", e);
+                    println!("  Failed to create VarBuilder: {}", e);
                     // This is expected if we haven't implemented everything yet
                 }
             }
 
-            println!("✅ Successfully created compressed-tensors loader");
+            println!("  Successfully created compressed-tensors loader");
             println!("   Device: CPU");
             println!("   Quantized: {}", config.is_quantized);
         }
@@ -1553,7 +1553,7 @@ mod tests {
             let tensor = result.unwrap();
             assert_eq!(tensor.dims(), &[2, 2]);
 
-            println!("✅ Dequantization logic tests passed");
+            println!("  Dequantization logic tests passed");
         }
     }
 }

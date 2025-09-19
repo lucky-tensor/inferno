@@ -197,10 +197,10 @@ mod model_loading_tests {
                         );
 
                         println!(
-                            "✅ Successfully loaded Llama-3.2-1B configuration from config.json"
+                            "  Successfully loaded Llama-3.2-1B configuration from config.json"
                         );
                         println!(
-                            "📊 Config: d_model={}, layers={}, heads={}, vocab={}",
+                            "  Config: d_model={}, layers={}, heads={}, vocab={}",
                             config.d_model,
                             config.num_hidden_layers,
                             config.num_attention_heads,
@@ -210,14 +210,14 @@ mod model_loading_tests {
                     Err(e) => {
                         // In case the function is not accessible due to visibility,
                         // we can still test that the config.json parsing would work
-                        println!("⚠️  Config loading function not accessible: {}", e);
+                        println!("   Config loading function not accessible: {}", e);
 
                         // Test JSON parsing directly
                         let parsed: serde_json::Value = serde_json::from_str(config_json).unwrap();
                         assert_eq!(parsed["hidden_size"].as_u64().unwrap(), 2048);
                         assert_eq!(parsed["num_hidden_layers"].as_u64().unwrap(), 16);
                         assert_eq!(parsed["vocab_size"].as_u64().unwrap(), 128_256);
-                        println!("✅ Config JSON parsing works correctly");
+                        println!("  Config JSON parsing works correctly");
                     }
                 }
             }
@@ -240,14 +240,14 @@ mod model_loading_tests {
                 // Skip test if model not available (for CI/other environments)
                 if !model_path.exists() {
                     println!(
-                        "⚠️  Skipping TinyLlama test - model not found at: {}",
+                        "   Skipping TinyLlama test - model not found at: {}",
                         model_path.display()
                     );
                     return;
                 }
 
                 println!(
-                    "🔄 Testing real TinyLlama model loading from: {}",
+                    "  Testing real TinyLlama model loading from: {}",
                     model_path.display()
                 );
 
@@ -270,32 +270,32 @@ mod model_loading_tests {
                 // Attempt to load the model - this will test our enhanced config loading
                 match load_llama_weights(&model_path, &device) {
                     Ok(model) => {
-                        println!("✅ Successfully loaded Llama-3.2-1B model!");
+                        println!("  Successfully loaded Llama-3.2-1B model!");
                         // Model structure tests would go here
                         drop(model); // Ensure proper cleanup
                     }
                     Err(e) => {
                         let error_msg = format!("{}", e);
-                        println!("⚠️  Model loading failed: {}", error_msg);
+                        println!("   Model loading failed: {}", error_msg);
 
                         // Validate specific error types - this prevents false positives
                         if error_msg.contains(
                             "data did not match any variant of untagged enum ModelWrapper",
                         ) {
-                            println!("🔍 Detected tokenizer format incompatibility - HuggingFace tokenizer.json not compatible with SentiencePieceTokenizer");
-                            println!("💡 This is expected: Llama-3.2-1B uses HuggingFace tokenizer format, but burn-llama expects SentencePiece format");
+                            println!("  Detected tokenizer format incompatibility - HuggingFace tokenizer.json not compatible with SentiencePieceTokenizer");
+                            println!("  This is expected: Llama-3.2-1B uses HuggingFace tokenizer format, but burn-llama expects SentencePiece format");
 
                             // Test should fail here to indicate the real issue
                             panic!("EXPECTED FAILURE: Tokenizer format incompatibility detected. This test correctly identifies that the tokenizer.json format from Llama-3.2-1B is incompatible with the current llama_burn SentiencePieceTokenizer implementation.");
                         } else if error_msg.contains("Failed to initialize")
                             && error_msg.contains("model")
                         {
-                            println!("🔍 Model initialization failed - this could be due to weight mapping or architecture mismatch");
+                            println!("  Model initialization failed - this could be due to weight mapping or architecture mismatch");
                             println!(
-                                "💡 Config loading worked, but model structure creation failed"
+                                "  Config loading worked, but model structure creation failed"
                             );
                         } else {
-                            println!("🔍 Unexpected error type: {}", error_msg);
+                            println!("  Unexpected error type: {}", error_msg);
                         }
 
                         // For now, we expect this to fail due to tokenizer incompatibility
@@ -417,9 +417,9 @@ mod model_loading_tests {
                 "SP has no added tokens in this format"
             );
 
-            println!("✅ Successfully detected different tokenizer formats");
-            println!("🔍 HuggingFace format: BPE with special tokens");
-            println!("🔍 SentencePiece format: Unigram model");
+            println!("  Successfully detected different tokenizer formats");
+            println!("  HuggingFace format: BPE with special tokens");
+            println!("  SentencePiece format: Unigram model");
         }
 
         #[test]
@@ -433,15 +433,15 @@ mod model_loading_tests {
                 let json: serde_json::Value = serde_json::from_str(&content).unwrap();
 
                 // Validate this is HuggingFace format (incompatible with SentencePiece)
-                println!("🔍 Analyzing real Llama-3.2-1B tokenizer format...");
+                println!("  Analyzing real Llama-3.2-1B tokenizer format...");
 
                 if let Some(model_type) = json["model"]["type"].as_str() {
-                    println!("📊 Model type: {}", model_type);
+                    println!("  Model type: {}", model_type);
                     assert_eq!(model_type, "BPE", "Llama-3.2-1B should use BPE tokenizer");
                 }
 
                 if let Some(added_tokens) = json["added_tokens"].as_array() {
-                    println!("📊 Special tokens count: {}", added_tokens.len());
+                    println!("  Special tokens count: {}", added_tokens.len());
                     assert!(
                         !added_tokens.is_empty(),
                         "Should have special tokens like <|begin_of_text|>"
@@ -449,11 +449,11 @@ mod model_loading_tests {
                 }
 
                 // This format is incompatible with burn-llama's SentiencePieceTokenizer
-                println!("⚠️  Confirmed: Llama-3.2-1B uses HuggingFace BPE tokenizer format");
-                println!("💡 This explains why model loading fails with 'ModelWrapper' error");
+                println!("   Confirmed: Llama-3.2-1B uses HuggingFace BPE tokenizer format");
+                println!("  This explains why model loading fails with 'ModelWrapper' error");
             } else {
                 println!(
-                    "⚠️  Skipping tokenizer validation - file not found: {}",
+                    "   Skipping tokenizer validation - file not found: {}",
                     tokenizer_path
                 );
             }
@@ -583,7 +583,7 @@ mod model_loading_tests {
                     test_models.len()
                 );
                 for (path, name) in &test_models {
-                    println!("  📁 {}: {}", name, path);
+                    println!("    {}: {}", name, path);
                 }
 
                 // Add fallback models from inferno directory
@@ -594,7 +594,7 @@ mod model_loading_tests {
                 ]);
 
                 println!(
-                    "🔍 Total {} potential SafeTensors files to test",
+                    "  Total {} potential SafeTensors files to test",
                     test_models.len()
                 );
 
@@ -606,7 +606,7 @@ mod model_loading_tests {
                     // Skip test if model file doesn't exist (for CI/other environments)
                     if !model_path.exists() {
                         println!(
-                            "⚠️  Skipping {} SafeTensors test - model file not found at: {}",
+                            "   Skipping {} SafeTensors test - model file not found at: {}",
                             model_name,
                             model_path.display()
                         );
@@ -615,7 +615,7 @@ mod model_loading_tests {
 
                     tested_any = true;
                     println!(
-                        "🔄 Testing SafeTensors loading with {} model using burn framework",
+                        "  Testing SafeTensors loading with {} model using burn framework",
                         model_name
                     );
 
@@ -628,7 +628,7 @@ mod model_loading_tests {
                     #[allow(clippy::cast_precision_loss)]
                     let file_size_mb = file_size as f64 / 1_048_576.0;
                     println!(
-                        "📊 {} SafeTensors file size: {} bytes ({:.1} MB)",
+                        "  {} SafeTensors file size: {} bytes ({:.1} MB)",
                         model_name, file_size, file_size_mb
                     );
 
@@ -641,11 +641,11 @@ mod model_loading_tests {
                     // Test 3: Test burn-import SafeTensors loading (without model structure dependency)
                     test_burn_safetensors_loading(&model_path);
 
-                    println!("✅ Completed testing {}", model_name);
+                    println!("  Completed testing {}", model_name);
                 }
 
                 if !tested_any {
-                    println!("⚠️  No SafeTensors model files found for testing - this is expected in CI environments");
+                    println!("   No SafeTensors model files found for testing - this is expected in CI environments");
                 }
             }
         }
@@ -654,24 +654,21 @@ mod model_loading_tests {
         fn test_raw_safetensors_parsing(model_path: &std::path::Path) {
             use safetensors::SafeTensors;
 
-            println!("🔍 Testing raw SafeTensors parsing for validation");
+            println!("  Testing raw SafeTensors parsing for validation");
 
             // Read the file and parse with safetensors directly
             let buffer = std::fs::read(model_path).expect("Failed to read SafeTensors file");
 
             match SafeTensors::deserialize(&buffer) {
                 Ok(safetensors) => {
-                    println!("✅ SafeTensors file successfully parsed");
+                    println!("  SafeTensors file successfully parsed");
 
                     let tensor_names: Vec<&str> = safetensors
                         .names()
                         .into_iter()
                         .map(std::string::String::as_str)
                         .collect();
-                    println!(
-                        "📊 Found {} tensors in SafeTensors file",
-                        tensor_names.len()
-                    );
+                    println!("  Found {} tensors in SafeTensors file", tensor_names.len());
 
                     // Print first few tensor names for verification
                     for (i, name) in tensor_names.iter().take(5).enumerate() {
@@ -688,26 +685,26 @@ mod model_loading_tests {
 
                     // Verify we have some model tensors (flexible to work with different model types)
                     if tensor_names.is_empty() {
-                        println!("⚠️  SafeTensors file appears to be empty");
+                        println!("   SafeTensors file appears to be empty");
                     } else {
                         println!(
-                            "✅ SafeTensors file contains {} model tensors",
+                            "  SafeTensors file contains {} model tensors",
                             tensor_names.len()
                         );
                     }
                 }
                 Err(e) => {
-                    println!("⚠️  Failed to parse SafeTensors file: {}", e);
-                    println!("💡 This might be due to file corruption or format issues");
+                    println!("   Failed to parse SafeTensors file: {}", e);
+                    println!("  This might be due to file corruption or format issues");
 
                     // Check if the error is a known format issue
                     let error_msg = format!("{}", e);
                     if error_msg.contains("MetadataIncompleteBuffer") {
-                        println!("🔍 This appears to be a metadata parsing issue - the file might be truncated or corrupted");
+                        println!("  This appears to be a metadata parsing issue - the file might be truncated or corrupted");
                     }
 
                     // Don't panic - just log the issue and continue with other tests
-                    println!("🔄 Continuing with other SafeTensors format tests...");
+                    println!("  Continuing with other SafeTensors format tests...");
                 }
             }
         }
@@ -716,7 +713,7 @@ mod model_loading_tests {
         fn test_burn_safetensors_loading(model_path: &std::path::Path) {
             use burn_import::safetensors::LoadArgs;
 
-            println!("🔧 Testing burn-import SafeTensors loading capabilities");
+            println!("  Testing burn-import SafeTensors loading capabilities");
 
             // Test burn-import format validation by attempting to read the file
             // This validates that the SafeTensors format is readable by burn-import
@@ -725,9 +722,9 @@ mod model_loading_tests {
             let _load_args = LoadArgs::new(model_path.to_path_buf());
 
             // Verify that LoadArgs was created successfully (indicates format is compatible)
-            println!("✅ Successfully created LoadArgs for SafeTensors file - format is compatible with burn-import");
+            println!("  Successfully created LoadArgs for SafeTensors file - format is compatible with burn-import");
             println!(
-                "📊 Burn-import can handle SafeTensors format from: {}",
+                "  Burn-import can handle SafeTensors format from: {}",
                 model_path.display()
             );
 
@@ -740,7 +737,7 @@ mod model_loading_tests {
             );
 
             println!(
-                "✅ SafeTensors file is accessible and non-empty ({} bytes)",
+                "  SafeTensors file is accessible and non-empty ({} bytes)",
                 file_bytes.len()
             );
         }

@@ -26,13 +26,13 @@ mod tests {
         // Skip test if model doesn't exist
         if !model_path.exists() {
             eprintln!(
-                "⚠️ Skipping test: Small model not found at {}",
+                "  Skipping test: Small model not found at {}",
                 model_path_str
             );
             return;
         }
 
-        println!("✅ WORKING: Testing file existence");
+        println!("  WORKING: Testing file existence");
 
         let tokenizer_json = model_path.join("tokenizer.json");
         let tokenizer_config = model_path.join("tokenizer_config.json");
@@ -47,7 +47,7 @@ mod tests {
         assert!(config_json.exists(), "config.json should exist");
         assert!(model_safetensors.exists(), "model.safetensors should exist");
 
-        println!("  ✅ All required files exist");
+        println!("    All required files exist");
     }
 
     #[tokio::test]
@@ -56,13 +56,13 @@ mod tests {
         let model_path_str = get_small_model_path();
         if !Path::new(&model_path_str).exists() {
             eprintln!(
-                "⚠️ Skipping test: Llama 3.2 model not found at {}",
+                "  Skipping test: Llama 3.2 model not found at {}",
                 &model_path_str
             );
             return;
         }
 
-        println!("✅ WORKING: Testing JSON file parsing");
+        println!("  WORKING: Testing JSON file parsing");
         let model_path_str = get_small_model_path();
         let model_path = Path::new(&model_path_str);
 
@@ -75,7 +75,7 @@ mod tests {
         let config: Value =
             serde_json::from_str(&config_content).expect("Failed to parse tokenizer_config.json");
 
-        println!("  ✅ tokenizer_config.json parsed successfully");
+        println!("    tokenizer_config.json parsed successfully");
 
         // Verify expected fields
         assert!(
@@ -105,7 +105,7 @@ mod tests {
         let model_config: Value =
             serde_json::from_str(&model_config_content).expect("Failed to parse config.json");
 
-        println!("  ✅ config.json parsed successfully");
+        println!("    config.json parsed successfully");
 
         let vocab_size = model_config["vocab_size"].as_u64().unwrap();
         println!("    - Vocab size: {}", vocab_size);
@@ -125,7 +125,7 @@ mod tests {
         let tokenizer_data: Value =
             serde_json::from_str(&tokenizer_content).expect("Failed to parse tokenizer.json");
 
-        println!("  ✅ tokenizer.json parsed successfully");
+        println!("    tokenizer.json parsed successfully");
 
         // Check if it has vocabulary
         let has_vocab = tokenizer_data
@@ -141,13 +141,13 @@ mod tests {
         let model_path_str = get_small_model_path();
         if !Path::new(&model_path_str).exists() {
             eprintln!(
-                "⚠️ Skipping test: Llama 3.2 model not found at {}",
+                "  Skipping test: Llama 3.2 model not found at {}",
                 &model_path_str
             );
             return;
         }
 
-        println!("✅ WORKING: Testing special tokens parsing from JSON");
+        println!("  WORKING: Testing special tokens parsing from JSON");
         let model_path_str = get_small_model_path();
         let model_path = Path::new(&model_path_str);
         let tokenizer_config_path = model_path.join("tokenizer_config.json");
@@ -164,7 +164,7 @@ mod tests {
             .and_then(|v| v.as_object())
             .expect("Should have added_tokens_decoder object");
 
-        println!("  ✅ Found {} special tokens", added_tokens.len());
+        println!("    Found {} special tokens", added_tokens.len());
         // Different models have different numbers of special tokens - just check it's reasonable
         assert!(
             !added_tokens.is_empty() && added_tokens.len() < 500,
@@ -176,7 +176,7 @@ mod tests {
         let mut token_count = 0;
         for (token_id, token_info) in added_tokens.iter().take(3) {
             if let Some(content) = token_info.get("content").and_then(|v| v.as_str()) {
-                println!("    ✅ Token {}: '{}'", token_id, content);
+                println!("      Token {}: '{}'", token_id, content);
                 assert!(!content.is_empty(), "Token content should not be empty");
                 token_count += 1;
             }
@@ -193,13 +193,13 @@ mod tests {
         let model_path_str = get_small_model_path();
         if !Path::new(&model_path_str).exists() {
             eprintln!(
-                "⚠️ Skipping test: Llama 3.2 model not found at {}",
+                "  Skipping test: Llama 3.2 model not found at {}",
                 &model_path_str
             );
             return;
         }
 
-        println!("✅ WORKING: Testing tokenizer.json vocabulary structure");
+        println!("  WORKING: Testing tokenizer.json vocabulary structure");
         let model_path_str = get_small_model_path();
         let model_path = Path::new(&model_path_str);
         let tokenizer_json_path = model_path.join("tokenizer.json");
@@ -211,7 +211,7 @@ mod tests {
         let tokenizer_data: Value =
             serde_json::from_str(&tokenizer_content).expect("Failed to parse tokenizer.json");
 
-        println!("  ✅ tokenizer.json structure analysis:");
+        println!("    tokenizer.json structure analysis:");
 
         // Check model type
         if let Some(model_type) = tokenizer_data.get("model").and_then(|m| m.get("type")) {
@@ -238,9 +238,9 @@ mod tests {
                 ];
                 for token in test_tokens {
                     if let Some(id) = vocab_obj.get(token) {
-                        println!("    ✅ Found common token '{}' -> {}", token, id);
+                        println!("      Found common token '{}' -> {}", token, id);
                     } else {
-                        println!("    ❌ Missing common token '{}'", token);
+                        println!("      Missing common token '{}'", token);
                     }
                 }
 
@@ -248,21 +248,21 @@ mod tests {
                 let expected_vocab_size = 128_256;
                 if vocab_obj.len() == expected_vocab_size {
                     println!(
-                        "    ✅ Vocabulary size matches expected: {}",
+                        "      Vocabulary size matches expected: {}",
                         expected_vocab_size
                     );
                 } else {
                     println!(
-                        "    ⚠️ Vocabulary size mismatch: got {}, expected {}",
+                        "      Vocabulary size mismatch: got {}, expected {}",
                         vocab_obj.len(),
                         expected_vocab_size
                     );
                 }
             } else {
-                println!("    ❌ Vocabulary is not an object");
+                println!("      Vocabulary is not an object");
             }
         } else {
-            println!("    ❌ No vocabulary found in tokenizer.json");
+            println!("      No vocabulary found in tokenizer.json");
         }
 
         // Check merges
@@ -293,13 +293,13 @@ mod tests {
         let model_path_str = get_small_model_path();
         if !Path::new(&model_path_str).exists() {
             eprintln!(
-                "⚠️ Skipping test: Llama 3.2 model not found at {}",
+                "  Skipping test: Llama 3.2 model not found at {}",
                 &model_path_str
             );
             return;
         }
 
-        println!("🔍 ANALYSIS: Testing vocabulary encoding in tokenizer.json");
+        println!("  ANALYSIS: Testing vocabulary encoding in tokenizer.json");
         let model_path_str = get_small_model_path();
         let model_path = Path::new(&model_path_str);
         let tokenizer_json_path = model_path.join("tokenizer.json");
@@ -313,7 +313,7 @@ mod tests {
 
         if let Some(vocab) = tokenizer_data.get("model").and_then(|m| m.get("vocab")) {
             if let Some(vocab_obj) = vocab.as_object() {
-                println!("  📊 Analyzing vocabulary encoding:");
+                println!("    Analyzing vocabulary encoding:");
                 println!("    - Total vocabulary size: {}", vocab_obj.len());
 
                 // Look for tokens by ID range to understand the structure
@@ -359,7 +359,7 @@ mod tests {
                 }
 
                 // Specifically look for common English words by searching the entire vocab
-                println!("  🔍 Searching for common English words in vocabulary:");
+                println!("    Searching for common English words in vocabulary:");
                 let common_words = vec![
                     "hello", "world", "the", "a", "an", "and", "or", "who", "what", "is", "was",
                     "are",
@@ -374,7 +374,7 @@ mod tests {
                         {
                             if let Some(id) = id_val.as_u64() {
                                 println!(
-                                    "    ✅ Found '{}' as token '{}' -> {}",
+                                    "      Found '{}' as token '{}' -> {}",
                                     word, token_str, id
                                 );
                                 found = true;
@@ -383,12 +383,12 @@ mod tests {
                         }
                     }
                     if !found {
-                        println!("    ❌ Word '{}' not found in vocabulary", word);
+                        println!("      Word '{}' not found in vocabulary", word);
                     }
                 }
 
                 // Look for byte-level tokens (common in GPT-style tokenizers)
-                println!("  🔍 Looking for byte-level encodings:");
+                println!("    Looking for byte-level encodings:");
                 let mut byte_tokens = 0;
                 for (token_str, _) in vocab_obj {
                     if token_str.starts_with("Ġ") || token_str.len() == 1 {
@@ -400,10 +400,10 @@ mod tests {
                 }
                 println!("    - Total byte-level tokens: {}", byte_tokens);
             } else {
-                println!("  ❌ Vocabulary is not an object");
+                println!("    Vocabulary is not an object");
             }
         } else {
-            println!("  ❌ No vocabulary found in tokenizer.json");
+            println!("    No vocabulary found in tokenizer.json");
         }
     }
 
@@ -413,13 +413,13 @@ mod tests {
         let model_path_str = get_small_model_path();
         if !Path::new(&model_path_str).exists() {
             eprintln!(
-                "⚠️ Skipping test: Llama 3.2 model not found at {}",
+                "  Skipping test: Llama 3.2 model not found at {}",
                 &model_path_str
             );
             return;
         }
 
-        println!("🔧 ANALYSIS: Testing direct tokenizer.json loading with tokenizers crate");
+        println!("  ANALYSIS: Testing direct tokenizer.json loading with tokenizers crate");
         let model_path_str = get_small_model_path();
         let model_path = Path::new(&model_path_str);
         let tokenizer_json_path = model_path.join("tokenizer.json");
@@ -428,12 +428,12 @@ mod tests {
         {
             use tokenizers::Tokenizer;
 
-            println!("  📝 Loading tokenizer.json directly...");
+            println!("    Loading tokenizer.json directly...");
             let direct_load_result = Tokenizer::from_file(&tokenizer_json_path);
 
             match direct_load_result {
                 Ok(tokenizer) => {
-                    println!("  ✅ Direct tokenizer.json loading successful!");
+                    println!("    Direct tokenizer.json loading successful!");
 
                     let vocab_size = tokenizer.get_vocab_size(false);
                     println!("    - Vocabulary size: {}", vocab_size);
@@ -447,43 +447,43 @@ mod tests {
                         Ok(encoding) => {
                             let tokens = encoding.get_ids();
                             println!(
-                                "    ✅ Direct tokenization successful: {} tokens",
+                                "      Direct tokenization successful: {} tokens",
                                 tokens.len()
                             );
-                            println!("    📋 Token IDs: {:?}", tokens);
+                            println!("      Token IDs: {:?}", tokens);
 
                             if tokens.is_empty() {
-                                println!("    ❌ Direct tokenization also produces 0 tokens");
+                                println!("      Direct tokenization also produces 0 tokens");
                             } else {
-                                println!("    🎉 DIRECT TOKENIZATION WORKS!");
+                                println!("      DIRECT TOKENIZATION WORKS!");
 
                                 // Try to decode back
                                 let decode_result = tokenizer.decode(tokens, true);
                                 match decode_result {
                                     Ok(decoded) => {
-                                        println!("    🔄 Decoded text: '{}'", decoded);
+                                        println!("      Decoded text: '{}'", decoded);
                                         if decoded.trim() == test_text.trim() {
-                                            println!("    ✅ Round-trip successful!");
+                                            println!("      Round-trip successful!");
                                         } else {
                                             println!(
-                                                "    ⚠️ Round-trip mismatch: '{}' vs '{}'",
+                                                "      Round-trip mismatch: '{}' vs '{}'",
                                                 test_text, decoded
                                             );
                                         }
                                     }
                                     Err(e) => {
-                                        println!("    ❌ Decoding failed: {}", e);
+                                        println!("      Decoding failed: {}", e);
                                     }
                                 }
                             }
                         }
                         Err(e) => {
-                            println!("    ❌ Direct tokenization failed: {}", e);
+                            println!("      Direct tokenization failed: {}", e);
                         }
                     }
                 }
                 Err(e) => {
-                    println!("  ❌ Direct tokenizer.json loading failed: {}", e);
+                    println!("    Direct tokenizer.json loading failed: {}", e);
                 }
             }
         }
@@ -494,7 +494,7 @@ mod tests {
             feature = "candle-metal"
         )))]
         {
-            println!("  ⚠️ Tokenizers crate not available (no candle features)");
+            println!("    Tokenizers crate not available (no candle features)");
         }
     }
 
@@ -506,32 +506,32 @@ mod tests {
         let model_path_str = get_small_model_path();
         if !Path::new(&model_path_str).exists() {
             eprintln!(
-                "⚠️ Skipping test: Llama 3.2 model not found at {}",
+                "  Skipping test: Llama 3.2 model not found at {}",
                 &model_path_str
             );
             return;
         }
 
-        println!("❌ BROKEN: Testing Llama 3.2 tokenizer loading");
+        println!("  BROKEN: Testing Llama 3.2 tokenizer loading");
 
         let model_path_str = get_small_model_path();
         let tokenizer_result = CandleTokenizer::load_from_path(&model_path_str).await;
 
         match &tokenizer_result {
             Ok(tokenizer) => {
-                println!("✅ Tokenizer loaded successfully");
+                println!("  Tokenizer loaded successfully");
 
                 // Test basic tokenizer properties
                 let vocab_size = tokenizer.get_vocab_size(false);
-                println!("📊 Vocab size: {}", vocab_size);
+                println!("  Vocab size: {}", vocab_size);
 
                 // Expected for Llama 3.2: 128,256 tokens (128,000 base + 256 special)
                 if vocab_size != 128_256 {
-                    println!("⚠️ Warning: Expected vocab size 128256, got {}", vocab_size);
+                    println!("  Warning: Expected vocab size 128256, got {}", vocab_size);
                 }
             }
             Err(e) => {
-                println!("❌ Tokenizer loading failed: {}", e);
+                println!("  Tokenizer loading failed: {}", e);
                 panic!("Failed to load tokenizer: {}", e);
             }
         }
@@ -543,13 +543,13 @@ mod tests {
         let model_path_str = get_small_model_path();
         if !Path::new(&model_path_str).exists() {
             eprintln!(
-                "⚠️ Skipping test: Llama 3.2 model not found at {}",
+                "  Skipping test: Llama 3.2 model not found at {}",
                 &model_path_str
             );
             return;
         }
 
-        println!("❌ BROKEN: Testing Llama 3.2 basic tokenization - demonstrates 0 tokens");
+        println!("  BROKEN: Testing Llama 3.2 basic tokenization - demonstrates 0 tokens");
 
         let model_path_str = get_small_model_path();
         let tokenizer = CandleTokenizer::load_from_path(&model_path_str)
@@ -579,30 +579,33 @@ mod tests {
                     let tokens = encoding.get_ids();
                     let token_count = tokens.len();
 
-                    println!("  ✅ Tokenized successfully: {} tokens", token_count);
-                    println!("  📋 Token IDs: {:?}", tokens);
+                    println!("    Tokenized successfully: {} tokens", token_count);
+                    println!("    Token IDs: {:?}", tokens);
 
                     if token_count == 0 && !prompt.is_empty() {
-                        println!("  ⚠️ WARNING: Non-empty prompt produced 0 tokens!");
+                        println!("    WARNING: Non-empty prompt produced 0 tokens!");
                     }
 
                     // Try to decode back to text
                     let decode_result = tokenizer.decode(tokens, true);
                     match decode_result {
                         Ok(decoded_text) => {
-                            println!("  🔄 Decoded text: '{}'", decoded_text);
+                            println!("    Decoded text: '{}'", decoded_text);
 
                             if decoded_text != prompt && !prompt.is_empty() {
-                                println!("  ⚠️ WARNING: Round-trip failed! Original: '{}', Decoded: '{}'", prompt, decoded_text);
+                                println!(
+                                    "    WARNING: Round-trip failed! Original: '{}', Decoded: '{}'",
+                                    prompt, decoded_text
+                                );
                             }
                         }
                         Err(e) => {
-                            println!("  ❌ Decoding failed: {}", e);
+                            println!("    Decoding failed: {}", e);
                         }
                     }
                 }
                 Err(e) => {
-                    println!("  ❌ Tokenization failed: {}", e);
+                    println!("    Tokenization failed: {}", e);
                 }
             }
             println!(); // Empty line for readability
@@ -615,13 +618,13 @@ mod tests {
         let model_path_str = get_small_model_path();
         if !Path::new(&model_path_str).exists() {
             eprintln!(
-                "⚠️ Skipping test: Llama 3.2 model not found at {}",
+                "  Skipping test: Llama 3.2 model not found at {}",
                 &model_path_str
             );
             return;
         }
 
-        println!("❌ BROKEN: Testing Llama 3.2 special tokens - demonstrates incorrect splitting");
+        println!("  BROKEN: Testing Llama 3.2 special tokens - demonstrates incorrect splitting");
 
         let model_path_str = get_small_model_path();
         let tokenizer = CandleTokenizer::load_from_path(&model_path_str)
@@ -638,35 +641,35 @@ mod tests {
         ];
 
         for (token_text, expected_id) in special_tokens {
-            println!("🔍 Testing special token: '{}'", token_text);
+            println!("  Testing special token: '{}'", token_text);
 
             let encoding_result = tokenizer.encode(token_text, true); // Allow special tokens
 
             match encoding_result {
                 Ok(encoding) => {
                     let tokens = encoding.get_ids();
-                    println!("  📋 Token IDs: {:?}", tokens);
+                    println!("    Token IDs: {:?}", tokens);
 
                     if tokens.len() == 1 {
                         let actual_id = tokens[0];
                         if actual_id == expected_id {
-                            println!("  ✅ Correct special token ID: {}", actual_id);
+                            println!("    Correct special token ID: {}", actual_id);
                         } else {
                             println!(
-                                "  ❌ Wrong special token ID: got {}, expected {}",
+                                "    Wrong special token ID: got {}, expected {}",
                                 actual_id, expected_id
                             );
                         }
                     } else {
                         println!(
-                            "  ⚠️ Special token split into {} tokens: {:?}",
+                            "    Special token split into {} tokens: {:?}",
                             tokens.len(),
                             tokens
                         );
                     }
                 }
                 Err(e) => {
-                    println!("  ❌ Failed to tokenize special token: {}", e);
+                    println!("    Failed to tokenize special token: {}", e);
                 }
             }
         }
@@ -678,7 +681,7 @@ mod tests {
         let model_path_str = get_small_model_path();
         if !Path::new(&model_path_str).exists() {
             eprintln!(
-                "⚠️ Skipping test: Llama 3.2 model not found at {}",
+                "  Skipping test: Llama 3.2 model not found at {}",
                 &model_path_str
             );
             return;
@@ -692,7 +695,7 @@ mod tests {
             .expect("Failed to load tokenizer");
 
         let test_prompt = "who were the beatles?";
-        println!("📝 Testing prompt: '{}'", test_prompt);
+        println!("  Testing prompt: '{}'", test_prompt);
 
         let encoding_result = tokenizer.encode(test_prompt, false);
 
@@ -701,13 +704,13 @@ mod tests {
                 let tokens = encoding.get_ids();
                 let token_count = tokens.len();
 
-                println!("📊 Tokenization result:");
+                println!("  Tokenization result:");
                 println!("  - Token count: {}", token_count);
                 println!("  - Token IDs: {:?}", tokens);
 
                 if token_count == 0 {
                     println!("🔴 FAILURE DEMONSTRATED: Tokenization produced 0 tokens for non-empty prompt!");
-                    println!("💡 This explains why inference fails with 'cannot reshape tensor of 0 elements'");
+                    println!("  This explains why inference fails with 'cannot reshape tensor of 0 elements'");
 
                     // This should cause the test to fail, demonstrating the issue
                     assert!(
@@ -715,7 +718,7 @@ mod tests {
                         "Tokenization should produce at least one token for non-empty input"
                     );
                 } else {
-                    println!("✅ Tokenization produced tokens (issue may be resolved)");
+                    println!("  Tokenization produced tokens (issue may be resolved)");
                 }
             }
             Err(e) => {
@@ -734,13 +737,13 @@ mod tests {
         let model_path_str = get_small_model_path();
         if !Path::new(&model_path_str).exists() {
             eprintln!(
-                "⚠️ Skipping test: Llama 3.2 model not found at {}",
+                "  Skipping test: Llama 3.2 model not found at {}",
                 &model_path_str
             );
             return;
         }
 
-        println!("🔍 Inspecting tokenizer files in Llama 3.2 model directory");
+        println!("  Inspecting tokenizer files in Llama 3.2 model directory");
 
         let model_path_str = get_small_model_path();
         let model_path = Path::new(&model_path_str);
@@ -750,13 +753,13 @@ mod tests {
         let tokenizer_config = model_path.join("tokenizer_config.json");
         let vocab_json = model_path.join("vocab.json");
 
-        println!("📂 File existence check:");
+        println!("  File existence check:");
         println!("  - tokenizer.json: {}", tokenizer_json.exists());
         println!("  - tokenizer_config.json: {}", tokenizer_config.exists());
         println!("  - vocab.json: {}", vocab_json.exists());
 
         if tokenizer_config.exists() {
-            println!("📋 Reading tokenizer_config.json...");
+            println!("  Reading tokenizer_config.json...");
             let config_content = tokio::fs::read_to_string(&tokenizer_config)
                 .await
                 .expect("Failed to read tokenizer_config.json");

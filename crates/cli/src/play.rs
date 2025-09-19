@@ -175,17 +175,17 @@ async fn select_model(mut options: PlayCliOptions) -> Result<PlayCliOptions> {
         }
         ModelValidationResult::NoModels => {
             eprintln!(
-                "❌ No SafeTensors models found in directory: {}",
+                "No SafeTensors models found in directory: {}",
                 options.model_path
             );
             eprintln!();
-            eprintln!("💡 To download a model, run:");
+            eprintln!("To download a model, run:");
             eprintln!(
                 "   inferno download --model-id <HF_MODEL_ID> --output-dir {}",
                 options.model_path
             );
             eprintln!();
-            eprintln!("📚 Popular models to try:");
+            eprintln!("Popular models to try:");
             eprintln!("   inferno download --model-id microsoft/DialoGPT-medium");
             eprintln!("   inferno download --model-id TinyLlama/TinyLlama-1.1B-Chat-v1.0");
             std::process::exit(1);
@@ -193,17 +193,14 @@ async fn select_model(mut options: PlayCliOptions) -> Result<PlayCliOptions> {
         ModelValidationResult::MultipleModels(models_list) => {
             if options.prompt.is_some() {
                 // In headless mode, require explicit model selection
-                eprintln!(
-                    "❌ Multiple models found in directory: {}",
-                    options.model_path
-                );
+                eprintln!("Multiple models found in directory: {}", options.model_path);
                 eprintln!();
-                eprintln!("📁 Available SafeTensors models:");
+                eprintln!("Available SafeTensors models:");
                 for model in &models_list {
                     eprintln!("   {} ({})", model.name, format_file_size(model.size_bytes));
                 }
                 eprintln!();
-                eprintln!("💡 Please specify a model with --model-path:");
+                eprintln!("Please specify a model with --model-path:");
                 eprintln!(
                     "   inferno play --prompt \"your question\" --model-path {}/MODEL_NAME",
                     options.model_path
@@ -227,7 +224,7 @@ async fn select_model_interactively(
 ) -> Result<crate::models::ModelInfo> {
     use crate::models::format_file_size;
 
-    println!("📁 Multiple models found in directory: {}", model_dir);
+    println!("Multiple models found in directory: {}", model_dir);
     println!();
 
     // Display available models
@@ -258,7 +255,7 @@ async fn select_model_interactively(
             if choice >= 1 && choice <= models.len() {
                 let selected_model = &models[choice - 1];
                 println!(
-                    "✅ Selected: {} ({})",
+                    "Selected: {} ({})",
                     selected_model.name,
                     format_file_size(selected_model.size_bytes)
                 );
@@ -268,7 +265,7 @@ async fn select_model_interactively(
         }
 
         eprintln!(
-            "❌ Invalid selection. Please enter a number between 1 and {}",
+            "Invalid selection. Please enter a number between 1 and {}",
             models.len()
         );
     }
@@ -596,7 +593,7 @@ pub async fn run_play_mode(mut options: PlayCliOptions) -> Result<()> {
     let mut context = context;
 
     // Interactive mode - print welcome message
-    println!("\n🔥 Welcome to Inferno Play Mode! 🔥");
+    println!("\nWelcome to Inferno Play Mode!");
     println!("Type your messages and get AI responses. Use :help for commands or :quit to exit.\n");
 
     // Initialize readline editor
@@ -693,7 +690,7 @@ async fn run_interaction_loop(editor: &mut DefaultEditor, context: &mut PlayCont
         }
     }
 
-    println!("\nThanks for using Inferno Play Mode! 🔥");
+    println!("\nThanks for using Inferno Play Mode!");
 
     // Show final statistics
     let stats_output = process_special_command(":stats", &context.stats).unwrap_or_default();

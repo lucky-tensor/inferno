@@ -106,7 +106,7 @@ async fn test_backend_registration_with_proxy() {
     let proxy_metrics_port = metrics_port + 1;
     let backend_metrics_port = metrics_port;
 
-    println!("🔍 Verifying registration success...");
+    println!("Verifying registration success...");
     println!("   - Proxy started on port: {}", proxy_port);
     println!("   - Backend started on port: {}", backend_port);
     println!("   - Proxy metrics on port: {}", proxy_metrics_port);
@@ -121,19 +121,16 @@ async fn test_backend_registration_with_proxy() {
     // Check if proxy metrics endpoint is accessible
     match client.get(&proxy_metrics_url).send().await {
         Ok(response) if response.status().is_success() => {
-            println!(
-                "✅ Proxy metrics endpoint accessible at {}",
-                proxy_metrics_url
-            );
+            println!("Proxy metrics endpoint accessible at {}", proxy_metrics_url);
         }
         Ok(response) => {
             println!(
-                "❌ Proxy metrics endpoint returned error: {}",
+                "Proxy metrics endpoint returned error: {}",
                 response.status()
             );
         }
         Err(e) => {
-            println!("❌ Failed to connect to proxy metrics: {}", e);
+            println!("Failed to connect to proxy metrics: {}", e);
         }
     }
 
@@ -141,27 +138,27 @@ async fn test_backend_registration_with_proxy() {
     match client.get(&backend_metrics_url).send().await {
         Ok(response) if response.status().is_success() => {
             println!(
-                "✅ Backend metrics endpoint accessible at {}",
+                "Backend metrics endpoint accessible at {}",
                 backend_metrics_url
             );
 
             // Try to parse the metrics to check if backend reports it's connected to proxy
             if let Ok(text) = response.text().await {
                 if text.contains("connected_peers") {
-                    println!("✅ Backend metrics contain peer connection information");
+                    println!("Backend metrics contain peer connection information");
                 } else {
-                    println!("⚠️  Backend metrics don't show peer connections yet");
+                    println!("WARNING: Backend metrics don't show peer connections yet");
                 }
             }
         }
         Ok(response) => {
             println!(
-                "❌ Backend metrics endpoint returned error: {}",
+                "Backend metrics endpoint returned error: {}",
                 response.status()
             );
         }
         Err(e) => {
-            println!("❌ Failed to connect to backend metrics: {}", e);
+            println!("Failed to connect to backend metrics: {}", e);
         }
     }
 
@@ -171,24 +168,24 @@ async fn test_backend_registration_with_proxy() {
     match client.get(&backends_url).send().await {
         Ok(response) if response.status().is_success() => {
             if let Ok(body) = response.text().await {
-                println!("✅ Proxy backends endpoint accessible: {}", body);
+                println!("Proxy backends endpoint accessible: {}", body);
                 // TODO: Parse JSON and check if backend is actually registered
             }
         }
         Ok(response) => {
-            println!("❌ Proxy backends endpoint returned error: {} (this is expected until /backends is implemented)", response.status());
+            println!("Proxy backends endpoint returned error: {} (this is expected until /backends is implemented)", response.status());
         }
         Err(e) => {
-            println!("❌ Failed to connect to proxy backends endpoint: {} (this is expected until /backends is implemented)", e);
+            println!("Failed to connect to proxy backends endpoint: {} (this is expected until /backends is implemented)", e);
         }
     }
 
     // The test should fail if registration didn't work
     // We'll verify this by checking logs for registration failure
-    println!("\n📊 Registration Test Summary:");
+    println!("\nRegistration Test Summary:");
     println!("   - Check the logs above for registration attempts and failures");
-    println!("   - ❌ This test should FAIL until the /register endpoint is implemented");
-    println!("   - ❌ Backend should show 'Connection refused' errors when trying to register");
+    println!("   - FAIL: This test should FAIL until the /register endpoint is implemented");
+    println!("   - FAIL: Backend should show 'Connection refused' errors when trying to register");
     println!("   - The metrics endpoints should be accessible but won't show successful peer connections");
 
     // TODO: Once /register endpoint is implemented, this test should verify:

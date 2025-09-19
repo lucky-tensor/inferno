@@ -35,7 +35,7 @@ pub fn load_llama_weights(
     model_path: &Path,
     device: &Device<Backend>,
 ) -> Result<Llama<Backend, SentiencePieceTokenizer>, Box<dyn Error>> {
-    println!("🔄 Loading pre-trained Llama model with real weights...");
+    println!("  Loading pre-trained Llama model with real weights...");
 
     // Check if we have the required files
     let weights_path = model_path.join("model.safetensors");
@@ -91,7 +91,7 @@ pub fn load_llama_weights(
     let config = load_model_config(model_path, &effective_tokenizer_path)?;
 
     println!(
-        "📋 Model Config: {} layers, {} heads, vocab_size: {}",
+        "  Model Config: {} layers, {} heads, vocab_size: {}",
         config.num_hidden_layers, config.num_attention_heads, config.vocab_size
     );
 
@@ -100,18 +100,18 @@ pub fn load_llama_weights(
         .init::<Backend, SentiencePieceTokenizer>(device)
         .map_err(|e| format!("Failed to initialize TinyLlama model: {}", e))?;
 
-    println!("✅ Model structure initialized, attempting to load SafeTensors weights...");
+    println!("  Model structure initialized, attempting to load SafeTensors weights...");
 
     // Try to load weights using Burn's record system
     // Note: This is a simplified approach - full weight loading would require
     // proper tensor name mapping from HuggingFace format to Burn format
     match load_safetensors_weights(&weights_path, &model) {
         Ok(()) => {
-            println!("✅ Successfully loaded model with pre-trained weights!");
+            println!("  Successfully loaded model with pre-trained weights!");
         }
         Err(e) => {
-            println!("⚠️ Failed to load pre-trained weights: {}", e);
-            println!("🔄 Continuing with initialized model (may have random weights)");
+            println!("  Failed to load pre-trained weights: {}", e);
+            println!("  Continuing with initialized model (may have random weights)");
         }
     }
 
@@ -125,7 +125,7 @@ fn load_safetensors_weights(
     _model: &Llama<Backend, SentiencePieceTokenizer>,
 ) -> Result<(), Box<dyn Error>> {
     println!(
-        "🔧 Loading SafeTensors weights using burn-import from: {}",
+        "  Loading SafeTensors weights using burn-import from: {}",
         weights_path.display()
     );
 
@@ -138,7 +138,7 @@ fn load_safetensors_weights(
     #[allow(clippy::cast_precision_loss)]
     let file_size_mb = file_size as f64 / 1_048_576.0;
     println!(
-        "📊 SafeTensors file: {} bytes ({:.1} MB)",
+        "  SafeTensors file: {} bytes ({:.1} MB)",
         file_size, file_size_mb
     );
 
@@ -146,27 +146,27 @@ fn load_safetensors_weights(
     let _recorder = SafetensorsFileRecorder::<FullPrecisionSettings>::default();
     let _load_args = LoadArgs::new(weights_path.to_path_buf());
 
-    println!("📋 Attempting to load SafeTensors weights into Burn model...");
+    println!("  Attempting to load SafeTensors weights into Burn model...");
 
     // For now, let's focus on validating SafeTensors file access without complex type inference
-    println!("🔧 Attempting SafeTensors file validation...");
+    println!("  Attempting SafeTensors file validation...");
 
     // Check if file is accessible and readable
     if std::fs::metadata(weights_path).is_ok() {
-        println!("✅ SafeTensors file is accessible and readable");
+        println!("  SafeTensors file is accessible and readable");
 
         // Attempt basic SafeTensors parsing with improved error handling
-        println!("🔍 Reading SafeTensors file: {}", weights_path.display());
+        println!("  Reading SafeTensors file: {}", weights_path.display());
         let data = match std::fs::read(weights_path) {
             Ok(data) => {
                 println!(
-                    "✅ Successfully read {} bytes from SafeTensors file",
+                    "  Successfully read {} bytes from SafeTensors file",
                     data.len()
                 );
                 data
             }
             Err(e) => {
-                println!("❌ Failed to read SafeTensors file: {}", e);
+                println!("  Failed to read SafeTensors file: {}", e);
                 return Err(format!("File read error: {}", e).into());
             }
         };
@@ -186,11 +186,11 @@ fn load_safetensors_weights(
         let header_len = u64::from_le_bytes([
             data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
         ]);
-        println!("📋 SafeTensors header length: {} bytes", header_len);
+        println!("  SafeTensors header length: {} bytes", header_len);
 
         if header_len > data.len() as u64 {
             println!(
-                "⚠️ Header length ({}) exceeds file size ({})",
+                "  Header length ({}) exceeds file size ({})",
                 header_len,
                 data.len()
             );
@@ -200,7 +200,7 @@ fn load_safetensors_weights(
         }
 
         if header_len == 0 {
-            println!("⚠️ Header length is zero");
+            println!("  Header length is zero");
             return Err("Corrupted SafeTensors: zero header length"
                 .to_string()
                 .into());
@@ -209,8 +209,8 @@ fn load_safetensors_weights(
         // Try SafeTensors deserialization with detailed error information
         match SafeTensors::deserialize(&data) {
             Ok(tensors) => {
-                println!("✅ SafeTensors file parsed successfully!");
-                println!("📊 Found {} tensors in SafeTensors file:", tensors.len());
+                println!("  SafeTensors file parsed successfully!");
+                println!("  Found {} tensors in SafeTensors file:", tensors.len());
 
                 // Show first few tensor names to understand structure
                 let tensor_names: Vec<_> = tensors.names().into_iter().take(10).collect();
@@ -226,23 +226,23 @@ fn load_safetensors_weights(
                     );
                 }
 
-                println!("💡 SafeTensors contains valid tensor data but requires manual mapping to Burn model");
+                println!("  SafeTensors contains valid tensor data but requires manual mapping to Burn model");
             }
             Err(e) => {
-                println!("❌ SafeTensors parsing failed: {}", e);
+                println!("  SafeTensors parsing failed: {}", e);
                 return Err(format!("Invalid SafeTensors format: {}", e).into());
             }
         }
     } else {
-        println!("❌ SafeTensors file is not accessible");
+        println!("  SafeTensors file is not accessible");
         return Err("SafeTensors file cannot be accessed".to_string().into());
     }
 
     // Summary of current state
     println!("🚧 Current implementation status:");
-    println!("   ✅ SafeTensors file parsing works");
-    println!("   ❌ Manual weight mapping to llama-burn model not yet implemented");
-    println!("   💡 Model will use Xavier/He initialized weights for now");
+    println!("     SafeTensors file parsing works");
+    println!("     Manual weight mapping to llama-burn model not yet implemented");
+    println!("     Model will use Xavier/He initialized weights for now");
 
     // TODO: Implement manual weight mapping for HuggingFace -> Burn format conversion
     // This would involve:
@@ -279,7 +279,7 @@ pub fn load_model_config(
 
     // Try to load from config.json
     if config_path.exists() {
-        println!("📋 Loading model configuration from config.json");
+        println!("  Loading model configuration from config.json");
 
         let config_content = std::fs::read_to_string(&config_path)
             .map_err(|e| format!("Failed to read config.json: {}", e))?;
@@ -288,7 +288,7 @@ pub fn load_model_config(
             .map_err(|e| format!("Failed to parse config.json: {}", e))?;
 
         println!(
-            "✅ Successfully loaded config from {}",
+            "  Successfully loaded config from {}",
             config_path.display()
         );
 
@@ -313,13 +313,13 @@ pub fn load_model_config(
         };
 
         println!(
-            "📊 Loaded config - d_model: {}, layers: {}, heads: {}, vocab: {}",
+            "  Loaded config - d_model: {}, layers: {}, heads: {}, vocab: {}",
             config.d_model, config.num_hidden_layers, config.num_attention_heads, config.vocab_size
         );
 
         Ok(config)
     } else {
-        println!("⚠️  config.json not found, using TinyLlama-1.1B defaults");
+        println!("   config.json not found, using TinyLlama-1.1B defaults");
 
         // Fallback to TinyLlama configuration
         Ok(LlamaConfig {
@@ -344,7 +344,7 @@ pub fn load_llama_weights(
     model_path: &Path,
     device: &Device<Backend>,
 ) -> Result<Llama<Backend, SentiencePieceTokenizer>, Box<dyn Error>> {
-    println!("⚠️  Loading Llama with random weights (pretrained feature not enabled)");
+    println!("   Loading Llama with random weights (pretrained feature not enabled)");
 
     let tokenizer_path = model_path.join("tokenizer.json");
     let effective_tokenizer_path = tokenizer_path.to_str().unwrap().to_string();

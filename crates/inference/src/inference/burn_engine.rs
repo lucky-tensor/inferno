@@ -314,12 +314,12 @@ impl BurnInferenceEngine {
             self.model_path = Some(model_path.clone());
 
             // Load model using SafeTensors with burn-import (no async conflicts)
-            info!("🔥 Loading model with real weights using SafeTensors via burn-import...");
+            info!("  Loading model with real weights using SafeTensors via burn-import...");
             match crate::models::llama_loader::load_llama_weights(&model_path, &self.device) {
                 Ok(loaded_model) => {
                     self.model = Some(Mutex::new(loaded_model));
                     info!(
-                        "✅ SUCCESS: Model loaded with real SafeTensors weights using burn-import!"
+                        "  SUCCESS: Model loaded with real SafeTensors weights using burn-import!"
                     );
                     self.model_ready = true;
                 }
@@ -366,7 +366,7 @@ impl BurnInferenceEngine {
 
         self.initialized = true;
 
-        info!("🚀 Burn inference engine initialized and ready to receive inference requests!");
+        info!("  Burn inference engine initialized and ready to receive inference requests!");
         Ok(())
     }
 
@@ -406,13 +406,13 @@ impl BurnInferenceEngine {
                 match generation_result {
                     Ok(generated_text) => {
                         info!(
-                            "✅ REAL neural network generated {} characters",
+                            "  REAL neural network generated {} characters",
                             generated_text.len()
                         );
                         generated_text
                     }
                     Err(e) => {
-                        warn!("❌ Real text generation failed: {}", e);
+                        warn!("  Real text generation failed: {}", e);
                         return Err(e);
                     }
                 }
@@ -503,7 +503,7 @@ impl BurnInferenceEngine {
         );
 
         // Call the ACTUAL Llama model's generate method - this is REAL inference!
-        info!("🔄 Calling model.generate() - this may take some time for CPU inference...");
+        info!("  Calling model.generate() - this may take some time for CPU inference...");
 
         let start_time = std::time::Instant::now();
 
@@ -520,11 +520,11 @@ impl BurnInferenceEngine {
 
         let generation_output = match generation_result {
             Ok(output) => {
-                info!("✅ model.generate() completed successfully");
+                info!("  model.generate() completed successfully");
                 output
             }
             Err(e) => {
-                warn!("❌ model.generate() panicked: {:?}", e);
+                warn!("  model.generate() panicked: {:?}", e);
                 return Err(InfernoError::InvalidArgument(
                     "Model generation panicked - this likely means the model weights are not properly loaded or there's a compatibility issue".to_string()
                 ));
@@ -536,7 +536,7 @@ impl BurnInferenceEngine {
         let generation_time = generation_output.time;
 
         info!(
-            "🎯 REAL model generated {} tokens in {:.2}ms",
+            "  REAL model generated {} tokens in {:.2}ms",
             tokens_generated,
             generation_time * 1000.0
         );
@@ -548,7 +548,7 @@ impl BurnInferenceEngine {
         }
 
         info!(
-            "✅ ACTUAL neural network output: '{}'",
+            "  ACTUAL neural network output: '{}'",
             generated_text.chars().take(100).collect::<String>()
         );
         Ok(generated_text)

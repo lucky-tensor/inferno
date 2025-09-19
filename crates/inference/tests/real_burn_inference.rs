@@ -278,7 +278,7 @@ impl<B: burn::tensor::backend::Backend> TinyLlamaModel<B> {
 
 #[tokio::test]
 async fn test_weight_loading_only() -> Result<(), Box<dyn Error>> {
-    println!("🚀 Testing weight loading for TinyLlama model");
+    println!("Testing weight loading for TinyLlama model");
 
     let device = burn::backend::ndarray::NdArrayDevice::default();
     let config = TinyLlamaConfig::default();
@@ -287,7 +287,7 @@ async fn test_weight_loading_only() -> Result<(), Box<dyn Error>> {
     let mut small_config = config.clone();
     small_config.num_hidden_layers = 2; // Much smaller for testing
     let _model = TinyLlamaModel::<Backend>::new(small_config, &device);
-    println!("✅ Created small TinyLlama model structure (2 layers)");
+    println!("Created small TinyLlama model structure (2 layers)");
 
     // Test weight loading
     let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
@@ -296,11 +296,13 @@ async fn test_weight_loading_only() -> Result<(), Box<dyn Error>> {
 
     match std::fs::metadata(&weights_path) {
         Ok(_) => {
-            println!("📁 Found SafeTensors file: {:?}", weights_path);
-            println!("⚠️  Note: Weight loading will fail due to layer count mismatch (expected for test)");
+            println!("Found SafeTensors file: {:?}", weights_path);
+            println!(
+                "Note: Weight loading will fail due to layer count mismatch (expected for test)"
+            );
         }
         Err(_) => {
-            println!("⚠️  SafeTensors file not found");
+            println!("SafeTensors file not found");
         }
     }
 
@@ -309,18 +311,18 @@ async fn test_weight_loading_only() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn test_real_tinyllama_inference() -> Result<(), Box<dyn Error>> {
-    println!("🚀 Testing REAL TinyLlama inference with actual pre-trained weights");
+    println!("Testing REAL TinyLlama inference with actual pre-trained weights");
 
     let device = burn::backend::ndarray::NdArrayDevice::default();
     let config = TinyLlamaConfig::default();
 
     // Create model structure
     let model = TinyLlamaModel::<Backend>::new(config, &device);
-    println!("✅ Created TinyLlama model structure");
+    println!("Created TinyLlama model structure");
 
     // Note: Weight loading from SafeTensors is implemented but disabled due to performance issues
     // The model uses random weights for demonstration purposes
-    println!("⚠️  Using random weights for demonstration");
+    println!("Using random weights for demonstration");
 
     // Load tokenizer
     let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
@@ -328,7 +330,7 @@ async fn test_real_tinyllama_inference() -> Result<(), Box<dyn Error>> {
     let tokenizer_path = model_path.join("tokenizer.json");
     let tokenizer =
         Tokenizer::from_file(tokenizer_path).map_err(|e| format!("Tokenizer error: {}", e))?;
-    println!("✅ Loaded tokenizer");
+    println!("Loaded tokenizer");
 
     // Test prompt
     let prompt = "Which planet is referred to as the blue dot?";
@@ -337,7 +339,7 @@ async fn test_real_tinyllama_inference() -> Result<(), Box<dyn Error>> {
         .map_err(|e| format!("Encoding error: {}", e))?;
     let token_ids: Vec<i64> = encoding.get_ids().iter().map(|&x| x as i64).collect();
     println!(
-        "✅ Tokenized: '{}' -> first 5 tokens: {:?}",
+        "Tokenized: '{}' -> first 5 tokens: {:?}",
         prompt,
         &token_ids[..5.min(token_ids.len())]
     );
@@ -346,12 +348,12 @@ async fn test_real_tinyllama_inference() -> Result<(), Box<dyn Error>> {
     let seq_len = token_ids.len();
     let tensor_data = TensorData::new(token_ids, [1, seq_len]);
     let input_tensor = Tensor::<Backend, 2, Int>::from_data(tensor_data, &device);
-    println!("✅ Input tensor: {:?}", input_tensor.dims());
+    println!("Input tensor: {:?}", input_tensor.dims());
 
     // Forward pass through the REAL model structure
     let logits = model.forward(input_tensor);
     println!(
-        "✅ Forward pass through {} transformer layers: {:?}",
+        "Forward pass through {} transformer layers: {:?}",
         model.layers.len(),
         logits.dims()
     );
@@ -376,7 +378,7 @@ async fn test_real_tinyllama_inference() -> Result<(), Box<dyn Error>> {
         0
     };
 
-    println!("🎯 Generated next token ID: {}", next_token_id);
+    println!("Generated next token ID: {}", next_token_id);
 
     // Try to decode
     let mut full_sequence = encoding.get_ids().to_vec();
@@ -384,30 +386,30 @@ async fn test_real_tinyllama_inference() -> Result<(), Box<dyn Error>> {
     let generated = tokenizer
         .decode(&full_sequence, false)
         .map_err(|e| format!("Decode error: {}", e))?;
-    println!("🎯 Generated text: '{}'", generated);
+    println!("Generated text: '{}'", generated);
 
     let config = model.config();
-    println!("\n📊 Architecture verification:");
+    println!("\nArchitecture verification:");
     println!(
-        "✅ Embedding layer: {} vocab -> {} hidden",
+        "Embedding layer: {} vocab -> {} hidden",
         config.vocab_size, config.hidden_size
     );
-    println!("✅ Transformer layers: {}", model.layers.len());
-    println!("✅ Attention heads: {}", config.num_attention_heads);
-    println!("✅ Hidden size: {}", config.hidden_size);
+    println!("Transformer layers: {}", model.layers.len());
+    println!("Attention heads: {}", config.num_attention_heads);
+    println!("Hidden size: {}", config.hidden_size);
     println!(
-        "✅ LM head: {} hidden -> {} vocab",
+        "LM head: {} hidden -> {} vocab",
         config.hidden_size, config.vocab_size
     );
 
-    println!("\n✅ Test completed successfully!");
+    println!("\nTest completed successfully!");
 
     Ok(())
 }
 
 #[tokio::test]
 async fn test_complete_inference_architecture() -> Result<(), Box<dyn Error>> {
-    println!("🚀 Testing COMPLETE TinyLlama inference architecture with real tokenizer");
+    println!("Testing COMPLETE TinyLlama inference architecture with real tokenizer");
 
     let device = burn::backend::ndarray::NdArrayDevice::default();
     let config = TinyLlamaConfig {
@@ -418,7 +420,7 @@ async fn test_complete_inference_architecture() -> Result<(), Box<dyn Error>> {
     // Create model (with random weights for demo)
     let model = TinyLlamaModel::<Backend>::new(config.clone(), &device);
     println!(
-        "✅ Created TinyLlama architecture: {} layers, {} heads",
+        "Created TinyLlama architecture: {} layers, {} heads",
         config.num_hidden_layers, config.num_attention_heads
     );
 
@@ -428,7 +430,7 @@ async fn test_complete_inference_architecture() -> Result<(), Box<dyn Error>> {
     let tokenizer_path = model_path.join("tokenizer.json");
     let tokenizer =
         Tokenizer::from_file(tokenizer_path).map_err(|e| format!("Tokenizer error: {}", e))?;
-    println!("✅ Loaded REAL TinyLlama tokenizer");
+    println!("Loaded REAL TinyLlama tokenizer");
 
     // Test with real English question
     let prompt = "Which planet is referred to as the blue dot?";
@@ -437,7 +439,7 @@ async fn test_complete_inference_architecture() -> Result<(), Box<dyn Error>> {
         .map_err(|e| format!("Encoding error: {}", e))?;
     let token_ids: Vec<i64> = encoding.get_ids().iter().map(|&x| x as i64).collect();
     println!(
-        "✅ Real tokenization: '{}' -> {} tokens: {:?}",
+        "Real tokenization: '{}' -> {} tokens: {:?}",
         prompt,
         token_ids.len(),
         &token_ids[..5.min(token_ids.len())]
@@ -452,7 +454,7 @@ async fn test_complete_inference_architecture() -> Result<(), Box<dyn Error>> {
     let logits = model.forward(input_tensor);
     let duration = start.elapsed();
     println!(
-        "✅ Complete forward pass: {:?} -> {:?} in {:.2}ms",
+        "Complete forward pass: {:?} -> {:?} in {:.2}ms",
         [1, token_ids.len()],
         logits.dims(),
         duration.as_millis()
@@ -488,14 +490,14 @@ async fn test_complete_inference_architecture() -> Result<(), Box<dyn Error>> {
         .decode(&full_sequence, false)
         .map_err(|e| format!("Decode error: {}", e))?;
 
-    println!("🎯 Generated: '{}'", generated);
-    println!("📊 INFERENCE COMPLETE - Full TinyLlama architecture working!");
+    println!("Generated: '{}'", generated);
+    println!("INFERENCE COMPLETE - Full TinyLlama architecture working!");
     println!(
-        "✅ Components verified: Embedding → {} Attention Layers → LayerNorm → LM Head",
+        "Components verified: Embedding → {} Attention Layers → LayerNorm → LM Head",
         config.num_hidden_layers
     );
-    println!("✅ Features implemented: Grouped Query Attention, SiLU MLP, Causal Masking");
-    println!("✅ Weight loading infrastructure: SafeTensorsFileRecorder ready for real weights");
+    println!("Features implemented: Grouped Query Attention, SiLU MLP, Causal Masking");
+    println!("Weight loading infrastructure: SafeTensorsFileRecorder ready for real weights");
 
     assert!(
         generated.contains(prompt),
@@ -508,7 +510,7 @@ async fn test_complete_inference_architecture() -> Result<(), Box<dyn Error>> {
 
 #[tokio::test]
 async fn test_model_components() -> Result<(), Box<dyn Error>> {
-    println!("🔍 Testing individual TinyLlama components");
+    println!("Testing individual TinyLlama components");
 
     let device = burn::backend::ndarray::NdArrayDevice::default();
     let config = TinyLlamaConfig::default();
@@ -518,7 +520,7 @@ async fn test_model_components() -> Result<(), Box<dyn Error>> {
     let dummy_hidden = Tensor::<Backend, 3>::zeros([1, 10, config.hidden_size], &device);
     let attn_output = attention.forward(dummy_hidden.clone());
     println!(
-        "✅ Attention: {:?} -> {:?}",
+        "Attention: {:?} -> {:?}",
         dummy_hidden.dims(),
         attn_output.dims()
     );
@@ -526,17 +528,13 @@ async fn test_model_components() -> Result<(), Box<dyn Error>> {
     // Test MLP
     let mlp = TinyLlamaMLP::<Backend>::new(&config, &device);
     let mlp_output = mlp.forward(dummy_hidden.clone());
-    println!(
-        "✅ MLP: {:?} -> {:?}",
-        dummy_hidden.dims(),
-        mlp_output.dims()
-    );
+    println!("MLP: {:?} -> {:?}", dummy_hidden.dims(), mlp_output.dims());
 
     // Test full layer
     let layer = TinyLlamaLayer::<Backend>::new(&config, &device);
     let layer_output = layer.forward(dummy_hidden.clone());
     println!(
-        "✅ Transformer layer: {:?} -> {:?}",
+        "Transformer layer: {:?} -> {:?}",
         dummy_hidden.dims(),
         layer_output.dims()
     );

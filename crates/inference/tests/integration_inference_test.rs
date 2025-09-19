@@ -8,13 +8,13 @@ use std::time::Instant;
 
 #[tokio::test]
 async fn test_burn_cpu_inference_quality() {
-    println!("\n🔥 Testing Burn CPU Neural Network Inference");
+    println!("\n  Testing Burn CPU Neural Network Inference");
     println!("===========================================");
 
     // Create inference engine
     let mut engine = BurnInferenceEngine::new();
     println!(
-        "✅ Created BurnInferenceEngine with backend: {:?}",
+        "  Created BurnInferenceEngine with backend: {:?}",
         engine.backend_type()
     );
 
@@ -31,23 +31,23 @@ async fn test_burn_cpu_inference_quality() {
         ..Default::default()
     };
 
-    println!("🔧 Initializing TinyLlama model...");
+    println!("  Initializing TinyLlama model...");
     let init_start = Instant::now();
 
     // Initialize the model (this will use Xavier/He weights if SafeTensors fails)
     match engine.initialize(config).await {
         Ok(()) => {
             println!(
-                "✅ Model initialized successfully in {:.2}s",
+                "  Model initialized successfully in {:.2}s",
                 init_start.elapsed().as_secs_f64()
             );
         }
         Err(e) => {
-            println!("⚠️ Initialization completed with notes: {}", e);
+            println!("  Initialization completed with notes: {}", e);
         }
     }
 
-    println!("📊 Engine ready: {}", engine.is_ready());
+    println!("  Engine ready: {}", engine.is_ready());
     assert!(engine.is_ready(), "Engine should be ready for inference");
 
     // Test with a simple prompt that should demonstrate neural network behavior
@@ -57,9 +57,9 @@ async fn test_burn_cpu_inference_quality() {
     let test_prompt = "Hello, my name is";
     let max_tokens = 10;
 
-    println!("📝 Input prompt: '{}'", test_prompt);
+    println!("  Input prompt: '{}'", test_prompt);
     println!(
-        "🎯 Requesting {} tokens with temperature=0.7, top_p=0.9",
+        "  Requesting {} tokens with temperature=0.7, top_p=0.9",
         max_tokens
     );
 
@@ -80,15 +80,15 @@ async fn test_burn_cpu_inference_quality() {
 
     match result {
         Ok(response) => {
-            println!("\n✅ REAL NEURAL NETWORK INFERENCE COMPLETED!");
+            println!("\n  REAL NEURAL NETWORK INFERENCE COMPLETED!");
             println!("⏱️  Inference time: {:.3}s", inference_time.as_secs_f64());
-            println!("📊 Generated tokens: {}", response.generated_tokens);
+            println!("  Generated tokens: {}", response.generated_tokens);
             println!("🔮 Generated text: '{}'", response.generated_text);
             println!("✨ Request ID: {}", response.request_id);
             println!("🏁 Is finished: {}", response.is_finished);
 
             if let Some(error) = response.error {
-                println!("⚠️ Response error: {}", error);
+                println!("  Response error: {}", error);
             }
 
             // Verify we got a real response
@@ -111,15 +111,15 @@ async fn test_burn_cpu_inference_quality() {
                 response.generated_text
             );
 
-            println!("\n🎯 Quality Assessment:");
+            println!("\n  Quality Assessment:");
             println!("=====================");
-            println!("• Non-empty output: ✅");
-            println!("• Tokens generated: ✅");
-            println!("• Not hardcoded: ✅");
-            println!("• Real neural network: ✅");
+            println!("• Non-empty output:  ");
+            println!("• Tokens generated:  ");
+            println!("• Not hardcoded:  ");
+            println!("• Real neural network:  ");
         }
         Err(e) => {
-            println!("❌ Inference failed: {}", e);
+            println!("  Inference failed: {}", e);
             panic!("Neural network inference should work: {}", e);
         }
     }
@@ -141,12 +141,12 @@ async fn test_burn_cpu_inference_quality() {
     );
     assert!(stats.model_loaded, "Model should be marked as loaded");
 
-    println!("\n🎉 Burn CPU inference test PASSED! Neural network is working!");
+    println!("\n  Burn CPU inference test PASSED! Neural network is working!");
 }
 
 #[tokio::test]
 async fn test_multiple_inference_requests() {
-    println!("\n🔥 Testing Multiple Neural Network Inference Calls");
+    println!("\n  Testing Multiple Neural Network Inference Calls");
     println!("=================================================");
 
     let mut engine = BurnInferenceEngine::new();
@@ -191,8 +191,8 @@ async fn test_multiple_inference_requests() {
         match engine.process_sync(request) {
             Ok(response) => {
                 successful_inferences += 1;
-                println!("✅ Response: '{}'", response.generated_text);
-                println!("📊 Tokens: {}", response.generated_tokens);
+                println!("  Response: '{}'", response.generated_text);
+                println!("  Tokens: {}", response.generated_tokens);
 
                 assert!(
                     !response.generated_text.is_empty(),
@@ -201,13 +201,13 @@ async fn test_multiple_inference_requests() {
                 );
             }
             Err(e) => {
-                println!("⚠️ Inference failed for '{}': {}", prompt, e);
+                println!("  Inference failed for '{}': {}", prompt, e);
             }
         }
     }
 
     println!(
-        "\n📊 Summary: {}/{} inferences successful",
+        "\n  Summary: {}/{} inferences successful",
         successful_inferences,
         test_cases.len()
     );

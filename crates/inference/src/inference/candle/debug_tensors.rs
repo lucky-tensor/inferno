@@ -96,13 +96,13 @@ pub fn inspect_safetensors(model_path: &str) -> Result<(), Box<dyn std::error::E
     for name in &important_names {
         if let Ok(tensor_info) = safetensors.tensor(name) {
             println!(
-                "  ✅ {} - {:?} dtype, shape {:?}",
+                "    {} - {:?} dtype, shape {:?}",
                 name,
                 tensor_info.dtype(),
                 tensor_info.shape()
             );
         } else {
-            println!("  ❌ {} - NOT FOUND", name);
+            println!("    {} - NOT FOUND", name);
         }
     }
 
@@ -139,12 +139,12 @@ mod tests {
         );
 
         if std::path::Path::new(&model_path).exists() {
-            println!("🔍 Inspecting tensors in: {}", model_path);
+            println!("  Inspecting tensors in: {}", model_path);
             if let Err(e) = inspect_safetensors(&model_path) {
-                println!("❌ Error inspecting tensors: {}", e);
+                println!("  Error inspecting tensors: {}", e);
             }
         } else {
-            println!("⚠️ Model not found at: {}", model_path);
+            println!("  Model not found at: {}", model_path);
         }
     }
 }

@@ -32,13 +32,13 @@ mod tests {
         // Skip test if model doesn't exist
         if !Path::new(&model_path_str).exists() {
             eprintln!(
-                "⚠️ Skipping test: Llama-3.2 model not found at {}",
+                "  Skipping test: Llama-3.2 model not found at {}",
                 model_path_str
             );
             return;
         }
 
-        println!("🔍 Testing quantized model detection for Llama-3.2");
+        println!("  Testing quantized model detection for Llama-3.2");
 
         // Test quantization detection
         let quantized_config = QuantizedModelConfig::load_and_detect_quantization(&model_path_str)
@@ -54,12 +54,14 @@ mod tests {
             "Should detect w8a8 quantization"
         );
 
-        println!("✅ Quantized model detection working correctly");
+        println!("  Quantized model detection working correctly");
         println!("   Model is quantized: {}", quantized_config.is_quantized);
         println!("   W8A8 format: {}", quantized_config.is_w8a8_quantized());
 
         // Test engine initialization to show current limitation
-        println!("📝 Testing engine initialization (expected to detect quantization but show limitation)");
+        println!(
+            "  Testing engine initialization (expected to detect quantization but show limitation)"
+        );
         let mut engine = CandleInferenceEngine::with_backend(CandleBackendType::Cuda);
 
         let config = InfernoConfig {
@@ -82,7 +84,7 @@ mod tests {
         let init_result = engine.initialize(config).await;
         match &init_result {
             Ok(()) => {
-                println!("❌ Unexpected success - should fail with current implementation");
+                println!("  Unexpected success - should fail with current implementation");
                 panic!("Expected to fail with I8 dtype error - this suggests the implementation changed");
             }
             Err(e) => {
@@ -90,15 +92,15 @@ mod tests {
                 if error_str.contains("W8A8 quantized models detected")
                     || error_str.contains("compressed-tensors support is needed")
                 {
-                    println!("✅ Expected failure: quantized model properly detected and rejected");
+                    println!("  Expected failure: quantized model properly detected and rejected");
                     println!("   Error: {}", e);
                     println!("   This confirms quantization detection is working");
                 } else if error_str.contains("unsupported safetensor dtype I8") {
-                    println!("✅ Also acceptable: quantized tensors detected at SafeTensors level");
+                    println!("  Also acceptable: quantized tensors detected at SafeTensors level");
                     println!("   Error: {}", e);
                     println!("   This confirms we need special quantized tensor handling");
                 } else {
-                    println!("❌ Unexpected error type: {}", e);
+                    println!("  Unexpected error type: {}", e);
                     panic!(
                         "Expected quantization-related error, got different error: {}",
                         e
@@ -107,7 +109,7 @@ mod tests {
             }
         }
 
-        println!("🎉 Quantized model detection test completed successfully");
+        println!("  Quantized model detection test completed successfully");
         println!("   Next step: Implement proper compressed-tensors loading");
     }
 
@@ -118,20 +120,20 @@ mod tests {
         // Skip test if model doesn't exist
         if !Path::new(&model_path_str).exists() {
             eprintln!(
-                "⚠️ Skipping test: Quantized Llama-3.2 model not found at {}",
+                "  Skipping test: Quantized Llama-3.2 model not found at {}",
                 model_path_str
             );
             return;
         }
 
-        println!("🚀 Testing CUDA full pipeline with quantized Llama-3.2 model");
+        println!("  Testing CUDA full pipeline with quantized Llama-3.2 model");
 
         // Now that we've implemented compressed-tensors support, let's test it!
 
-        println!("📝 Step 1: Creating Candle CUDA engine with quantized support");
+        println!("  Step 1: Creating Candle CUDA engine with quantized support");
         let mut engine = CandleInferenceEngine::with_backend(CandleBackendType::Cuda);
 
-        println!("📝 Step 2: Initializing engine with quantized Llama-3.2 model");
+        println!("  Step 2: Initializing engine with quantized Llama-3.2 model");
         let config = InfernoConfig {
             model_name: "llama-3.2-1b-instruct-quantized".to_string(),
             model_path: model_path_str.clone(),
@@ -151,14 +153,14 @@ mod tests {
 
         let init_result = engine.initialize(config).await;
         match &init_result {
-            Ok(()) => println!("✅ Engine initialization successful!"),
+            Ok(()) => println!("  Engine initialization successful!"),
             Err(e) => {
-                println!("❌ Engine initialization failed: {}", e);
+                println!("  Engine initialization failed: {}", e);
                 panic!("Failed to initialize quantized model: {}", e);
             }
         }
 
-        println!("📝 Step 3: Testing quantized inference");
+        println!("  Step 3: Testing quantized inference");
         let test_prompt = "what is machine learning?";
 
         let request = InferenceRequest {
@@ -172,9 +174,9 @@ mod tests {
 
         let inference_result = engine.process(request).await;
         match &inference_result {
-            Ok(_) => println!("✅ Inference successful!"),
+            Ok(_) => println!("  Inference successful!"),
             Err(e) => {
-                println!("❌ Inference failed with error: {}", e);
+                println!("  Inference failed with error: {}", e);
                 println!("   This helps us debug the quantized inference implementation");
             }
         }
@@ -194,8 +196,8 @@ mod tests {
             "Should measure inference time"
         );
 
-        println!("✅ Quantized inference successful!");
-        println!("🎯 Generated: '{}'", response.generated_text);
+        println!("  Quantized inference successful!");
+        println!("  Generated: '{}'", response.generated_text);
         println!("📈 Tokens: {}", response.generated_tokens);
         println!("⏱️ Time: {:.2}ms", response.inference_time_ms);
 
@@ -210,20 +212,20 @@ mod tests {
         // Skip test if model doesn't exist
         if !Path::new(&model_path_str).exists() {
             eprintln!(
-                "⚠️ Skipping test: TinyLlama model not found at {}",
+                "  Skipping test: TinyLlama model not found at {}",
                 model_path_str
             );
             return;
         }
 
-        println!("🚀 Testing Candle CUDA engine with TinyLlama model");
+        println!("  Testing Candle CUDA engine with TinyLlama model");
 
         // Step 1: Create engine
-        println!("📝 Step 1: Creating Candle CUDA engine");
+        println!("  Step 1: Creating Candle CUDA engine");
         let mut engine = CandleInferenceEngine::with_backend(CandleBackendType::Cuda);
 
         // Step 2: Initialize with model
-        println!("📝 Step 2: Initializing engine with TinyLlama model");
+        println!("  Step 2: Initializing engine with TinyLlama model");
         let config = InfernoConfig {
             model_name: "tinyllama-1.1b-chat".to_string(),
             model_path: model_path_str.clone(),
@@ -243,15 +245,15 @@ mod tests {
 
         let init_result = engine.initialize(config).await;
         match &init_result {
-            Ok(()) => println!("✅ Engine initialization successful"),
+            Ok(()) => println!("  Engine initialization successful"),
             Err(e) => {
-                println!("❌ Engine initialization failed: {}", e);
+                println!("  Engine initialization failed: {}", e);
                 panic!("Failed to initialize engine: {}", e);
             }
         }
 
         // Step 3: Test tokenization with a simple prompt
-        println!("📝 Step 3: Testing inference with tokenization");
+        println!("  Step 3: Testing inference with tokenization");
         let test_prompt = "who were the beatles?";
         println!(
             "🔤 Testing tokenization and inference with prompt: '{}'",
@@ -270,15 +272,15 @@ mod tests {
         let inference_result = engine.process(request).await;
         match &inference_result {
             Ok(response) => {
-                println!("✅ Inference successful!");
-                println!("📊 Request ID: {}", response.request_id);
-                println!("🎯 Generated text: '{}'", response.generated_text);
+                println!("  Inference successful!");
+                println!("  Request ID: {}", response.request_id);
+                println!("  Generated text: '{}'", response.generated_text);
                 println!("📈 Generated tokens: {}", response.generated_tokens);
                 println!("⏱️ Inference time: {:.2}ms", response.inference_time_ms);
                 println!("🏁 Is finished: {}", response.is_finished);
 
                 // For TinyLlama, we might get EOS immediately, so let's just check that inference worked
-                println!("🔍 Generated text: '{}'", response.generated_text);
+                println!("  Generated text: '{}'", response.generated_text);
                 // assert!(
                 //     !response.generated_text.is_empty(),
                 //     "Generated text should not be empty"
@@ -293,14 +295,14 @@ mod tests {
                 );
             }
             Err(e) => {
-                println!("❌ Inference failed: {}", e);
+                println!("  Inference failed: {}", e);
                 // Print detailed error information
-                println!("🔍 Error details: {:?}", e);
+                println!("  Error details: {:?}", e);
                 panic!("Inference failed: {}", e);
             }
         }
 
-        println!("🎉 All tests passed! Candle CUDA engine with TinyLlama working correctly");
+        println!("  All tests passed! Candle CUDA engine with TinyLlama working correctly");
     }
 
     #[tokio::test]
@@ -310,13 +312,13 @@ mod tests {
         // Skip test if model doesn't exist
         if !Path::new(&model_path_str).exists() {
             eprintln!(
-                "⚠️ Skipping test: TinyLlama model not found at {}",
+                "  Skipping test: TinyLlama model not found at {}",
                 &model_path_str
             );
             return;
         }
 
-        println!("🔥 Testing Candle CPU engine tokenization with TinyLlama model");
+        println!("  Testing Candle CPU engine tokenization with TinyLlama model");
 
         // Create engine
         let mut engine = CandleInferenceEngine::with_backend(CandleBackendType::Cpu);
@@ -341,10 +343,10 @@ mod tests {
 
         let init_result = engine.initialize(config).await;
         if let Err(e) = init_result {
-            println!("❌ Engine initialization failed: {}", e);
+            println!("  Engine initialization failed: {}", e);
             panic!("Failed to initialize engine: {}", e);
         }
-        println!("✅ Engine initialization successful");
+        println!("  Engine initialization successful");
 
         // Test tokenization with various prompts
         let test_prompts = vec![
@@ -370,15 +372,15 @@ mod tests {
             match &inference_result {
                 Ok(response) => {
                     println!(
-                        "  ✅ Tokenization worked: '{}' -> {} tokens",
+                        "    Tokenization worked: '{}' -> {} tokens",
                         prompt, response.generated_tokens
                     );
                     if response.generated_tokens == 0 {
-                        println!("  ⚠️ Warning: No tokens generated for prompt '{}'", prompt);
+                        println!("    Warning: No tokens generated for prompt '{}'", prompt);
                     }
                 }
                 Err(e) => {
-                    println!("  ❌ Failed for prompt '{}': {}", prompt, e);
+                    println!("    Failed for prompt '{}': {}", prompt, e);
                     // Don't panic on CPU failures, just log them
                 }
             }
@@ -387,19 +389,19 @@ mod tests {
 
     #[test]
     fn test_engine_creation() {
-        println!("🔧 Testing basic engine creation");
+        println!("  Testing basic engine creation");
 
         let cpu_engine = CandleInferenceEngine::new();
         assert_eq!(cpu_engine.backend_type(), &CandleBackendType::Cpu);
-        println!("✅ CPU engine created successfully");
+        println!("  CPU engine created successfully");
 
         #[cfg(feature = "candle-cuda")]
         {
             let cuda_engine = CandleInferenceEngine::with_backend(CandleBackendType::Cuda);
             assert_eq!(cuda_engine.backend_type(), &CandleBackendType::Cuda);
-            println!("✅ CUDA engine created successfully");
+            println!("  CUDA engine created successfully");
         }
 
-        println!("🎉 Engine creation tests passed");
+        println!("  Engine creation tests passed");
     }
 }

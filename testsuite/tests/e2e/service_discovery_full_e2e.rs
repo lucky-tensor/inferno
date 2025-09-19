@@ -31,7 +31,7 @@ async fn test_full_service_discovery_workflow() {
     let proxy_metrics_port = get_random_port();
     let backend_metrics_port = get_random_port();
 
-    println!("🚀 Starting full service discovery e2e test...");
+    println!("Starting full service discovery e2e test...");
     println!("   - Proxy will listen on port: {}", proxy_port);
     println!("   - Backend will listen on port: {}", backend_port);
     println!("   - Proxy metrics on port: {}", proxy_metrics_port);
@@ -100,7 +100,7 @@ async fn test_full_service_discovery_workflow() {
     };
 
     // Phase 1: Start the proxy server first
-    println!("\n🔄 Phase 1: Starting proxy server...");
+    println!("\nPhase 1: Starting proxy server...");
     let proxy_task = tokio::spawn(async move {
         let result = proxy_opts.run().await;
         if let Err(e) = result {
@@ -117,15 +117,15 @@ async fn test_full_service_discovery_workflow() {
     let proxy_metrics_url = format!("http://127.0.0.1:{}/metrics", proxy_metrics_port);
     let proxy_ready = match client.get(&proxy_metrics_url).send().await {
         Ok(response) if response.status().is_success() => {
-            println!("✅ Proxy is ready and serving metrics");
+            println!("Proxy is ready and serving metrics");
             true
         }
         Ok(response) => {
-            println!("❌ Proxy metrics returned error: {}", response.status());
+            println!("Proxy metrics returned error: {}", response.status());
             false
         }
         Err(e) => {
-            println!("❌ Failed to connect to proxy metrics: {}", e);
+            println!("Failed to connect to proxy metrics: {}", e);
             false
         }
     };
@@ -140,14 +140,14 @@ async fn test_full_service_discovery_workflow() {
         if let Ok(metrics_text) = response.text().await {
             if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&metrics_text) {
                 if let Some(connected_peers) = json_value.get("connected_peers") {
-                    println!("📊 Proxy initial connected peers: {}", connected_peers);
+                    println!("Proxy initial connected peers: {}", connected_peers);
                 }
             }
         }
     }
 
     // Phase 2: Start the backend server
-    println!("\n🔄 Phase 2: Starting backend server...");
+    println!("\nPhase 2: Starting backend server...");
     let backend_task = tokio::spawn(async move {
         let result = backend_opts.run().await;
         if let Err(e) = result {
@@ -159,7 +159,7 @@ async fn test_full_service_discovery_workflow() {
     sleep(Duration::from_millis(4000)).await;
 
     // Phase 3: Verify registration success
-    println!("\n🔄 Phase 3: Verifying service discovery registration...");
+    println!("\nPhase 3: Verifying service discovery registration...");
 
     // Check backend metrics
     let backend_metrics_url = format!("http://127.0.0.1:{}/metrics", backend_metrics_port);
@@ -167,25 +167,25 @@ async fn test_full_service_discovery_workflow() {
 
     match client.get(&backend_metrics_url).send().await {
         Ok(response) if response.status().is_success() => {
-            println!("✅ Backend metrics accessible");
+            println!("Backend metrics accessible");
 
             if let Ok(metrics_text) = response.text().await {
                 if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&metrics_text) {
                     if let Some(connected_peers) = json_value.get("connected_peers") {
                         backend_connected_peers = connected_peers.as_u64().unwrap_or(0) as u32;
-                        println!("📊 Backend connected peers: {}", connected_peers);
+                        println!("Backend connected peers: {}", connected_peers);
                     }
                     if let Some(ready) = json_value.get("ready") {
-                        println!("📊 Backend ready status: {}", ready);
+                        println!("Backend ready status: {}", ready);
                     }
                 }
             }
         }
         Ok(response) => {
-            println!("❌ Backend metrics endpoint error: {}", response.status());
+            println!("Backend metrics endpoint error: {}", response.status());
         }
         Err(e) => {
-            println!("❌ Failed to connect to backend metrics: {}", e);
+            println!("Failed to connect to backend metrics: {}", e);
         }
     }
 
@@ -193,14 +193,14 @@ async fn test_full_service_discovery_workflow() {
     let mut proxy_connected_peers = 0u32;
     match client.get(&proxy_metrics_url).send().await {
         Ok(response) if response.status().is_success() => {
-            println!("✅ Proxy metrics accessible after registration");
+            println!("Proxy metrics accessible after registration");
 
             if let Ok(metrics_text) = response.text().await {
                 if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&metrics_text) {
                     if let Some(connected_peers) = json_value.get("connected_peers") {
                         proxy_connected_peers = connected_peers.as_u64().unwrap_or(0) as u32;
                         println!(
-                            "📊 Proxy connected peers after registration: {}",
+                            "Proxy connected peers after registration: {}",
                             connected_peers
                         );
                     }
@@ -208,15 +208,15 @@ async fn test_full_service_discovery_workflow() {
             }
         }
         Ok(response) => {
-            println!("❌ Proxy metrics endpoint error: {}", response.status());
+            println!("Proxy metrics endpoint error: {}", response.status());
         }
         Err(e) => {
-            println!("❌ Failed to connect to proxy metrics: {}", e);
+            println!("Failed to connect to proxy metrics: {}", e);
         }
     }
 
     // Phase 4: Test registration endpoint directly
-    println!("\n🔄 Phase 4: Testing registration endpoint directly...");
+    println!("\nPhase 4: Testing registration endpoint directly...");
 
     let register_url = format!("http://127.0.0.1:{}/register", proxy_port);
     let mock_registration = serde_json::json!({
@@ -232,28 +232,28 @@ async fn test_full_service_discovery_workflow() {
         .await
     {
         Ok(response) if response.status().is_success() => {
-            println!("✅ Direct registration successful");
+            println!("Direct registration successful");
             if let Ok(response_text) = response.text().await {
-                println!("📝 Registration response: {}", response_text);
+                println!("Registration response: {}", response_text);
             }
         }
         Ok(response) => {
             println!(
-                "❌ Direct registration failed: {} (expected until /register is implemented)",
+                "Direct registration failed: {} (expected until /register is implemented)",
                 response.status()
             );
         }
         Err(e) => {
-            println!("❌ Failed to connect to registration endpoint: {} (expected until /register is implemented)", e);
+            println!("Failed to connect to registration endpoint: {} (expected until /register is implemented)", e);
         }
     }
 
     // Phase 5: Wait for health checks to run
-    println!("\n🔄 Phase 5: Waiting for health check cycle...");
+    println!("\nPhase 5: Waiting for health check cycle...");
     sleep(Duration::from_millis(15000)).await; // Wait for health checks
 
     // Phase 6: Final verification
-    println!("\n🔄 Phase 6: Final service discovery verification...");
+    println!("\nPhase 6: Final service discovery verification...");
 
     // Check final backend state
     match client.get(&backend_metrics_url).send().await {
@@ -261,10 +261,10 @@ async fn test_full_service_discovery_workflow() {
             if let Ok(metrics_text) = response.text().await {
                 if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&metrics_text) {
                     if let Some(connected_peers) = json_value.get("connected_peers") {
-                        println!("📊 Backend final connected peers: {}", connected_peers);
+                        println!("Backend final connected peers: {}", connected_peers);
                     }
                     if let Some(uptime) = json_value.get("uptime_seconds") {
-                        println!("📊 Backend uptime: {} seconds", uptime);
+                        println!("Backend uptime: {} seconds", uptime);
                     }
                 }
             }
@@ -278,7 +278,7 @@ async fn test_full_service_discovery_workflow() {
             if let Ok(metrics_text) = response.text().await {
                 if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&metrics_text) {
                     if let Some(connected_peers) = json_value.get("connected_peers") {
-                        println!("📊 Proxy final connected peers: {}", connected_peers);
+                        println!("Proxy final connected peers: {}", connected_peers);
                     }
                 }
             }
@@ -287,30 +287,30 @@ async fn test_full_service_discovery_workflow() {
     }
 
     // Test Results Summary
-    println!("\n📊 Service Discovery E2E Test Results:");
-    println!("✅ Proxy started successfully and served metrics");
-    println!("✅ Backend started successfully and served metrics");
+    println!("\nService Discovery E2E Test Results:");
+    println!("Proxy started successfully and served metrics");
+    println!("Backend started successfully and served metrics");
 
     if backend_connected_peers > 0 {
         println!(
-            "✅ Backend successfully connected to proxy (connected_peers: {})",
+            "Backend successfully connected to proxy (connected_peers: {})",
             backend_connected_peers
         );
     } else {
-        println!("❌ Backend did not connect to proxy (expected until /register is implemented)");
+        println!("Backend did not connect to proxy (expected until /register is implemented)");
     }
 
     if proxy_connected_peers > 0 {
         println!(
-            "✅ Proxy registered backend successfully (connected_peers: {})",
+            "Proxy registered backend successfully (connected_peers: {})",
             proxy_connected_peers
         );
     } else {
-        println!("❌ Proxy did not register backend (expected until /register is implemented)");
+        println!("Proxy did not register backend (expected until /register is implemented)");
     }
 
-    println!("📋 Current status: Services communicate but registration needs /register endpoint implementation");
-    println!("📋 Next step: Implement /register endpoint in proxy to complete service discovery");
+    println!("Current status: Services communicate but registration needs /register endpoint implementation");
+    println!("Next step: Implement /register endpoint in proxy to complete service discovery");
 
     // Clean up: abort the background tasks
     proxy_task.abort();
@@ -326,7 +326,7 @@ async fn test_multiple_backend_registration() {
     // Initialize logging for the test
     let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
-    println!("🚀 Testing service discovery with multiple backends...");
+    println!("Testing service discovery with multiple backends...");
 
     let proxy_port = get_random_port();
     let proxy_metrics_port = get_random_port();
@@ -428,16 +428,16 @@ async fn test_multiple_backend_registration() {
                 if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&metrics_text) {
                     if let Some(connected_peers) = json_value.get("connected_peers") {
                         println!(
-                            "📊 Proxy connected peers with {} backends: {}",
+                            "Proxy connected peers with {} backends: {}",
                             num_backends, connected_peers
                         );
 
                         // This should be equal to num_backends once /register is implemented
                         let expected_peers =
                             if connected_peers.as_u64().unwrap_or(0) == num_backends as u64 {
-                                "✅"
+                                "PASS"
                             } else {
-                                "❌ (expected until /register is implemented)"
+                                "FAIL (expected until /register is implemented)"
                             };
                         println!("{} Multiple backend registration status", expected_peers);
                     }
@@ -445,7 +445,7 @@ async fn test_multiple_backend_registration() {
             }
         }
         _ => {
-            println!("❌ Failed to get proxy metrics for multiple backends");
+            println!("Failed to get proxy metrics for multiple backends");
         }
     }
 

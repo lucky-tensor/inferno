@@ -26,13 +26,13 @@ mod tests {
         // Skip test if model doesn't exist
         if !model_path.exists() {
             eprintln!(
-                "⚠️ Skipping test: Small model not found at {}",
+                "  Skipping test: Small model not found at {}",
                 model_path_str
             );
             return;
         }
 
-        println!("✅ WORKING: Testing file existence");
+        println!("  WORKING: Testing file existence");
 
         let tokenizer_config_path = model_path.join("tokenizer_config.json");
         let tokenizer_json_path = model_path.join("tokenizer.json");
@@ -45,7 +45,7 @@ mod tests {
         assert!(tokenizer_json_path.exists(), "tokenizer.json should exist");
         assert!(config_json_path.exists(), "config.json should exist");
 
-        println!("  ✅ All required tokenizer files exist");
+        println!("    All required tokenizer files exist");
     }
 
     #[tokio::test]
@@ -56,13 +56,13 @@ mod tests {
         // Skip test if model doesn't exist
         if !model_path.exists() {
             eprintln!(
-                "⚠️ Skipping test: Small model not found at {}",
+                "  Skipping test: Small model not found at {}",
                 model_path_str
             );
             return;
         }
 
-        println!("✅ WORKING: Testing JSON file parsing");
+        println!("  WORKING: Testing JSON file parsing");
 
         // Test tokenizer_config.json parsing
         let tokenizer_config_path = model_path.join("tokenizer_config.json");
@@ -73,7 +73,7 @@ mod tests {
         let config: Value =
             serde_json::from_str(&config_content).expect("Failed to parse tokenizer_config.json");
 
-        println!("  ✅ tokenizer_config.json parsed successfully");
+        println!("    tokenizer_config.json parsed successfully");
 
         assert!(
             config.get("added_tokens_decoder").is_some(),
@@ -98,7 +98,7 @@ mod tests {
         let model_config: Value =
             serde_json::from_str(&model_config_content).expect("Failed to parse config.json");
 
-        println!("  ✅ config.json parsed successfully");
+        println!("    config.json parsed successfully");
 
         let vocab_size = model_config["vocab_size"].as_u64().unwrap();
         println!("    - Vocab size: {}", vocab_size);
@@ -118,7 +118,7 @@ mod tests {
         let tokenizer_data: Value =
             serde_json::from_str(&tokenizer_content).expect("Failed to parse tokenizer.json");
 
-        println!("  ✅ tokenizer.json parsed successfully");
+        println!("    tokenizer.json parsed successfully");
         assert!(
             tokenizer_data.get("model").is_some(),
             "Should have model section"
@@ -137,7 +137,7 @@ mod tests {
         // Skip test if model doesn't exist
         if !model_path.exists() {
             eprintln!(
-                "⚠️ Skipping test: Small model not found at {}",
+                "  Skipping test: Small model not found at {}",
                 model_path_str
             );
             return;
@@ -149,12 +149,12 @@ mod tests {
         {
             use tokenizers::Tokenizer;
 
-            println!("  📝 Loading tokenizer.json directly...");
+            println!("    Loading tokenizer.json directly...");
             let direct_load_result = Tokenizer::from_file(&tokenizer_json_path);
 
             match direct_load_result {
                 Ok(tokenizer) => {
-                    println!("  ✅ Direct tokenizer.json loading successful!");
+                    println!("    Direct tokenizer.json loading successful!");
 
                     let vocab_size = tokenizer.get_vocab_size(false);
                     println!("    - Vocabulary size: {}", vocab_size);
@@ -168,19 +168,19 @@ mod tests {
                         Ok(encoding) => {
                             let tokens = encoding.get_ids();
                             println!(
-                                "    ✅ Direct tokenization successful: {} tokens",
+                                "      Direct tokenization successful: {} tokens",
                                 tokens.len()
                             );
                             assert!(!tokens.is_empty(), "Should produce at least one token");
                         }
                         Err(e) => {
-                            println!("    ❌ Direct tokenization failed: {}", e);
+                            println!("      Direct tokenization failed: {}", e);
                             panic!("Tokenization should work with basic text");
                         }
                     }
                 }
                 Err(e) => {
-                    println!("  ❌ Direct tokenizer.json loading failed: {}", e);
+                    println!("    Direct tokenizer.json loading failed: {}", e);
                     panic!("Direct tokenizer loading should work");
                 }
             }

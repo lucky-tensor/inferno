@@ -223,7 +223,7 @@ impl CandleInferenceEngine {
                         ))
                     })?,
                 CandleModelType::Quantized(quantized_llama) => {
-                    debug!("🔥 Running TRUE quantized inference with INT8 weights!");
+                    debug!("  Running TRUE quantized inference with INT8 weights!");
 
                     // Create simplified cache structure for quantized model
                     let seqlen_offsets = vec![0; current_input.dim(0).unwrap_or(1)];
@@ -261,7 +261,7 @@ impl CandleInferenceEngine {
                         )
                         .map_err(|e| {
                             InferenceError::ProcessingError(format!(
-                                "🔥 Quantized model forward pass failed: {}",
+                                "  Quantized model forward pass failed: {}",
                                 e
                             ))
                         })?
@@ -457,7 +457,7 @@ impl InferenceEngine for CandleInferenceEngine {
                             .as_ref()
                             .map_or(1.0, |q| q.global_compression_ratio)
                     );
-                    info!("   🚀 Using compressed-tensors dequantization pipeline");
+                    info!("     Using compressed-tensors dequantization pipeline");
                 } else {
                     info!("   Format: Other quantization scheme");
                     return Err(InferenceError::InitializationError(
@@ -505,20 +505,20 @@ impl InferenceEngine for CandleInferenceEngine {
                 && quantized_config.is_w8a8_quantized()
             {
                 // Use compressed-tensors loader for quantized models
-                info!("🔄 Loading quantized model using compressed-tensors dequantization");
-                info!("🔄 Creating CompressedTensorsLoader...");
+                info!("  Loading quantized model using compressed-tensors dequantization");
+                info!("  Creating CompressedTensorsLoader...");
                 let loader = CompressedTensorsLoader::new(device.clone(), quantized_config.clone());
-                info!("🔄 Calling create_dequantizing_var_builder...");
+                info!("  Calling create_dequantizing_var_builder...");
                 let base_var_builder = loader
                     .create_dequantizing_var_builder(&config.model_path)
                     .await?;
-                info!("🔄 VarBuilder created successfully, applying remapping...");
+                info!("  VarBuilder created successfully, applying remapping...");
 
                 // Apply remapping for tensor name differences
                 Self::create_remapping_var_builder(base_var_builder)
             } else {
                 // Use standard SafeTensors loading for non-quantized models
-                info!("🔄 Loading standard model using SafeTensors");
+                info!("  Loading standard model using SafeTensors");
                 let dtype = DType::F32; // Use F32 for CPU inference
                 let base_var_builder = unsafe {
                     VarBuilder::from_mmaped_safetensors(&[&safetensors_path], dtype, &device)
@@ -561,7 +561,7 @@ impl InferenceEngine for CandleInferenceEngine {
             let model_type = if quantized_config.is_quantized
                 && quantized_config.is_w8a8_quantized()
             {
-                info!("🚀 Loading TRUE quantized model - INT8 weights preserved in memory!");
+                info!("  Loading TRUE quantized model - INT8 weights preserved in memory!");
                 info!("   Memory savings: 4x smaller weights in GPU memory");
                 info!("   Compute: Runtime INT8 x INT8 -> INT32 matrix multiplication");
                 info!("   NO ahead-of-time dequantization!");
@@ -609,7 +609,7 @@ impl InferenceEngine for CandleInferenceEngine {
 
             let param_count = model_config.estimate_parameters();
             info!(
-                "✅ Successfully loaded Llama model with {} parameters",
+                "  Successfully loaded Llama model with {} parameters",
                 param_count
             );
 
@@ -629,7 +629,7 @@ impl InferenceEngine for CandleInferenceEngine {
 
             let init_time = start_time.elapsed();
             info!(
-                "🚀 Candle inference engine initialized successfully in {:?}",
+                "  Candle inference engine initialized successfully in {:?}",
                 init_time
             );
         }
