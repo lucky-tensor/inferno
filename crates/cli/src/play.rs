@@ -670,7 +670,8 @@ async fn run_interaction_loop(editor: &mut DefaultEditor, context: &mut PlayCont
 
                             // Show statistics after each response
                             let tokens_per_second = if response.inference_time_ms > 0.0 {
-                                (response.generated_tokens as f64 * 1000.0) / response.inference_time_ms
+                                (response.generated_tokens as f64 * 1000.0)
+                                    / response.inference_time_ms
                             } else {
                                 0.0
                             };
