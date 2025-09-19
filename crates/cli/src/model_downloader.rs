@@ -3,6 +3,7 @@ use futures_util::StreamExt;
 use git2::{Cred, FetchOptions, RemoteCallbacks, Repository};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use reqwest;
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::env;
 use std::io::Read;
@@ -16,11 +17,63 @@ fn format_model_dir_name(model_id: &str) -> String {
     model_id.replace("/", "_")
 }
 
+/// Discover model files from HuggingFace API
+async fn discover_model_files_via_api(
+    model_id: &str,
+    hf_token: Option<&str>,
+) -> Result<Vec<String>> {
+    let api_url = format!("https://huggingface.co/api/models/{}/tree/main", model_id);
+
+    let client = reqwest::Client::new();
+    let mut request = client.get(&api_url);
+
+    // Add authentication header if token is provided
+    if let Some(token) = hf_token {
+        request = request.header("Authorization", format!("Bearer {}", token));
+    }
+
+    let response = request.send().await?;
+
+    if !response.status().is_success() {
+        return Err(anyhow!(
+            "Failed to fetch repository files: HTTP {}",
+            response.status()
+        ));
+    }
+
+    let files_json: Value = response.json().await?;
+    let mut essential_files = Vec::new();
+
+    if let Some(files_array) = files_json.as_array() {
+        for file_entry in files_array {
+            if let Some(path) = file_entry.get("path").and_then(|p| p.as_str()) {
+                // Include essential model and config files
+                if path.ends_with(".safetensors")
+                    || path.ends_with(".json")
+                    || path == "tokenizer.json"
+                    || path == "vocab.json"
+                    || path == "merges.txt"
+                    || path == "special_tokens_map.json" {
+                    essential_files.push(path.to_string());
+                }
+            }
+        }
+    }
+
+    // Ensure we have at least config files
+    if essential_files.is_empty() {
+        return Err(anyhow!("No essential model files found in repository"));
+    }
+
+    Ok(essential_files)
+}
+
 /// Check if essential model files already exist in the output directory
 /// Returns: (existing_files, missing_files) or None if directory doesn't exist
 async fn check_existing_model_files(
     output_dir: &str,
     model_id: &str,
+    hf_token: Option<&str>,
 ) -> Result<Option<(Vec<String>, Vec<String>)>> {
     let model_dir_name = format_model_dir_name(model_id);
     let full_output_dir = Path::new(output_dir).join(&model_dir_name);
@@ -29,12 +82,16 @@ async fn check_existing_model_files(
         return Ok(None);
     }
 
-    // Essential files we expect to find
-    let essential_files = vec![
-        "model.safetensors",     // Primary model weights (safetensors format only)
-        "config.json",           // Model configuration
-        "tokenizer_config.json", // Tokenizer metadata
-    ];
+    // Try to discover the actual files that should exist for this model
+    let essential_files = if let Ok(discovered_files) = discover_model_files_via_api(model_id, hf_token).await {
+        discovered_files
+    } else {
+        // Fallback to basic essential files if discovery fails
+        vec![
+            "config.json".to_string(),           // Model configuration
+            "tokenizer_config.json".to_string(), // Tokenizer metadata
+        ]
+    };
 
     // Optional tokenizer files (models may use different tokenizer formats)
     let optional_tokenizer_files = vec![
@@ -124,7 +181,7 @@ pub async fn download_model(
 
     // Check if model files already exist
     if let Some((existing_files, missing_files)) =
-        check_existing_model_files(output_dir, model_id).await?
+        check_existing_model_files(output_dir, model_id, hf_token.map(|s| s.as_str())).await?
     {
         let model_dir_name = format_model_dir_name(model_id);
         let full_output_dir = Path::new(output_dir).join(&model_dir_name);
@@ -200,7 +257,7 @@ pub async fn download_model(
 
     // Check what files to download (all or just missing ones)
     let files_to_download =
-        if let Some((_, missing_files)) = check_existing_model_files(output_dir, model_id).await? {
+        if let Some((_, missing_files)) = check_existing_model_files(output_dir, model_id, hf_token.map(|s| s.as_str())).await? {
             if !missing_files.is_empty() {
                 Some(missing_files)
             } else {
@@ -809,14 +866,29 @@ pub(crate) async fn download_model_with_xet(
         specific_files.clone()
     } else {
         println!("Downloading all essential files");
-        vec![
-            "model.safetensors".to_string(), // Primary model weights (safetensors format only)
-            "config.json".to_string(),       // Model configuration (architecture, dimensions, etc.)
-            "tokenizer.json".to_string(),    // Tokenizer configuration (HuggingFace format)
-            "vocab.json".to_string(),        // Vocabulary file (alternative tokenizer format)
-            "tokenizer_config.json".to_string(), // Tokenizer metadata
-            "generation_config.json".to_string(), // Generation parameters (optional but recommended)
-        ]
+
+        // Try to discover model files via API first
+        let mut discovered_files = Vec::new();
+        if let Ok(files) = discover_model_files_via_api(model_id, hf_token).await {
+            discovered_files = files;
+            println!("Discovered {} files from repository", discovered_files.len());
+        } else {
+            println!("Failed to discover files via API, using default list");
+        }
+
+        if !discovered_files.is_empty() {
+            discovered_files
+        } else {
+            // Fallback to default list
+            vec![
+                "model.safetensors".to_string(), // Primary model weights (safetensors format only)
+                "config.json".to_string(),       // Model configuration (architecture, dimensions, etc.)
+                "tokenizer.json".to_string(),    // Tokenizer configuration (HuggingFace format)
+                "vocab.json".to_string(),        // Vocabulary file (alternative tokenizer format)
+                "tokenizer_config.json".to_string(), // Tokenizer metadata
+                "generation_config.json".to_string(), // Generation parameters (optional but recommended)
+            ]
+        }
     };
 
     // Additional tokenizer files that some models might have
@@ -960,16 +1032,46 @@ pub(crate) async fn download_model_with_xet(
         return download_huggingface_model(model_id, output_dir, hf_token, false).await;
     }
 
-    // Ensure we have the essential model file (check both downloaded and existing files on disk)
+    // Check if we have model files (either single or sharded)
     let model_file_exists = has_model_file || {
-        // Also check if model file exists on disk (for targeted downloads)
-        let model_path = Path::new(output_dir).join("model.safetensors");
-        model_path.exists()
+        let output_path = Path::new(output_dir);
+
+        // Check for single model file
+        let single_model = output_path.join("model.safetensors");
+        if single_model.exists() {
+            true
+        } else {
+            // Check for sharded models
+            let index_file = output_path.join("model.safetensors.index.json");
+            if index_file.exists() {
+                true
+            } else {
+                // Check if any .safetensors files exist (for sharded models without index)
+                if let Ok(entries) = std::fs::read_dir(output_path) {
+                    entries.flatten().any(|entry| {
+                        entry.file_name().to_str()
+                            .map(|name| name.ends_with(".safetensors"))
+                            .unwrap_or(false)
+                    })
+                } else {
+                    false
+                }
+            }
+        }
     };
 
     if !model_file_exists {
-        println!("ERROR: Required model.safetensors file not found");
+        println!("ERROR: No model weight files found (neither single model.safetensors nor sharded model files)");
         println!("Falling back to Git LFS...");
+
+        // Clean up the partially downloaded directory to allow Git LFS clone
+        if Path::new(output_dir).exists() {
+            println!("Cleaning up partial download directory for Git LFS...");
+            if let Err(e) = tokio::fs::remove_dir_all(output_dir).await {
+                println!("WARNING: Failed to clean up directory: {}", e);
+            }
+        }
+
         return download_huggingface_model(model_id, output_dir, hf_token, false).await;
     }
 

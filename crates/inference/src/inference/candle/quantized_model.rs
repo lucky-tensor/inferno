@@ -910,19 +910,28 @@ impl CompressedTensorsLoader {
         ),
         InferenceError,
     > {
-        let safetensors_path = std::path::Path::new(model_path).join("model.safetensors");
+        let model_dir = std::path::Path::new(model_path);
+        let single_model_path = model_dir.join("model.safetensors");
+        let sharded_index_path = model_dir.join("model.safetensors.index.json");
 
-        if !safetensors_path.exists() {
+        if !single_model_path.exists() && !sharded_index_path.exists() {
             return Err(InferenceError::InitializationError(format!(
-                "SafeTensors file not found: {}",
-                safetensors_path.display()
+                "No SafeTensors model files found in {}. Expected either 'model.safetensors' or sharded model files with 'model.safetensors.index.json'",
+                model_dir.display()
             )));
+        }
+
+        // For now, only support single model files for quantized models
+        if !single_model_path.exists() {
+            return Err(InferenceError::InitializationError(
+                "Quantized sharded models are not yet supported. Please use a single model.safetensors file.".to_string()
+            ));
         }
 
         tracing::info!("  Loading compressed-tensors model with runtime quantized inference (INT8 preservation)");
 
         // Load the SafeTensors file
-        let buffer = tokio::fs::read(&safetensors_path).await.map_err(|e| {
+        let buffer = tokio::fs::read(&single_model_path).await.map_err(|e| {
             InferenceError::InitializationError(format!("Failed to read SafeTensors: {}", e))
         })?;
 

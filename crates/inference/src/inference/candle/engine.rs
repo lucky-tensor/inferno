@@ -491,21 +491,50 @@ impl InferenceEngine for CandleInferenceEngine {
             let tokenizer = CandleTokenizer::load_from_path(&config.model_path).await?;
             info!("Loaded tokenizer successfully");
 
-            // Load model weights using SafeTensors
-            let safetensors_path =
-                std::path::Path::new(&config.model_path).join("model.safetensors");
+            // Load model weights using SafeTensors (single or sharded)
+            let model_dir = std::path::Path::new(&config.model_path);
+            let single_model_path = model_dir.join("model.safetensors");
+            let sharded_index_path = model_dir.join("model.safetensors.index.json");
 
-            if !safetensors_path.exists() {
+            let (model_files, is_sharded) = if single_model_path.exists() {
+                info!("Loading single model file: {}", single_model_path.display());
+                (vec![single_model_path], false)
+            } else if sharded_index_path.exists() {
+                info!("Loading sharded model with index: {}", sharded_index_path.display());
+
+                // Find all sharded model files
+                let mut sharded_files = Vec::new();
+                if let Ok(entries) = std::fs::read_dir(model_dir) {
+                    for entry in entries.flatten() {
+                        let file_name = entry.file_name();
+                        let file_name_str = file_name.to_string_lossy();
+                        if file_name_str.starts_with("model-") && file_name_str.ends_with(".safetensors") {
+                            sharded_files.push(entry.path());
+                        }
+                    }
+                }
+
+                if sharded_files.is_empty() {
+                    return Err(InferenceError::InitializationError(
+                        "No sharded model files found despite having index file".to_string()
+                    ));
+                }
+
+                sharded_files.sort(); // Ensure consistent ordering
+                info!("Found {} sharded model files", sharded_files.len());
+                (sharded_files, true)
+            } else {
                 return Err(InferenceError::InitializationError(format!(
-                    "SafeTensors file not found: {}",
-                    safetensors_path.display()
+                    "No SafeTensors model files found in {}. Expected either 'model.safetensors' or sharded model files with 'model.safetensors.index.json'",
+                    model_dir.display()
                 )));
-            }
+            };
 
-            info!(
-                "Loading model weights from SafeTensors: {}",
-                safetensors_path.display()
-            );
+            if is_sharded {
+                info!("Loading sharded model weights from {} files", model_files.len());
+            } else {
+                info!("Loading model weights from: {}", model_files[0].display());
+            }
 
             // Check if this model uses weight tying
             let is_weight_tied = model_config.tie_word_embeddings.unwrap_or(false);
@@ -533,8 +562,12 @@ impl InferenceEngine for CandleInferenceEngine {
                 // Use standard SafeTensors loading for non-quantized models
                 info!("  Loading standard model using SafeTensors");
                 let dtype = DType::F32; // Use F32 for CPU inference
+
+                // Convert PathBuf to &Path for VarBuilder
+                let model_file_refs: Vec<&std::path::Path> = model_files.iter().map(std::path::PathBuf::as_path).collect();
+
                 let base_var_builder = unsafe {
-                    VarBuilder::from_mmaped_safetensors(&[&safetensors_path], dtype, &device)
+                    VarBuilder::from_mmaped_safetensors(&model_file_refs, dtype, &device)
                 }
                 .map_err(|e| {
                     InferenceError::InitializationError(format!(
@@ -600,8 +633,12 @@ impl InferenceEngine for CandleInferenceEngine {
             } else {
                 // Create regular model
                 let dtype = DType::F32;
+
+                // Convert PathBuf to &Path for VarBuilder
+                let model_file_refs: Vec<&std::path::Path> = model_files.iter().map(std::path::PathBuf::as_path).collect();
+
                 let base_var_builder = unsafe {
-                    VarBuilder::from_mmaped_safetensors(&[&safetensors_path], dtype, &device)
+                    VarBuilder::from_mmaped_safetensors(&model_file_refs, dtype, &device)
                 }
                 .map_err(|e| {
                     InferenceError::InitializationError(format!(

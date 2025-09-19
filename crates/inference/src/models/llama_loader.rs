@@ -42,12 +42,29 @@ pub fn load_llama_weights(
     println!("  Loading pre-trained Llama model with real weights...");
 
     // Check if we have the required files
-    let weights_path = model_path.join("model.safetensors");
     let tokenizer_path = model_path.join("tokenizer.json");
 
-    if !weights_path.exists() {
-        return Err(format!("SafeTensors file not found: {}", weights_path.display()).into());
+    // Check for model files - either single or sharded
+    let has_single_model = model_path.join("model.safetensors").exists();
+    let has_sharded_model = model_path.join("model.safetensors.index.json").exists();
+
+    if !has_single_model && !has_sharded_model {
+        return Err(format!(
+            "No SafeTensors model files found in {}. Expected either 'model.safetensors' or sharded model files with 'model.safetensors.index.json'",
+            model_path.display()
+        ).into());
     }
+
+    // For now, this loader only supports single model files
+    // TODO: Add support for sharded models
+    if !has_single_model {
+        return Err(format!(
+            "This model uses sharded weights which are not yet supported by the Llama loader. Found index file: {}",
+            model_path.join("model.safetensors.index.json").display()
+        ).into());
+    }
+
+    let weights_path = model_path.join("model.safetensors");
 
     // Check if tokenizer exists, create a minimal fallback if not
     if !tokenizer_path.exists() {
