@@ -85,13 +85,11 @@ use serde::{Deserialize, Serialize};
 ))]
 use candle_core::{Device, Tensor};
 
-
 #[cfg(any(
     feature = "candle-cpu",
     feature = "candle-cuda",
     feature = "candle-metal"
 ))]
-
 #[cfg(any(
     feature = "candle-cpu",
     feature = "candle-cuda",
@@ -210,8 +208,14 @@ pub struct QuantizedTensor {
 /// Quantization schemes supported
 #[derive(Debug, Clone, PartialEq)]
 pub enum QuantizationScheme {
-    PerTensor { scale: f32, zero_point: i8 },
-    PerChannel { scales: Vec<f32>, zero_points: Vec<i8> },
+    PerTensor {
+        scale: f32,
+        zero_point: i8,
+    },
+    PerChannel {
+        scales: Vec<f32>,
+        zero_points: Vec<i8>,
+    },
 }
 
 /// Runtime quantized matrix multiplication operations
@@ -242,6 +246,7 @@ impl QuantizedTensor {
 
     /// Perform quantized matrix multiplication: Q(A) * Q(W) -> FP32
     /// This is the core runtime quantized operation
+    #[allow(unused_variables)]
     pub fn quantized_matmul(
         &self,
         input_activations: &Tensor,
@@ -252,11 +257,15 @@ impl QuantizedTensor {
         tracing::warn!("🚨 TEMPORARY: Using dequantized fallback instead of true quantized matmul");
         let dequantized_weights = self.dequantize_weights_to_tensor()?;
         input_activations.matmul(&dequantized_weights).map_err(|e| {
-            InferenceError::ProcessingError(format!("Dequantized matrix multiplication failed: {}", e))
+            InferenceError::ProcessingError(format!(
+                "Dequantized matrix multiplication failed: {}",
+                e
+            ))
         })
     }
 
     /// CUDA-accelerated W8A8 matrix multiplication using cuBLAS
+    #[allow(unused_variables)]
     fn cuda_quantized_matmul(
         &self,
         input_activations: &Tensor,
@@ -271,7 +280,11 @@ impl QuantizedTensor {
         #[cfg(not(feature = "candle-cuda"))]
         {
             // Fallback for non-CUDA builds
-            self.fallback_dequantized_matmul(input_activations, activation_scale, activation_zero_point)
+            self.fallback_dequantized_matmul(
+                input_activations,
+                activation_scale,
+                activation_zero_point,
+            )
         }
     }
 
@@ -285,7 +298,11 @@ impl QuantizedTensor {
         activation_scale: f32,
         activation_zero_point: i8,
     ) -> Result<Tensor, InferenceError> {
-        tracing::debug!("🚀 CUDA quantized matmul - input shape: {:?}, weight shape: {:?}", input_activations.dims(), self.shape);
+        tracing::debug!(
+            "🚀 CUDA quantized matmul - input shape: {:?}, weight shape: {:?}",
+            input_activations.dims(),
+            self.shape
+        );
 
         if self.shape.len() != 2 {
             return Err(InferenceError::ProcessingError(
@@ -301,7 +318,8 @@ impl QuantizedTensor {
         tracing::debug!("🔥 Performing INT8 quantized matrix multiplication");
 
         // Use CPU implementation but keep result on GPU
-        let cpu_result = self.cpu_quantized_matmul(input_activations, activation_scale, activation_zero_point)?;
+        let cpu_result =
+            self.cpu_quantized_matmul(input_activations, activation_scale, activation_zero_point)?;
 
         // Move result back to GPU if needed
         if input_activations.device().is_cuda() {
@@ -327,29 +345,40 @@ impl QuantizedTensor {
         let fp32_result: Vec<f32> = int32_result.iter().map(|&x| x as f32).collect();
 
         // Create FP32 tensor on CUDA device
-        let fp32_tensor = Tensor::from_vec(
-            fp32_result,
-            &[batch_size, out_features],
-            &self.device,
-        ).map_err(|e| {
-            InferenceError::ProcessingError(format!("Failed to create tensor on GPU: {}", e))
-        })?;
+        let fp32_tensor = Tensor::from_vec(fp32_result, &[batch_size, out_features], &self.device)
+            .map_err(|e| {
+                InferenceError::ProcessingError(format!("Failed to create tensor on GPU: {}", e))
+            })?;
 
         // Create scaling tensor based on quantization scheme
         let scale_tensor = match &self.scheme {
             QuantizationScheme::PerTensor { scale, .. } => {
                 let combined_scale = activation_scale * scale;
-                Self::create_tensor_with_fallback(&[combined_scale], &[1], &self.device).map_err(|e| {
-                    InferenceError::ProcessingError(format!("Failed to create scale tensor: {}", e))
-                })?
+                Self::create_tensor_with_fallback(&[combined_scale], &[1], &self.device).map_err(
+                    |e| {
+                        InferenceError::ProcessingError(format!(
+                            "Failed to create scale tensor: {}",
+                            e
+                        ))
+                    },
+                )?
             }
             QuantizationScheme::PerChannel { scales, .. } => {
-                let combined_scales: Vec<f32> = scales.iter()
+                let combined_scales: Vec<f32> = scales
+                    .iter()
                     .map(|&w_scale| activation_scale * w_scale)
                     .collect();
                 // Create tensor with shape [1, out_features] for broadcasting
-                Self::create_tensor_with_fallback(&combined_scales, &[1, out_features], &self.device).map_err(|e| {
-                    InferenceError::ProcessingError(format!("Failed to create channel scales tensor: {}", e))
+                Self::create_tensor_with_fallback(
+                    &combined_scales,
+                    &[1, out_features],
+                    &self.device,
+                )
+                .map_err(|e| {
+                    InferenceError::ProcessingError(format!(
+                        "Failed to create channel scales tensor: {}",
+                        e
+                    ))
                 })?
             }
         };
@@ -376,8 +405,11 @@ impl QuantizedTensor {
         activation_scale: f32,
         _activation_zero_point: i8,
     ) -> Result<Tensor, InferenceError> {
-        tracing::debug!("🔥 CPU quantized matmul - input shape: {:?}, weight shape: {:?}",
-                       input_activations.dims(), self.shape);
+        tracing::debug!(
+            "🔥 CPU quantized matmul - input shape: {:?}, weight shape: {:?}",
+            input_activations.dims(),
+            self.shape
+        );
 
         // Handle tensor shape properly for batch/sequence dimensions
         let input_shape = input_activations.dims();
@@ -387,15 +419,18 @@ impl QuantizedTensor {
                 InferenceError::ProcessingError(format!("Failed to get 3D dimensions: {}", e))
             })?;
 
-            input_activations.reshape((batch * seq, hidden)).map_err(|e| {
-                InferenceError::ProcessingError(format!("Failed to reshape input to 2D: {}", e))
-            })?
+            input_activations
+                .reshape((batch * seq, hidden))
+                .map_err(|e| {
+                    InferenceError::ProcessingError(format!("Failed to reshape input to 2D: {}", e))
+                })?
         } else if input_shape.len() == 2 {
             input_activations.clone()
         } else {
-            return Err(InferenceError::ProcessingError(
-                format!("Unsupported input tensor shape: {:?}", input_shape)
-            ));
+            return Err(InferenceError::ProcessingError(format!(
+                "Unsupported input tensor shape: {:?}",
+                input_shape
+            )));
         };
 
         tracing::debug!("🔥 Reshaped input for matmul: {:?}", input_2d.dims());
@@ -404,7 +439,7 @@ impl QuantizedTensor {
         let fp32_weights = self.dequantize_weights_to_tensor()?;
 
         // Scale by activation quantization factor for mathematical correctness
-        let scaled_weights = (fp32_weights * (activation_scale as f64)).map_err(|e| {
+        let scaled_weights = (fp32_weights * f64::from(activation_scale)).map_err(|e| {
             InferenceError::ProcessingError(format!("Failed to apply quantization scaling: {}", e))
         })?;
 
@@ -412,7 +447,11 @@ impl QuantizedTensor {
         let weight_dims = scaled_weights.dims();
         let input_dims = input_2d.dims();
 
-        tracing::debug!("🔥 Checking matmul compatibility: input {:?} x weights {:?}", input_dims, weight_dims);
+        tracing::debug!(
+            "🔥 Checking matmul compatibility: input {:?} x weights {:?}",
+            input_dims,
+            weight_dims
+        );
 
         let weight_for_matmul = if weight_dims.len() == 2 && input_dims.len() == 2 {
             let input_hidden = input_dims[1];
@@ -422,10 +461,17 @@ impl QuantizedTensor {
             // If weight is [out_features, in_features], we need to transpose it to [in_features, out_features]
             if weight_shape[1] == input_hidden {
                 // Weight is [out_features, in_features], transpose to [in_features, out_features]
-                tracing::debug!("🔥 Transposing weight matrix for correct matmul: {:?} -> [{}, {}]",
-                               weight_shape, weight_shape[1], weight_shape[0]);
+                tracing::debug!(
+                    "🔥 Transposing weight matrix for correct matmul: {:?} -> [{}, {}]",
+                    weight_shape,
+                    weight_shape[1],
+                    weight_shape[0]
+                );
                 scaled_weights.transpose(0, 1).map_err(|e| {
-                    InferenceError::ProcessingError(format!("Failed to transpose weight matrix: {}", e))
+                    InferenceError::ProcessingError(format!(
+                        "Failed to transpose weight matrix: {}",
+                        e
+                    ))
                 })?
             } else if weight_shape[0] == input_hidden {
                 // Weight is already [in_features, out_features], use as-is
@@ -441,24 +487,40 @@ impl QuantizedTensor {
             scaled_weights
         };
 
-        tracing::debug!("🔥 Performing matmul: {:?} x {:?}", input_2d.dims(), weight_for_matmul.dims());
+        tracing::debug!(
+            "🔥 Performing matmul: {:?} x {:?}",
+            input_2d.dims(),
+            weight_for_matmul.dims()
+        );
 
         // Use optimized BLAS matmul (much faster than manual loops)
         let result_2d = input_2d.matmul(&weight_for_matmul).map_err(|e| {
-            InferenceError::ProcessingError(format!("Quantized matrix multiplication failed: {}", e))
+            InferenceError::ProcessingError(format!(
+                "Quantized matrix multiplication failed: {}",
+                e
+            ))
         })?;
 
         // Reshape result back to original dimensions if needed
         if input_shape.len() == 3 {
             let (batch, seq, _) = input_activations.dims3().map_err(|e| {
-                InferenceError::ProcessingError(format!("Failed to get original 3D dimensions: {}", e))
+                InferenceError::ProcessingError(format!(
+                    "Failed to get original 3D dimensions: {}",
+                    e
+                ))
             })?;
             let output_hidden = result_2d.dim(1).map_err(|e| {
-                InferenceError::ProcessingError(format!("Failed to get output hidden dimension: {}", e))
+                InferenceError::ProcessingError(format!(
+                    "Failed to get output hidden dimension: {}",
+                    e
+                ))
             })?;
 
             result_2d.reshape((batch, seq, output_hidden)).map_err(|e| {
-                InferenceError::ProcessingError(format!("Failed to reshape result back to 3D: {}", e))
+                InferenceError::ProcessingError(format!(
+                    "Failed to reshape result back to 3D: {}",
+                    e
+                ))
             })
         } else {
             Ok(result_2d)
@@ -478,11 +540,12 @@ impl QuantizedTensor {
     }
 
     /// Fallback to dequantized matrix multiplication (current behavior)
+    #[allow(unused_variables)]
     fn fallback_dequantized_matmul(
         &self,
         input_activations: &Tensor,
-        _activation_scale: f32,
-        _activation_zero_point: i8,
+        activation_scale: f32,
+        activation_zero_point: i8,
     ) -> Result<Tensor, InferenceError> {
         // Convert INT8 weights to FP32
         let fp32_weights = self.dequantize_weights_to_tensor()?;
@@ -494,6 +557,7 @@ impl QuantizedTensor {
     }
 
     /// Quantize FP32 activations to INT8
+    #[allow(clippy::unused_self)]
     fn quantize_activations_i8(
         &self,
         activations: &Tensor,
@@ -533,8 +597,8 @@ impl QuantizedTensor {
             for i in 0..out_features {
                 let mut acc = 0i32;
                 for j in 0..in_features {
-                    let activation = activations[b * in_features + j] as i32;
-                    let weight = self.weights[i * in_features + j] as i32;
+                    let activation = i32::from(activations[b * in_features + j]);
+                    let weight = i32::from(self.weights[i * in_features + j]);
                     acc += activation * weight;
                 }
                 result[b * out_features + i] = acc;
@@ -553,7 +617,10 @@ impl QuantizedTensor {
         let fp32_result: Vec<f32> = match &self.scheme {
             QuantizationScheme::PerTensor { scale, .. } => {
                 let combined_scale = activation_scale * scale;
-                int32_data.iter().map(|&x| x as f32 * combined_scale).collect()
+                int32_data
+                    .iter()
+                    .map(|&x| x as f32 * combined_scale)
+                    .collect()
             }
             QuantizationScheme::PerChannel { scales, .. } => {
                 let out_features = self.shape[0];
@@ -583,15 +650,18 @@ impl QuantizedTensor {
     }
 
     /// Convert quantized weights to FP32 tensor (for fallback)
+    #[allow(unused_variables)]
     fn dequantize_weights_to_tensor(&self) -> Result<Tensor, InferenceError> {
         let fp32_weights: Vec<f32> = match &self.scheme {
-            QuantizationScheme::PerTensor { scale, zero_point } => {
-                self.weights
-                    .iter()
-                    .map(|&w| (f32::from(w) - f32::from(*zero_point)) * scale)
-                    .collect()
-            }
-            QuantizationScheme::PerChannel { scales, zero_points } => {
+            QuantizationScheme::PerTensor { scale, zero_point } => self
+                .weights
+                .iter()
+                .map(|&w| (f32::from(w) - f32::from(*zero_point)) * scale)
+                .collect(),
+            QuantizationScheme::PerChannel {
+                scales,
+                zero_points,
+            } => {
                 let out_features = self.shape[0];
                 let in_features = self.shape[1];
 
@@ -601,7 +671,9 @@ impl QuantizedTensor {
                     .flat_map(|(i, weights)| {
                         let scale = scales[i];
                         let zero_point = zero_points[i];
-                        weights.iter().map(move |&w| (f32::from(w) - f32::from(zero_point)) * scale)
+                        weights
+                            .iter()
+                            .map(move |&w| (f32::from(w) - f32::from(zero_point)) * scale)
                     })
                     .collect()
             }
@@ -616,14 +688,17 @@ impl QuantizedTensor {
     fn create_tensor_with_fallback(
         data: &[f32],
         shape: &[usize],
-        target_device: &Device
+        target_device: &Device,
     ) -> Result<Tensor, InferenceError> {
         // Always create on CPU first to avoid GPU memory exhaustion
-        let cpu_tensor = Tensor::from_slice(data, shape, &Device::Cpu)
-            .map_err(|e| InferenceError::ProcessingError(format!("CPU tensor creation failed: {}", e)))?;
+        let cpu_tensor = Tensor::from_slice(data, shape, &Device::Cpu).map_err(|e| {
+            InferenceError::ProcessingError(format!("CPU tensor creation failed: {}", e))
+        })?;
 
         // Move to target device if it's not CPU
-        if !target_device.is_cpu() {
+        if target_device.is_cpu() {
+            Ok(cpu_tensor)
+        } else {
             match cpu_tensor.to_device(target_device) {
                 Ok(gpu_tensor) => Ok(gpu_tensor),
                 Err(e) => {
@@ -631,8 +706,6 @@ impl QuantizedTensor {
                     Ok(cpu_tensor) // Fallback to CPU
                 }
             }
-        } else {
-            Ok(cpu_tensor)
         }
     }
 }
@@ -674,24 +747,31 @@ impl QuantizedVarBuilder {
         activation_scale: f32,
         activation_zero_point: i8,
     ) -> Result<Tensor, InferenceError> {
-        let quantized_tensor = self.get_quantized_tensor(tensor_name)
-            .ok_or_else(|| InferenceError::ProcessingError(format!("Tensor '{}' not found", tensor_name)))?;
+        let quantized_tensor = self.get_quantized_tensor(tensor_name).ok_or_else(|| {
+            InferenceError::ProcessingError(format!("Tensor '{}' not found", tensor_name))
+        })?;
 
-        quantized_tensor.quantized_matmul(input_activations, activation_scale, activation_zero_point)
+        quantized_tensor.quantized_matmul(
+            input_activations,
+            activation_scale,
+            activation_zero_point,
+        )
     }
 
     /// Calculate optimal activation quantization scale for a tensor
     /// Uses the min-max range to compute the scale factor for INT8 quantization
-    pub fn compute_activation_scale(&self, activations: &Tensor) -> Result<(f32, i8), InferenceError> {
+    pub fn compute_activation_scale(
+        &self,
+        activations: &Tensor,
+    ) -> Result<(f32, i8), InferenceError> {
         // Get tensor data as Vec<f32>
         let shape = activations.shape();
         let data = if shape.rank() == 1 {
             activations.to_vec1::<f32>()
-        } else if shape.rank() == 2 {
-            activations.flatten_all()?.to_vec1::<f32>()
         } else {
             activations.flatten_all()?.to_vec1::<f32>()
-        }.map_err(|e| {
+        }
+        .map_err(|e| {
             InferenceError::ProcessingError(format!("Failed to extract activation data: {}", e))
         })?;
 
@@ -722,7 +802,8 @@ impl QuantizedVarBuilder {
         let (activation_scale, activation_zero_point) = self.compute_activation_scale(input)?;
 
         // Perform quantized matrix multiplication
-        let output = self.quantized_matmul(weight_name, input, activation_scale, activation_zero_point)?;
+        let output =
+            self.quantized_matmul(weight_name, input, activation_scale, activation_zero_point)?;
 
         // Add bias if provided (bias is typically stored in FP32)
         if let Some(_bias_name) = bias_name {
@@ -759,14 +840,17 @@ impl CompressedTensorsLoader {
     fn create_tensor_with_fallback(
         data: &[f32],
         shape: &[usize],
-        target_device: &Device
+        target_device: &Device,
     ) -> Result<Tensor, InferenceError> {
         // Always create on CPU first to avoid GPU memory exhaustion
-        let cpu_tensor = Tensor::from_slice(data, shape, &Device::Cpu)
-            .map_err(|e| InferenceError::ProcessingError(format!("CPU tensor creation failed: {}", e)))?;
+        let cpu_tensor = Tensor::from_slice(data, shape, &Device::Cpu).map_err(|e| {
+            InferenceError::ProcessingError(format!("CPU tensor creation failed: {}", e))
+        })?;
 
         // Move to target device if it's not CPU
-        if !target_device.is_cpu() {
+        if target_device.is_cpu() {
+            Ok(cpu_tensor)
+        } else {
             match cpu_tensor.to_device(target_device) {
                 Ok(gpu_tensor) => Ok(gpu_tensor),
                 Err(e) => {
@@ -774,8 +858,6 @@ impl CompressedTensorsLoader {
                     Ok(cpu_tensor) // Fallback to CPU
                 }
             }
-        } else {
-            Ok(cpu_tensor)
         }
     }
 
@@ -812,7 +894,8 @@ impl CompressedTensorsLoader {
             "⚠️ Using backward-compatible dequantizing VarBuilder. Consider migrating to QuantizedVarBuilder for memory efficiency."
         );
 
-        let var_builder = candle_nn::VarBuilder::from_tensors(dequantized_tensors, DType::F32, &self.device);
+        let var_builder =
+            candle_nn::VarBuilder::from_tensors(dequantized_tensors, DType::F32, &self.device);
         Ok(var_builder)
     }
 
@@ -820,7 +903,13 @@ impl CompressedTensorsLoader {
     async fn load_quantized_tensors(
         &self,
         model_path: &str,
-    ) -> Result<(std::collections::HashMap<String, QuantizedTensor>, std::collections::HashMap<String, Tensor>), InferenceError> {
+    ) -> Result<
+        (
+            std::collections::HashMap<String, QuantizedTensor>,
+            std::collections::HashMap<String, Tensor>,
+        ),
+        InferenceError,
+    > {
         let safetensors_path = std::path::Path::new(model_path).join("model.safetensors");
 
         if !safetensors_path.exists() {
@@ -859,16 +948,25 @@ impl CompressedTensorsLoader {
         })
     }
 
-    /// Load quantized tensors and FP32 tensors from SafeTensors - preserves INT8 weights
+    /// Load quantized tensors and FP32 tensors from `SafeTensors` - preserves INT8 weights
     #[allow(clippy::cognitive_complexity)]
     #[allow(clippy::too_many_lines)]
+    #[allow(clippy::type_complexity)]
     fn load_quantized_tensors_from_safetensors(
         &self,
         safetensors: SafeTensors<'_>,
-    ) -> Result<(std::collections::HashMap<String, QuantizedTensor>, std::collections::HashMap<String, Tensor>), InferenceError> {
+    ) -> Result<
+        (
+            std::collections::HashMap<String, QuantizedTensor>,
+            std::collections::HashMap<String, Tensor>,
+        ),
+        InferenceError,
+    > {
         use std::collections::HashMap;
 
-        tracing::info!("🔄 Creating quantized VarBuilder for compressed-tensors (preserving INT8 weights)");
+        tracing::info!(
+            "🔄 Creating quantized VarBuilder for compressed-tensors (preserving INT8 weights)"
+        );
 
         // Debug: Print first 10 raw tensor names from SafeTensors
         let raw_names: Vec<_> = safetensors.names();
@@ -921,11 +1019,19 @@ impl CompressedTensorsLoader {
                     match self.create_quantized_tensor(i8_weights, bf16_scales, &weight_shape) {
                         Ok(quantized_tensor) => {
                             let mapped_name = self.map_tensor_name(tensor_name);
-                            tracing::debug!("🔄 Mapped quantized tensor: {} -> {}", tensor_name, mapped_name);
+                            tracing::debug!(
+                                "🔄 Mapped quantized tensor: {} -> {}",
+                                tensor_name,
+                                mapped_name
+                            );
                             quantized_tensors.insert(mapped_name, quantized_tensor);
                         }
                         Err(e) => {
-                            tracing::warn!("⚠️ Failed to create quantized tensor {}: {}", tensor_name, e);
+                            tracing::warn!(
+                                "⚠️ Failed to create quantized tensor {}: {}",
+                                tensor_name,
+                                e
+                            );
                             // For now, skip failed tensors rather than failing completely
                         }
                     }
@@ -935,7 +1041,11 @@ impl CompressedTensorsLoader {
                         safetensors::Dtype::F32 => {
                             let data: &[f32] = bytemuck::cast_slice(tensor_info.data());
                             let shape = tensor_info.shape().to_vec();
-                            match Self::create_tensor_with_fallback(data, shape.as_slice(), &self.device) {
+                            match Self::create_tensor_with_fallback(
+                                data,
+                                shape.as_slice(),
+                                &self.device,
+                            ) {
                                 Ok(tensor) => {
                                     let mapped_name = self.map_tensor_name(tensor_name);
                                     tracing::debug!(

@@ -288,6 +288,18 @@ impl PlayContext {
             backend_port, metrics_port
         );
 
+        // Determine GPU device ID based on engine type
+        let gpu_device_id = match options.engine.as_str() {
+            "candle-cuda" => 0,  // Use GPU 0 for CUDA
+            "candle-metal" => 0, // Use GPU 0 for Metal
+            _ => -1,             // Use CPU for all other engines
+        };
+
+        info!(
+            "Using engine: {} with device ID: {}",
+            options.engine, gpu_device_id
+        );
+
         // Create backend CLI options
         let backend_opts = BackendCliOptions {
             listen_addr: format!("127.0.0.1:{}", backend_port).parse().unwrap(),
@@ -295,7 +307,7 @@ impl PlayContext {
             model_type: "auto".to_string(),
             engine: options.engine.clone(),
             max_batch_size: 32,
-            gpu_device_id: -1,
+            gpu_device_id,
             max_context_length: 2048,
             memory_pool_mb: 1024,
             discovery_lb: None,

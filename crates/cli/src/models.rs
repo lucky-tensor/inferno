@@ -61,14 +61,40 @@ fn discover_models_recursive(dir: &Path, models: &mut Vec<ModelInfo>) -> Result<
         let file_path = entry.path();
 
         if file_path.is_dir() {
-            // Recursively search subdirectories
-            discover_models_recursive(&file_path, models)?;
+            // Check if this directory contains a sharded model
+            if is_sharded_model_directory(&file_path) {
+                // Treat the entire sharded model directory as a single model
+                let total_size = calculate_sharded_model_size(&file_path)?;
+                let dir_name = file_path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
+
+                models.push(ModelInfo {
+                    path: file_path,
+                    name: format!("{} (sharded model)", dir_name),
+                    size_bytes: total_size,
+                });
+            } else {
+                // Recursively search subdirectories
+                discover_models_recursive(&file_path, models)?;
+            }
         } else {
             // Check if file has the model extension (.safetensors)
             if let Some(extension) = file_path.extension() {
                 if let Some(ext_str) = extension.to_str() {
                     let ext_lower = format!(".{}", ext_str.to_lowercase());
                     if ext_lower == MODEL_EXTENSION {
+                        // Skip individual shard files - they should be handled at the directory level
+                        if let Some(file_name) = file_path.file_name() {
+                            if let Some(name_str) = file_name.to_str() {
+                                if is_shard_file(name_str) {
+                                    continue; // Skip this file, it's part of a sharded model
+                                }
+                            }
+                        }
+
                         // Get file metadata for size
                         let metadata = fs::metadata(&file_path).map_err(|e| {
                             InfernoError::internal(
@@ -210,7 +236,7 @@ fn is_sharded_model_directory(dir: &Path) -> bool {
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
             if let Some(name) = entry.file_name().to_str() {
-                if name.starts_with("model-") && name.ends_with(".safetensors") {
+                if is_shard_file(name) {
                     return true;
                 }
             }
@@ -218,4 +244,31 @@ fn is_sharded_model_directory(dir: &Path) -> bool {
     }
 
     false
+}
+
+/// Check if a filename represents a shard file
+fn is_shard_file(filename: &str) -> bool {
+    // Pattern: model-00001-of-00003.safetensors
+    filename.starts_with("model-")
+        && filename.ends_with(".safetensors")
+        && filename.contains("-of-")
+}
+
+/// Calculate the total size of all shard files in a sharded model directory
+fn calculate_sharded_model_size(dir: &Path) -> Result<u64> {
+    let mut total_size = 0u64;
+
+    if let Ok(entries) = fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str() {
+                if is_shard_file(name) {
+                    if let Ok(metadata) = fs::metadata(entry.path()) {
+                        total_size += metadata.len();
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(total_size)
 }

@@ -15,7 +15,7 @@ use crate::inference::{
 use super::{
     backend::CandleBackendType,
     model_config::CandleModelConfig,
-    quantized_model::{CompressedTensorsLoader, QuantizedModelConfig, QuantizedVarBuilder},
+    quantized_model::{CompressedTensorsLoader, QuantizedModelConfig},
     simple_quantized_llama::HybridQuantizedLlama,
     tokenizer::CandleTokenizer,
 };
@@ -214,42 +214,57 @@ impl CandleInferenceEngine {
         for i in 0..max_tokens {
             // Run forward pass - TRUE quantized vs regular
             let logits = match &wrapper.model {
-                CandleModelType::Regular(llama_model) => {
-                    llama_model.forward(&current_input, 0, &mut cache).map_err(|e| {
-                        InferenceError::ProcessingError(format!("Regular model forward pass failed: {}", e))
-                    })?
-                }
+                CandleModelType::Regular(llama_model) => llama_model
+                    .forward(&current_input, 0, &mut cache)
+                    .map_err(|e| {
+                        InferenceError::ProcessingError(format!(
+                            "Regular model forward pass failed: {}",
+                            e
+                        ))
+                    })?,
                 CandleModelType::Quantized(quantized_llama) => {
                     debug!("🔥 Running TRUE quantized inference with INT8 weights!");
 
                     // Create simplified cache structure for quantized model
                     let seqlen_offsets = vec![0; current_input.dim(0).unwrap_or(1)];
-                    let start_offsets_kernel = Tensor::zeros(
-                        (seqlen_offsets.len(),),
-                        DType::U32,
-                        &wrapper.device,
-                    ).map_err(|e| {
-                        InferenceError::ProcessingError(format!("Failed to create start offsets: {}", e))
-                    })?;
-                    let context_lens = vec![(0, current_input.dim(1).unwrap_or(1)); seqlen_offsets.len()];
+                    let start_offsets_kernel =
+                        Tensor::zeros((seqlen_offsets.len(),), DType::U32, &wrapper.device)
+                            .map_err(|e| {
+                                InferenceError::ProcessingError(format!(
+                                    "Failed to create start offsets: {}",
+                                    e
+                                ))
+                            })?;
+                    let context_lens =
+                        vec![(0, current_input.dim(1).unwrap_or(1)); seqlen_offsets.len()];
 
                     // Create per-layer caches (simplified for now)
                     let mut kv_caches: Vec<Cache> = (0..wrapper.llama_config.num_hidden_layers)
                         .map(|_| {
                             Cache::new(true, DType::F32, &wrapper.llama_config, &wrapper.device)
-                                .map_err(|e| InferenceError::InitializationError(format!("Failed to create layer cache: {}", e)))
+                                .map_err(|e| {
+                                    InferenceError::InitializationError(format!(
+                                        "Failed to create layer cache: {}",
+                                        e
+                                    ))
+                                })
                         })
                         .collect::<Result<Vec<_>, _>>()?;
 
-                    quantized_llama.forward(
-                        &current_input,
-                        &seqlen_offsets,
-                        start_offsets_kernel,
-                        context_lens,
-                        &mut kv_caches,
-                    ).map_err(|e| {
-                        InferenceError::ProcessingError(format!("🔥 Quantized model forward pass failed: {}", e))
-                    })?
+                    quantized_llama
+                        .forward(
+                            &current_input,
+                            &seqlen_offsets,
+                            start_offsets_kernel,
+                            context_lens,
+                            &mut kv_caches,
+                        )
+                        .map_err(|e| {
+                            InferenceError::ProcessingError(format!(
+                                "🔥 Quantized model forward pass failed: {}",
+                                e
+                            ))
+                        })?
                 }
             };
 
@@ -320,16 +335,22 @@ impl CandleInferenceEngine {
             } else if next_token_tensor.rank() == 1 {
                 // 1D tensor with batch dimension, extract first element
                 let token_vec = next_token_tensor.to_vec1::<u32>().map_err(|e| {
-                    InferenceError::ProcessingError(format!("Failed to extract token from 1D tensor: {}", e))
+                    InferenceError::ProcessingError(format!(
+                        "Failed to extract token from 1D tensor: {}",
+                        e
+                    ))
                 })?;
                 if token_vec.is_empty() {
-                    return Err(InferenceError::ProcessingError("Empty token tensor".to_string()));
+                    return Err(InferenceError::ProcessingError(
+                        "Empty token tensor".to_string(),
+                    ));
                 }
                 token_vec[0]
             } else {
-                return Err(InferenceError::ProcessingError(
-                    format!("Unexpected token tensor rank: {}, expected 0 or 1", next_token_tensor.rank())
-                ));
+                return Err(InferenceError::ProcessingError(format!(
+                    "Unexpected token tensor rank: {}, expected 0 or 1",
+                    next_token_tensor.rank()
+                )));
             };
 
             generated_tokens.push(next_token);
@@ -480,7 +501,7 @@ impl InferenceEngine for CandleInferenceEngine {
             }
 
             // Load model weights using VarBuilder - handle quantized vs standard models
-            let var_builder = if quantized_config.is_quantized
+            let _var_builder = if quantized_config.is_quantized
                 && quantized_config.is_w8a8_quantized()
             {
                 // Use compressed-tensors loader for quantized models
@@ -537,7 +558,9 @@ impl InferenceEngine for CandleInferenceEngine {
             };
 
             // Use TRUE runtime quantized inference - preserve INT8 weights
-            let model_type = if quantized_config.is_quantized && quantized_config.is_w8a8_quantized() {
+            let model_type = if quantized_config.is_quantized
+                && quantized_config.is_w8a8_quantized()
+            {
                 info!("🚀 Loading TRUE quantized model - INT8 weights preserved in memory!");
                 info!("   Memory savings: 4x smaller weights in GPU memory");
                 info!("   Compute: Runtime INT8 x INT8 -> INT32 matrix multiplication");
@@ -545,13 +568,21 @@ impl InferenceEngine for CandleInferenceEngine {
 
                 // Load quantized tensors (preserves INT8 weights)
                 let loader = CompressedTensorsLoader::new(device.clone(), quantized_config.clone());
-                let quantized_builder = loader.create_quantized_var_builder(&config.model_path).await?;
+                let quantized_builder = loader
+                    .create_quantized_var_builder(&config.model_path)
+                    .await?;
 
                 // Also load non-quantized tensors (embeddings, norms) as FP32
-                let base_var_builder = loader.create_dequantizing_var_builder(&config.model_path).await?;
+                let base_var_builder = loader
+                    .create_dequantizing_var_builder(&config.model_path)
+                    .await?;
                 let regular_var_builder = Self::create_remapping_var_builder(base_var_builder);
 
-                let quantized_llama = HybridQuantizedLlama::load(quantized_builder, regular_var_builder, &llama_config)?;
+                let quantized_llama = HybridQuantizedLlama::load(
+                    quantized_builder,
+                    regular_var_builder,
+                    &llama_config,
+                )?;
                 CandleModelType::Quantized(quantized_llama)
             } else {
                 // Create regular model
@@ -568,7 +599,10 @@ impl InferenceEngine for CandleInferenceEngine {
                 let var_builder = Self::create_remapping_var_builder(base_var_builder);
 
                 let llama_model = Llama::load(var_builder, &llama_config).map_err(|e| {
-                    InferenceError::InitializationError(format!("Failed to create Llama model: {}", e))
+                    InferenceError::InitializationError(format!(
+                        "Failed to create Llama model: {}",
+                        e
+                    ))
                 })?;
                 CandleModelType::Regular(llama_model)
             };

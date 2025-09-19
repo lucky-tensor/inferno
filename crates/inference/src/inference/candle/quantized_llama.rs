@@ -11,10 +11,10 @@
 #![allow(clippy::cast_precision_loss)]
 #![allow(clippy::cast_possible_truncation)]
 
+use super::quantized_model::{QuantizedTensor, QuantizedVarBuilder};
 use crate::inference::InferenceError;
-use super::quantized_model::{QuantizedVarBuilder, QuantizedTensor};
-use candle_core::{Device, Tensor, Module};
-use candle_nn::{RmsNorm, Embedding};
+use candle_core::{Device, Module, Tensor};
+use candle_nn::{Embedding, RmsNorm};
 use candle_transformers::models::llama::Config as LlamaConfig;
 
 /// Quantized linear layer that preserves INT8 weights and performs runtime quantized inference
@@ -33,26 +33,25 @@ impl QuantizedLinear {
         }
     }
 
-    /// Create from QuantizedVarBuilder (loads from tensor name)
+    /// Create from `QuantizedVarBuilder` (loads from tensor name)
     pub fn from_quantized_var_builder(
         quantized_builder: &QuantizedVarBuilder,
         tensor_name: &str,
-        bias_name: Option<&str>,
+        _bias_name: Option<&str>,
     ) -> Result<Self, InferenceError> {
         let quantized_tensor = quantized_builder
             .get_quantized_tensor(tensor_name)
             .ok_or_else(|| {
-                InferenceError::ProcessingError(format!("Quantized tensor '{}' not found", tensor_name))
+                InferenceError::ProcessingError(format!(
+                    "Quantized tensor '{}' not found",
+                    tensor_name
+                ))
             })?
             .clone();
 
-        let bias = if let Some(_bias_name) = bias_name {
-            // For now, assume bias is not quantized (typically small)
-            // TODO: Load bias from regular VarBuilder if needed
-            None
-        } else {
-            None
-        };
+        // For now, assume bias is not quantized (typically small)
+        // TODO: Load bias from regular VarBuilder if needed
+        let bias = None;
 
         Ok(Self::new(quantized_tensor, bias))
     }
@@ -65,7 +64,8 @@ impl Module for QuantizedLinear {
         let activation_scale = 1.0; // Placeholder - should compute from input range
         let activation_zero_point = 0i8; // Placeholder
 
-        let result = self.quantized_tensor
+        let result = self
+            .quantized_tensor
             .quantized_matmul(xs, activation_scale, activation_zero_point)
             .map_err(|e| candle_core::Error::Msg(format!("Quantized matmul failed: {}", e)))?;
 
@@ -138,6 +138,7 @@ impl QuantizedLlamaAttention {
         })
     }
 
+    #[allow(unused_variables)]
     pub fn forward(
         &self,
         x: &Tensor,
@@ -152,13 +153,16 @@ impl QuantizedLlamaAttention {
         let k = self.k_proj.forward(x)?;
         let v = self.v_proj.forward(x)?;
 
-        let q = q.reshape((b_sz, seq_len, self.num_heads, self.head_dim))?
+        let q = q
+            .reshape((b_sz, seq_len, self.num_heads, self.head_dim))?
             .transpose(1, 2)?; // (b_sz, num_heads, seq_len, head_dim)
 
-        let k = k.reshape((b_sz, seq_len, self.num_kv_heads, self.head_dim))?
+        let k = k
+            .reshape((b_sz, seq_len, self.num_kv_heads, self.head_dim))?
             .transpose(1, 2)?; // (b_sz, num_kv_heads, seq_len, head_dim)
 
-        let v = v.reshape((b_sz, seq_len, self.num_kv_heads, self.head_dim))?
+        let v = v
+            .reshape((b_sz, seq_len, self.num_kv_heads, self.head_dim))?
             .transpose(1, 2)?; // (b_sz, num_kv_heads, seq_len, head_dim)
 
         // Use KV cache for efficient generation - TODO: Fix cache API usage
@@ -189,6 +193,7 @@ impl QuantizedLlamaAttention {
 
 /// Quantized MLP layer for Llama
 #[derive(Debug)]
+#[allow(clippy::struct_field_names)]
 pub struct QuantizedLlamaMlp {
     gate_proj: QuantizedLinear,
     up_proj: QuantizedLinear,
@@ -261,14 +266,26 @@ impl QuantizedLlamaLayer {
         let input_layernorm = candle_nn::rms_norm(
             config.hidden_size,
             config.rms_norm_eps,
-            regular_var_builder.pp(&format!("model.layers.{}.input_layernorm", layer_idx)),
-        ).map_err(|e| InferenceError::InitializationError(format!("Failed to create input layernorm: {}", e)))?;
+            regular_var_builder.pp(format!("model.layers.{}.input_layernorm", layer_idx)),
+        )
+        .map_err(|e| {
+            InferenceError::InitializationError(format!("Failed to create input layernorm: {}", e))
+        })?;
 
         let post_attention_layernorm = candle_nn::rms_norm(
             config.hidden_size,
             config.rms_norm_eps,
-            regular_var_builder.pp(&format!("model.layers.{}.post_attention_layernorm", layer_idx)),
-        ).map_err(|e| InferenceError::InitializationError(format!("Failed to create post attention layernorm: {}", e)))?;
+            regular_var_builder.pp(format!(
+                "model.layers.{}.post_attention_layernorm",
+                layer_idx
+            )),
+        )
+        .map_err(|e| {
+            InferenceError::InitializationError(format!(
+                "Failed to create post attention layernorm: {}",
+                e
+            ))
+        })?;
 
         Ok(Self {
             attention,
@@ -292,7 +309,13 @@ impl QuantizedLlamaLayer {
         let x = self.input_layernorm.forward(x)?;
 
         // Self-attention with residual connection
-        let attn_output = self.attention.forward(&x, attention_mask, seqlen_offsets, start_offsets_kernel, kv_cache)?;
+        let attn_output = self.attention.forward(
+            &x,
+            attention_mask,
+            seqlen_offsets,
+            start_offsets_kernel,
+            kv_cache,
+        )?;
         let x = (attn_output + residual)?;
 
         let residual = &x;
@@ -331,7 +354,10 @@ impl QuantizedLlama {
             config.vocab_size,
             config.hidden_size,
             regular_var_builder.pp("model.embed_tokens"),
-        ).map_err(|e| InferenceError::InitializationError(format!("Failed to create embeddings: {}", e)))?;
+        )
+        .map_err(|e| {
+            InferenceError::InitializationError(format!("Failed to create embeddings: {}", e))
+        })?;
 
         // Load quantized transformer layers
         let mut layers = Vec::with_capacity(config.num_hidden_layers);
@@ -350,14 +376,20 @@ impl QuantizedLlama {
             config.hidden_size,
             config.rms_norm_eps,
             regular_var_builder.pp("model.norm"),
-        ).map_err(|e| InferenceError::InitializationError(format!("Failed to create final norm: {}", e)))?;
+        )
+        .map_err(|e| {
+            InferenceError::InitializationError(format!("Failed to create final norm: {}", e))
+        })?;
 
         // Load LM head (typically tied with embeddings, not quantized)
         let lm_head = candle_nn::linear_no_bias(
             config.hidden_size,
             config.vocab_size,
             regular_var_builder.pp("lm_head"),
-        ).map_err(|e| InferenceError::InitializationError(format!("Failed to create lm_head: {}", e)))?;
+        )
+        .map_err(|e| {
+            InferenceError::InitializationError(format!("Failed to create lm_head: {}", e))
+        })?;
 
         Ok(Self {
             embedding,
@@ -408,6 +440,7 @@ impl QuantizedLlama {
         self.lm_head.forward(&x)
     }
 
+    #[allow(clippy::unused_self)]
     fn prepare_decoder_attention_mask(
         &self,
         seq_len: usize,

@@ -336,10 +336,13 @@ async fn clone_repo_with_lfs(
         progress_bar.set_message("Cloning repository...");
 
         let mut callbacks = RemoteCallbacks::new();
-        callbacks.credentials(|_url, username_from_url, _allowed_types| {
+        callbacks.credentials(|_url, _username_from_url, _allowed_types| {
             if let Some(token) = hf_token {
-                Cred::userpass_plaintext(username_from_url.unwrap_or("oauth2"), token)
+                println!("🔑 Using HF token for Git authentication");
+                // Use the token as username and empty password for HuggingFace
+                Cred::userpass_plaintext(token, "")
             } else {
+                // For public repositories, try default credentials first
                 Cred::default()
             }
         });
@@ -708,6 +711,7 @@ async fn download_model_files_with_wget(
         // Add authorization header if token is provided
         let auth_header;
         if let Some(token) = hf_token {
+            println!("🔑 Using HF token for wget authentication");
             auth_header = format!("Authorization: Bearer {}", token);
             wget_args.extend_from_slice(&["--header", &auth_header]);
         }
@@ -772,13 +776,17 @@ pub(crate) async fn download_model_with_xet(
 ) -> Result<()> {
     println!("Using HuggingFace Hub's native API with xet backend for optimal performance");
 
-    // Initialize the API client (temporarily without custom cache to debug URL issue)
+    // Initialize the API client with proper token authentication
     let api_result = if let Some(token) = hf_token {
+        println!("🔑 Using HF token for authentication");
         hf_hub::api::tokio::ApiBuilder::new()
             .with_token(Some(token.to_string()))
+            .with_cache_dir(_cache_dir.to_path_buf())
             .build()
     } else {
-        hf_hub::api::tokio::ApiBuilder::new().build()
+        hf_hub::api::tokio::ApiBuilder::new()
+            .with_cache_dir(_cache_dir.to_path_buf())
+            .build()
     };
 
     let api = match api_result {
@@ -852,12 +860,29 @@ pub(crate) async fn download_model_with_xet(
                 }
             }
             Err(e) => {
-                println!("DEBUG: Failed to download {} via hf-hub: {}", filename, e);
+                let error_msg = e.to_string();
+
+                // Handle different types of authentication errors with helpful messages
+                if error_msg.contains("401 Unauthorized") {
+                    println!(
+                        "❌ Authentication failed for {}: No valid token provided",
+                        filename
+                    );
+                    println!("   💡 Please provide a valid HuggingFace token using --hf-token or HF_TOKEN environment variable");
+                } else if error_msg.contains("403 Forbidden") {
+                    println!("❌ Access denied for {}: Token lacks permissions or model requires license acceptance", filename);
+                    println!("   💡 This model may require accepting license terms at https://huggingface.co/{}", model_id);
+                    println!("   💡 Or your token may not have access to this gated model");
+                } else {
+                    println!("DEBUG: Failed to download {} via hf-hub: {}", filename, e);
+                }
 
                 // Try direct HTTP download as fallback for files that fail with "relative URL" error
-                if e.to_string().contains("relative URL without a base") {
+                if error_msg.contains("relative URL without a base") {
                     println!("DEBUG: Attempting direct HTTP download for {}", filename);
-                    match download_file_direct(model_id, filename, output_dir).await {
+                    match download_file_direct_with_auth(model_id, filename, output_dir, hf_token)
+                        .await
+                    {
                         Ok(true) => {
                             downloaded_files.push(filename.to_string());
                             println!(
@@ -915,7 +940,22 @@ pub(crate) async fn download_model_with_xet(
     let all_files = [&downloaded_files[..], &cached_files[..]].concat();
 
     if all_files.is_empty() {
-        println!("ERROR: No .safetensors model files found");
+        println!("ERROR: No model files could be downloaded");
+
+        // Check if this was due to authentication issues
+        if !failed_files.is_empty() {
+            let has_auth_error = failed_files.iter().any(|_| hf_token.is_some());
+            if has_auth_error {
+                println!("💡 This appears to be a gated model that requires:");
+                println!("   1. A valid HuggingFace token with access permissions");
+                println!(
+                    "   2. Accepting the model's license terms at https://huggingface.co/{}",
+                    model_id
+                );
+                println!("   3. Requesting access if it's a restricted model");
+            }
+        }
+
         println!("Falling back to Git LFS...");
         return download_huggingface_model(model_id, output_dir, hf_token, false).await;
     }
@@ -992,7 +1032,12 @@ pub(crate) async fn download_model_with_xet(
 }
 
 /// Direct HTTP download fallback for files that fail with hf-hub
-async fn download_file_direct(model_id: &str, filename: &str, output_dir: &str) -> Result<bool> {
+async fn download_file_direct_with_auth(
+    model_id: &str,
+    filename: &str,
+    output_dir: &str,
+    hf_token: Option<&str>,
+) -> Result<bool> {
     let url = format!(
         "https://huggingface.co/{}/resolve/main/{}",
         model_id, filename
@@ -1000,7 +1045,14 @@ async fn download_file_direct(model_id: &str, filename: &str, output_dir: &str) 
     let target_path = Path::new(output_dir).join(filename);
 
     let client = reqwest::Client::new();
-    let response = client.get(&url).send().await?;
+    let mut request = client.get(&url);
+
+    // Add authentication header if token is provided
+    if let Some(token) = hf_token {
+        request = request.header("Authorization", format!("Bearer {}", token));
+    }
+
+    let response = request.send().await?;
 
     if response.status() == reqwest::StatusCode::NOT_FOUND {
         return Ok(false); // File doesn't exist, this is normal

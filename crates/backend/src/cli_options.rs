@@ -26,6 +26,29 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tracing::{info, warn};
 
+/// Determine the best default inference engine based on compiled features
+#[allow(unreachable_code)]
+fn default_engine() -> String {
+    // Priority order: GPU engines first (faster), then CPU engines
+    #[cfg(feature = "candle-cuda")]
+    {
+        return "candle-cuda".to_string();
+    }
+
+    #[cfg(feature = "candle-metal")]
+    {
+        return "candle-metal".to_string();
+    }
+
+    #[cfg(feature = "candle-cpu")]
+    {
+        return "candle-cpu".to_string();
+    }
+
+    // Fallback to burn-cpu (always available)
+    "burn-cpu".to_string()
+}
+
 /// Inferno Backend - AI inference backend server
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
@@ -53,7 +76,7 @@ pub struct BackendCliOptions {
     pub model_type: String,
 
     /// Inference engine to use (burn-cpu, candle-cpu, candle-cuda, candle-metal)
-    #[arg(long, default_value = "burn-cpu", env = "INFERNO_ENGINE")]
+    #[arg(long, default_value_t = default_engine(), env = "INFERNO_ENGINE")]
     pub engine: String,
 
     /// Maximum batch size for inference
