@@ -1,8 +1,12 @@
 //! Llama model loader using the official burn-llama implementation
 
+#[cfg(feature = "burn-cpu")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "burn-cpu")]
 use std::error::Error;
+#[cfg(feature = "burn-cpu")]
 use std::path::Path;
+#[cfg(feature = "burn-cpu")]
 use tracing::{info, warn};
 
 // CPU backend imports

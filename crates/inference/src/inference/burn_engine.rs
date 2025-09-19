@@ -452,6 +452,7 @@ impl BurnInferenceEngine {
             generated_text: response_text,
             generated_tokens: 50, // Placeholder
             inference_time_ms: inference_time * 1000.0,
+            time_to_first_token_ms: None, // TODO: Implement timing for Burn engine
             is_finished: true,
             error: None,
         })

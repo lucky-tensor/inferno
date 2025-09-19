@@ -552,6 +552,23 @@ async fn run_headless_mode(mut context: PlayContext, prompt: String) -> Result<(
                     std::process::exit(1);
                 } else {
                     println!("{}", response.generated_text);
+
+                    // Show statistics in headless mode
+                    let tokens_per_second = if response.inference_time_ms > 0.0 {
+                        (response.generated_tokens as f64 * 1000.0) / response.inference_time_ms
+                    } else {
+                        0.0
+                    };
+
+                    eprint!("\nStats: ");
+                    eprint!("Tokens: {} | ", response.generated_tokens);
+                    eprint!("Total: {:.0}ms | ", response.inference_time_ms);
+
+                    if let Some(ttft) = response.time_to_first_token_ms {
+                        eprint!("First token: {:.0}ms | ", ttft);
+                    }
+
+                    eprintln!("Speed: {:.1} tok/s", tokens_per_second);
                 }
             }
             Err(e) => {
@@ -651,18 +668,22 @@ async fn run_interaction_loop(editor: &mut DefaultEditor, context: &mut PlayCont
                         } else {
                             println!("{}", response.generated_text);
 
-                            // Show timing info in debug mode
-                            debug!(
-                                "Generated {} tokens in {:.2}ms ({:.2} tokens/sec)",
-                                response.generated_tokens,
-                                response.inference_time_ms,
-                                if response.inference_time_ms > 0.0 {
-                                    (response.generated_tokens as f64 * 1000.0)
-                                        / response.inference_time_ms
-                                } else {
-                                    0.0
-                                }
-                            );
+                            // Show statistics after each response
+                            let tokens_per_second = if response.inference_time_ms > 0.0 {
+                                (response.generated_tokens as f64 * 1000.0) / response.inference_time_ms
+                            } else {
+                                0.0
+                            };
+
+                            print!("\nStats: ");
+                            print!("Tokens: {} | ", response.generated_tokens);
+                            print!("Total: {:.0}ms | ", response.inference_time_ms);
+
+                            if let Some(ttft) = response.time_to_first_token_ms {
+                                print!("First token: {:.0}ms | ", ttft);
+                            }
+
+                            println!("Speed: {:.1} tok/s", tokens_per_second);
                         }
                     }
                     Err(e) => {
@@ -722,6 +743,7 @@ mod tests {
             generated_text: "Hello world".to_string(),
             generated_tokens: 2,
             inference_time_ms: 100.0,
+            time_to_first_token_ms: Some(50.0),
             is_finished: true,
             error: None,
         };

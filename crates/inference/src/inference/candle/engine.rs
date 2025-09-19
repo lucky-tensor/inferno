@@ -196,7 +196,7 @@ impl CandleInferenceEngine {
         max_tokens: usize,
         temperature: f64,
         _top_p: f64,
-    ) -> Result<Vec<u32>, InferenceError> {
+    ) -> Result<(Vec<u32>, Option<f64>), InferenceError> {
         let start_time = Instant::now();
 
         // Convert input tokens to tensor
@@ -217,6 +217,7 @@ impl CandleInferenceEngine {
         // Generate tokens
         let mut generated_tokens = Vec::new();
         let mut current_input = input_tensor;
+        let mut time_to_first_token_ms = None;
 
         for i in 0..max_tokens {
             // Run forward pass - TRUE quantized vs regular
@@ -362,6 +363,11 @@ impl CandleInferenceEngine {
 
             generated_tokens.push(next_token);
 
+            // Capture time to first token
+            if generated_tokens.len() == 1 {
+                time_to_first_token_ms = Some(start_time.elapsed().as_millis() as f64);
+            }
+
             // Check for end tokens (model-specific EOS token IDs)
             let is_eos = if wrapper.config.vocab_size > 100_000 {
                 // Llama-3.2 EOS token: 128009 (also handle other common ones)
@@ -395,7 +401,7 @@ impl CandleInferenceEngine {
         let generation_time = start_time.elapsed();
         debug!("Token generation completed in {:?}", generation_time);
 
-        Ok(generated_tokens)
+        Ok((generated_tokens, time_to_first_token_ms))
     }
 }
 
@@ -706,7 +712,7 @@ impl InferenceEngine for CandleInferenceEngine {
             let temperature = request.temperature as f64;
             let top_p = request.top_p as f64;
 
-            let generated_token_ids =
+            let (generated_token_ids, time_to_first_token_ms) =
                 Self::generate_tokens(wrapper, input_tokens, max_tokens, temperature, top_p)
                     .await?;
 
@@ -737,6 +743,7 @@ impl InferenceEngine for CandleInferenceEngine {
                 generated_text,
                 generated_tokens: generated_token_ids.len() as u32,
                 inference_time_ms: processing_time.as_millis() as f64,
+                time_to_first_token_ms,
                 is_finished: true,
                 error: None,
             })

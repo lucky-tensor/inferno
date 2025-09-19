@@ -968,6 +968,7 @@ mod inference_tests {
                 generated_text: "Generated response".to_string(),
                 generated_tokens: 5,
                 inference_time_ms: 100.0,
+                time_to_first_token_ms: Some(25.0),
                 is_finished: true,
                 error: None,
             };
@@ -987,6 +988,7 @@ mod inference_tests {
                 generated_text: String::new(),
                 generated_tokens: 0,
                 inference_time_ms: 50.0,
+                time_to_first_token_ms: None,
                 is_finished: false,
                 error: Some("Test error message".to_string()),
             };

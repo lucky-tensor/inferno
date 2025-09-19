@@ -77,6 +77,8 @@ pub struct InferenceResponse {
     pub generated_tokens: u32,
     /// Time taken for inference in milliseconds
     pub inference_time_ms: f64,
+    /// Time to first token in milliseconds
+    pub time_to_first_token_ms: Option<f64>,
     /// Whether generation is finished
     pub is_finished: bool,
     /// Error information if any
@@ -90,6 +92,7 @@ impl Default for InferenceResponse {
             generated_text: String::new(),
             generated_tokens: 0,
             inference_time_ms: 0.0,
+            time_to_first_token_ms: None,
             is_finished: true,
             error: None,
         }
