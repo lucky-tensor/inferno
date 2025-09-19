@@ -500,7 +500,10 @@ impl InferenceEngine for CandleInferenceEngine {
                 info!("Loading single model file: {}", single_model_path.display());
                 (vec![single_model_path], false)
             } else if sharded_index_path.exists() {
-                info!("Loading sharded model with index: {}", sharded_index_path.display());
+                info!(
+                    "Loading sharded model with index: {}",
+                    sharded_index_path.display()
+                );
 
                 // Find all sharded model files
                 let mut sharded_files = Vec::new();
@@ -508,7 +511,9 @@ impl InferenceEngine for CandleInferenceEngine {
                     for entry in entries.flatten() {
                         let file_name = entry.file_name();
                         let file_name_str = file_name.to_string_lossy();
-                        if file_name_str.starts_with("model-") && file_name_str.ends_with(".safetensors") {
+                        if file_name_str.starts_with("model-")
+                            && file_name_str.ends_with(".safetensors")
+                        {
                             sharded_files.push(entry.path());
                         }
                     }
@@ -516,7 +521,7 @@ impl InferenceEngine for CandleInferenceEngine {
 
                 if sharded_files.is_empty() {
                     return Err(InferenceError::InitializationError(
-                        "No sharded model files found despite having index file".to_string()
+                        "No sharded model files found despite having index file".to_string(),
                     ));
                 }
 
@@ -531,7 +536,10 @@ impl InferenceEngine for CandleInferenceEngine {
             };
 
             if is_sharded {
-                info!("Loading sharded model weights from {} files", model_files.len());
+                info!(
+                    "Loading sharded model weights from {} files",
+                    model_files.len()
+                );
             } else {
                 info!("Loading model weights from: {}", model_files[0].display());
             }
@@ -564,7 +572,10 @@ impl InferenceEngine for CandleInferenceEngine {
                 let dtype = DType::F32; // Use F32 for CPU inference
 
                 // Convert PathBuf to &Path for VarBuilder
-                let model_file_refs: Vec<&std::path::Path> = model_files.iter().map(std::path::PathBuf::as_path).collect();
+                let model_file_refs: Vec<&std::path::Path> = model_files
+                    .iter()
+                    .map(std::path::PathBuf::as_path)
+                    .collect();
 
                 let base_var_builder = unsafe {
                     VarBuilder::from_mmaped_safetensors(&model_file_refs, dtype, &device)
@@ -635,7 +646,10 @@ impl InferenceEngine for CandleInferenceEngine {
                 let dtype = DType::F32;
 
                 // Convert PathBuf to &Path for VarBuilder
-                let model_file_refs: Vec<&std::path::Path> = model_files.iter().map(std::path::PathBuf::as_path).collect();
+                let model_file_refs: Vec<&std::path::Path> = model_files
+                    .iter()
+                    .map(std::path::PathBuf::as_path)
+                    .collect();
 
                 let base_var_builder = unsafe {
                     VarBuilder::from_mmaped_safetensors(&model_file_refs, dtype, &device)

@@ -53,7 +53,8 @@ async fn discover_model_files_via_api(
                     || path == "tokenizer.json"
                     || path == "vocab.json"
                     || path == "merges.txt"
-                    || path == "special_tokens_map.json" {
+                    || path == "special_tokens_map.json"
+                {
                     essential_files.push(path.to_string());
                 }
             }
@@ -83,15 +84,16 @@ async fn check_existing_model_files(
     }
 
     // Try to discover the actual files that should exist for this model
-    let essential_files = if let Ok(discovered_files) = discover_model_files_via_api(model_id, hf_token).await {
-        discovered_files
-    } else {
-        // Fallback to basic essential files if discovery fails
-        vec![
-            "config.json".to_string(),           // Model configuration
-            "tokenizer_config.json".to_string(), // Tokenizer metadata
-        ]
-    };
+    let essential_files =
+        if let Ok(discovered_files) = discover_model_files_via_api(model_id, hf_token).await {
+            discovered_files
+        } else {
+            // Fallback to basic essential files if discovery fails
+            vec![
+                "config.json".to_string(),           // Model configuration
+                "tokenizer_config.json".to_string(), // Tokenizer metadata
+            ]
+        };
 
     // Optional tokenizer files (models may use different tokenizer formats)
     let optional_tokenizer_files = vec![
@@ -256,16 +258,17 @@ pub async fn download_model(
     println!("Downloading model from Hugging Face: {}", model_id);
 
     // Check what files to download (all or just missing ones)
-    let files_to_download =
-        if let Some((_, missing_files)) = check_existing_model_files(output_dir, model_id, hf_token.map(|s| s.as_str())).await? {
-            if !missing_files.is_empty() {
-                Some(missing_files)
-            } else {
-                None // This case shouldn't happen since we already returned above
-            }
+    let files_to_download = if let Some((_, missing_files)) =
+        check_existing_model_files(output_dir, model_id, hf_token.map(|s| s.as_str())).await?
+    {
+        if !missing_files.is_empty() {
+            Some(missing_files)
         } else {
-            None // No existing files, download all
-        };
+            None // This case shouldn't happen since we already returned above
+        }
+    } else {
+        None // No existing files, download all
+    };
 
     if use_xet {
         download_model_with_xet(
@@ -871,7 +874,10 @@ pub(crate) async fn download_model_with_xet(
         let mut discovered_files = Vec::new();
         if let Ok(files) = discover_model_files_via_api(model_id, hf_token).await {
             discovered_files = files;
-            println!("Discovered {} files from repository", discovered_files.len());
+            println!(
+                "Discovered {} files from repository",
+                discovered_files.len()
+            );
         } else {
             println!("Failed to discover files via API, using default list");
         }
@@ -882,9 +888,9 @@ pub(crate) async fn download_model_with_xet(
             // Fallback to default list
             vec![
                 "model.safetensors".to_string(), // Primary model weights (safetensors format only)
-                "config.json".to_string(),       // Model configuration (architecture, dimensions, etc.)
-                "tokenizer.json".to_string(),    // Tokenizer configuration (HuggingFace format)
-                "vocab.json".to_string(),        // Vocabulary file (alternative tokenizer format)
+                "config.json".to_string(), // Model configuration (architecture, dimensions, etc.)
+                "tokenizer.json".to_string(), // Tokenizer configuration (HuggingFace format)
+                "vocab.json".to_string(),  // Vocabulary file (alternative tokenizer format)
                 "tokenizer_config.json".to_string(), // Tokenizer metadata
                 "generation_config.json".to_string(), // Generation parameters (optional but recommended)
             ]
@@ -1049,7 +1055,9 @@ pub(crate) async fn download_model_with_xet(
                 // Check if any .safetensors files exist (for sharded models without index)
                 if let Ok(entries) = std::fs::read_dir(output_path) {
                     entries.flatten().any(|entry| {
-                        entry.file_name().to_str()
+                        entry
+                            .file_name()
+                            .to_str()
                             .map(|name| name.ends_with(".safetensors"))
                             .unwrap_or(false)
                     })
