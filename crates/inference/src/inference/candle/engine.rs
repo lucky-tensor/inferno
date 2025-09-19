@@ -119,7 +119,14 @@ pub struct CandleInferenceEngine {
 
 impl CandleInferenceEngine {
     pub fn new() -> Self {
-        Self::with_backend(CandleBackendType::Cpu)
+        #[cfg(feature = "candle-cuda")]
+        {
+            Self::with_backend(CandleBackendType::Cuda)
+        }
+        #[cfg(not(feature = "candle-cuda"))]
+        {
+            Self::with_backend(CandleBackendType::Cpu)
+        }
     }
 
     pub fn with_backend(backend_type: CandleBackendType) -> Self {

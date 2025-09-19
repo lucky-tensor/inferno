@@ -391,9 +391,17 @@ mod tests {
     fn test_engine_creation() {
         println!("  Testing basic engine creation");
 
-        let cpu_engine = CandleInferenceEngine::new();
-        assert_eq!(cpu_engine.backend_type(), &CandleBackendType::Cpu);
-        println!("  CPU engine created successfully");
+        let default_engine = CandleInferenceEngine::new();
+        #[cfg(feature = "candle-cuda")]
+        {
+            assert_eq!(default_engine.backend_type(), &CandleBackendType::Cuda);
+            println!("  Default engine created successfully (CUDA)");
+        }
+        #[cfg(not(feature = "candle-cuda"))]
+        {
+            assert_eq!(default_engine.backend_type(), &CandleBackendType::Cpu);
+            println!("  Default engine created successfully (CPU fallback)");
+        }
 
         #[cfg(feature = "candle-cuda")]
         {
