@@ -47,7 +47,7 @@ tokio-test = { workspace = true }
 tempfile = "3.8"
 
 [features]
-default = ["burn-cpu"]
+default = ["candle-cuda"]
 
 # Pass-through features to backend
 burn-cpu = ["inferno-backend/burn-cpu"]

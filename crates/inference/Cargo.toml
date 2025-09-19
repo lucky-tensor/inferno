@@ -57,7 +57,7 @@ tempfile = { workspace = true }
 rstest = { workspace = true }
 
 [features]
-default = ["burn-cpu", "pretrained"]
+default = ["candle-cuda", "pretrained"]
 pretrained = []
 
 # Burn ML Framework features

@@ -9,7 +9,7 @@ description = "AI inference backend component of Inferno distributed systems"
 
 [dependencies]
 inferno-shared = { path = "../shared" }
-inferno-inference = { path = "../inference", features = ["burn-cpu"], optional = true }
+inferno-inference = { path = "../inference", optional = true }
 
 # Core dependencies
 tokio = { workspace = true }
@@ -29,7 +29,7 @@ proptest = { workspace = true }
 serial_test = { workspace = true }
 
 [features]
-default = ["burn-cpu"]
+default = ["candle-cuda"]
 
 # Inference engine features
 burn-cpu = ["dep:inferno-inference", "inferno-inference/burn-cpu"]

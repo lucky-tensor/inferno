@@ -255,6 +255,7 @@ fn load_safetensors_weights(
 }
 
 /// `HuggingFace` model configuration structure from config.json
+#[cfg(feature = "burn-cpu")]
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct HuggingFaceConfig {
     pub hidden_size: Option<u32>,
@@ -271,6 +272,7 @@ struct HuggingFaceConfig {
 }
 
 /// Load model configuration from config.json or use defaults
+#[cfg(feature = "burn-cpu")]
 pub fn load_model_config(
     model_path: &Path,
     tokenizer_path: &str,
