@@ -15,11 +15,17 @@ jobs:
           toolchain: stable
           profile: minimal
           components: clippy
+      - name: Setup CUDA
+        uses: Jimver/cuda-toolkit@v0.2.27
+        with:
+          cuda: '13.0.0'
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
       - name: Run linter
+        env:
+          LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Check code format

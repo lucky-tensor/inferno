@@ -1,20 +1,20 @@
-//! Error types for the VLLM backend
+//! Error types for the Inferno inference backend
 
 use thiserror::Error;
 
-/// Result type for VLLM operations
-pub type VLLMResult<T> = Result<T, VLLMError>;
+/// Result type for Inferno inference operations
+pub type InfernoResult<T> = Result<T, InfernoError>;
 
-/// Main error type for VLLM backend operations
+/// Main error type for Inferno inference backend operations
 #[derive(Error, Debug)]
-pub enum VLLMError {
+pub enum InfernoError {
     /// Configuration errors
     #[error("Configuration error: {0}")]
-    Configuration(#[from] VLLMConfigError),
+    Configuration(#[from] InfernoConfigError),
 
     /// Engine-related errors
     #[error("Engine error: {0}")]
-    Engine(#[from] VLLMEngineError),
+    Engine(#[from] InfernoEngineError),
 
     /// Memory allocation errors
     #[error("Memory allocation error: {0}")]
@@ -91,7 +91,7 @@ pub enum VLLMError {
 
 /// Configuration-specific errors
 #[derive(Error, Debug)]
-pub enum VLLMConfigError {
+pub enum InfernoConfigError {
     /// Missing required configuration field
     #[error("Missing required field: {0}")]
     MissingField(String),
@@ -126,7 +126,7 @@ pub enum VLLMConfigError {
 
 /// Engine-specific errors
 #[derive(Error, Debug)]
-pub enum VLLMEngineError {
+pub enum InfernoEngineError {
     /// Engine has not been started
     #[error("Engine not started")]
     NotStarted,
@@ -225,11 +225,11 @@ pub enum ServiceRegistrationError {
 }
 
 /// Convert from inferno-shared errors
-impl From<inferno_shared::error::InfernoError> for VLLMError {
+impl From<inferno_shared::error::InfernoError> for InfernoError {
     fn from(err: inferno_shared::error::InfernoError) -> Self {
         match err {
             inferno_shared::error::InfernoError::Configuration { message, .. } => {
-                Self::Configuration(VLLMConfigError::ValidationFailed(message))
+                Self::Configuration(InfernoConfigError::ValidationFailed(message))
             }
             inferno_shared::error::InfernoError::Network { message, .. } => {
                 Self::ServiceRegistration(ServiceRegistrationError::Network(message))
@@ -240,7 +240,7 @@ impl From<inferno_shared::error::InfernoError> for VLLMError {
 }
 
 /// Convert from validator errors
-impl From<validator::ValidationErrors> for VLLMError {
+impl From<validator::ValidationErrors> for InfernoError {
     fn from(err: validator::ValidationErrors) -> Self {
         let messages: Vec<String> = err
             .field_errors()
@@ -259,41 +259,41 @@ impl From<validator::ValidationErrors> for VLLMError {
             })
             .collect();
 
-        Self::Configuration(VLLMConfigError::ValidationFailed(messages.join(", ")))
+        Self::Configuration(InfernoConfigError::ValidationFailed(messages.join(", ")))
     }
 }
 
 /// Convert common standard library errors
-impl From<tokio::task::JoinError> for VLLMError {
+impl From<tokio::task::JoinError> for InfernoError {
     fn from(_: tokio::task::JoinError) -> Self {
         Self::ThreadJoin
     }
 }
 
-impl<T> From<tokio::sync::mpsc::error::SendError<T>> for VLLMError {
+impl<T> From<tokio::sync::mpsc::error::SendError<T>> for InfernoError {
     fn from(err: tokio::sync::mpsc::error::SendError<T>) -> Self {
         Self::Channel(format!("Send error: {err}"))
     }
 }
 
-impl From<tokio::sync::oneshot::error::RecvError> for VLLMError {
+impl From<tokio::sync::oneshot::error::RecvError> for InfernoError {
     fn from(err: tokio::sync::oneshot::error::RecvError) -> Self {
         Self::Channel(format!("Receive error: {err}"))
     }
 }
 
 /// HTTP status code mapping for API responses
-impl VLLMError {
+impl InfernoError {
     /// Convert error to appropriate HTTP status code
     #[must_use]
     pub const fn to_status_code(&self) -> u16 {
         match self {
             Self::InvalidArgument(_) | Self::Configuration(_) => 400,
             Self::EngineNotInitialized | Self::HealthCheckFailed(_) => 503,
-            Self::OutOfMemory(_) | Self::Engine(VLLMEngineError::ResourceExhausted(_)) => 507,
+            Self::OutOfMemory(_) | Self::Engine(InfernoEngineError::ResourceExhausted(_)) => 507,
             Self::Timeout(_) => 408,
-            Self::Engine(VLLMEngineError::QueueFull) => 429,
-            Self::Engine(VLLMEngineError::RequestNotFound(_)) => 404,
+            Self::Engine(InfernoEngineError::QueueFull) => 429,
+            Self::Engine(InfernoEngineError::RequestNotFound(_)) => 404,
             Self::CudaNotAvailable => 501,
             Self::ModelLoadFailed(_) => 422,
             _ => 500,
@@ -307,7 +307,7 @@ impl VLLMError {
             Self::InvalidArgument(msg) => format!("Invalid request: {msg}"),
             Self::OutOfMemory(_) => "Server is out of memory. Please try again later.".to_string(),
             Self::Timeout(_) => "Request timed out. Please try again.".to_string(),
-            Self::Engine(VLLMEngineError::QueueFull) => {
+            Self::Engine(InfernoEngineError::QueueFull) => {
                 "Server is busy. Please try again later.".to_string()
             }
             Self::CudaNotAvailable => "GPU acceleration is not available.".to_string(),
@@ -338,19 +338,19 @@ pub struct ErrorDetails {
     pub details: Option<serde_json::Value>,
 }
 
-impl From<VLLMError> for ErrorResponse {
-    fn from(err: VLLMError) -> Self {
+impl From<InfernoError> for ErrorResponse {
+    fn from(err: InfernoError) -> Self {
         let error_type = match &err {
-            VLLMError::Configuration(_) => "configuration_error",
-            VLLMError::Engine(_) => "engine_error",
-            VLLMError::Allocation(_) => "memory_error",
-            VLLMError::InvalidArgument(_) => "validation_error",
-            VLLMError::OutOfMemory(_) => "resource_error",
-            VLLMError::CudaError(_) => "cuda_error",
-            VLLMError::ModelLoadFailed(_) => "model_error",
-            VLLMError::InferenceFailed(_) => "inference_error",
-            VLLMError::Timeout(_) => "timeout_error",
-            VLLMError::CudaNotAvailable => "feature_unavailable",
+            InfernoError::Configuration(_) => "configuration_error",
+            InfernoError::Engine(_) => "engine_error",
+            InfernoError::Allocation(_) => "memory_error",
+            InfernoError::InvalidArgument(_) => "validation_error",
+            InfernoError::OutOfMemory(_) => "resource_error",
+            InfernoError::CudaError(_) => "cuda_error",
+            InfernoError::ModelLoadFailed(_) => "model_error",
+            InfernoError::InferenceFailed(_) => "inference_error",
+            InfernoError::Timeout(_) => "timeout_error",
+            InfernoError::CudaNotAvailable => "feature_unavailable",
             _ => "internal_error",
         };
 
@@ -372,29 +372,29 @@ mod tests {
     #[test]
     fn test_error_status_codes() {
         assert_eq!(
-            VLLMError::InvalidArgument("test".to_string()).to_status_code(),
+            InfernoError::InvalidArgument("test".to_string()).to_status_code(),
             400
         );
         assert_eq!(
-            VLLMError::OutOfMemory("test".to_string()).to_status_code(),
+            InfernoError::OutOfMemory("test".to_string()).to_status_code(),
             507
         );
-        assert_eq!(VLLMError::CudaNotAvailable.to_status_code(), 501);
-        assert_eq!(VLLMError::EngineNotInitialized.to_status_code(), 503);
+        assert_eq!(InfernoError::CudaNotAvailable.to_status_code(), 501);
+        assert_eq!(InfernoError::EngineNotInitialized.to_status_code(), 503);
     }
 
     #[test]
     fn test_user_messages() {
-        let err = VLLMError::InvalidArgument("missing field".to_string());
+        let err = InfernoError::InvalidArgument("missing field".to_string());
         assert_eq!(err.user_message(), "Invalid request: missing field");
 
-        let err = VLLMError::CudaNotAvailable;
+        let err = InfernoError::CudaNotAvailable;
         assert_eq!(err.user_message(), "GPU acceleration is not available.");
     }
 
     #[test]
     fn test_error_response_conversion() {
-        let err = VLLMError::OutOfMemory("GPU memory full".to_string());
+        let err = InfernoError::OutOfMemory("GPU memory full".to_string());
         let response = ErrorResponse::from(err);
 
         assert_eq!(response.error.r#type, "resource_error");

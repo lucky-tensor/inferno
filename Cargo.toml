@@ -10,6 +10,7 @@ members = [
     "testsuite",
 ]
 resolver = "2"
+default-members = ["crates/cli"]
 
 [workspace.package]
 version = "0.1.0"

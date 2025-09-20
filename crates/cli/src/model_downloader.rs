@@ -17,10 +17,11 @@ fn format_model_dir_name(model_id: &str) -> String {
 }
 
 /// Check if essential model files already exist in the output directory
+/// Returns: (existing_files, missing_files) or None if directory doesn't exist
 async fn check_existing_model_files(
     output_dir: &str,
     model_id: &str,
-) -> Result<Option<Vec<String>>> {
+) -> Result<Option<(Vec<String>, Vec<String>)>> {
     let model_dir_name = format_model_dir_name(model_id);
     let full_output_dir = Path::new(output_dir).join(&model_dir_name);
 
@@ -31,24 +32,31 @@ async fn check_existing_model_files(
     // Essential files we expect to find
     let essential_files = vec![
         "model.safetensors",     // Primary model weights (safetensors format only)
-        "tokenizer.json",        // Tokenizer configuration
+        "config.json",           // Model configuration
         "tokenizer_config.json", // Tokenizer metadata
     ];
 
-    let mut existing_files = Vec::new();
-    let mut has_model_file = false;
+    // Optional tokenizer files (models may use different tokenizer formats)
+    let optional_tokenizer_files = vec![
+        "tokenizer.json", // HuggingFace tokenizer format
+        "vocab.json",     // Vocabulary file (alternative format)
+    ];
 
+    let mut existing_files = Vec::new();
+    let mut missing_essential_files = Vec::new();
+
+    // Check essential files
     for filename in &essential_files {
         let file_path = full_output_dir.join(filename);
         if file_path.exists() {
             existing_files.push(filename.to_string());
-            if filename.contains(".safetensors") {
-                has_model_file = true;
-            }
+        } else {
+            missing_essential_files.push(filename.to_string());
         }
     }
 
     // Check for any .safetensors file (not just model.safetensors)
+    let mut has_model_file = existing_files.iter().any(|f| f.contains(".safetensors"));
     if !has_model_file {
         if let Ok(entries) = tokio::fs::read_dir(&full_output_dir).await {
             let mut entries = entries;
@@ -64,8 +72,25 @@ async fn check_existing_model_files(
         }
     }
 
-    if has_model_file {
-        Ok(Some(existing_files))
+    // Check for at least one tokenizer file
+    let mut has_tokenizer = false;
+    for filename in &optional_tokenizer_files {
+        let file_path = full_output_dir.join(filename);
+        if file_path.exists() {
+            existing_files.push(filename.to_string());
+            has_tokenizer = true;
+        }
+    }
+
+    // Add missing tokenizer files to the missing list
+    let mut missing_files = missing_essential_files;
+    if !has_tokenizer {
+        missing_files.push("vocab.json".to_string()); // Default tokenizer file to download
+    }
+
+    // If we have some files (including at least a model file), return both existing and missing
+    if !existing_files.is_empty() && has_model_file {
+        Ok(Some((existing_files, missing_files)))
     } else {
         Ok(None)
     }
@@ -98,32 +123,65 @@ pub async fn download_model(
     println!("Starting model download...");
 
     // Check if model files already exist
-    if let Some(existing_files) = check_existing_model_files(output_dir, model_id).await? {
-        println!(
-            "Model already downloaded! Found {} existing files:",
-            existing_files.len()
-        );
-
+    if let Some((existing_files, missing_files)) =
+        check_existing_model_files(output_dir, model_id).await?
+    {
         let model_dir_name = format_model_dir_name(model_id);
         let full_output_dir = Path::new(output_dir).join(&model_dir_name);
 
-        let mut total_size = 0u64;
-        for filename in &existing_files {
-            let file_path = full_output_dir.join(filename);
-            if let Ok(metadata) = tokio::fs::metadata(&file_path).await {
-                let size = metadata.len();
-                total_size += size;
-                let size_mb = size as f64 / (1024.0 * 1024.0);
-                println!("  - {} ({:.1} MB)", filename, size_mb);
-            } else {
-                println!("  - {}", filename);
-            }
-        }
+        if missing_files.is_empty() {
+            // All files are present, skip download
+            println!(
+                "Model already downloaded! Found {} existing files:",
+                existing_files.len()
+            );
 
-        let total_mb = total_size as f64 / (1024.0 * 1024.0);
-        println!("Total: {:.1} MB already available", total_mb);
-        println!("Skipping download - model is ready to use!");
-        return Ok(());
+            let mut total_size = 0u64;
+            for filename in &existing_files {
+                let file_path = full_output_dir.join(filename);
+                if let Ok(metadata) = tokio::fs::metadata(&file_path).await {
+                    let size = metadata.len();
+                    total_size += size;
+                    let size_mb = size as f64 / (1024.0 * 1024.0);
+                    println!("  - {} ({:.1} MB)", filename, size_mb);
+                } else {
+                    println!("  - {}", filename);
+                }
+            }
+
+            let total_mb = total_size as f64 / (1024.0 * 1024.0);
+            println!("Total: {:.1} MB already available", total_mb);
+            println!("Skipping download - model is ready to use!");
+            return Ok(());
+        } else {
+            // Partial download - some files are missing
+            println!(
+                "Partial download detected! Found {} existing files, {} missing:",
+                existing_files.len(),
+                missing_files.len()
+            );
+
+            let mut total_size = 0u64;
+            for filename in &existing_files {
+                let file_path = full_output_dir.join(filename);
+                if let Ok(metadata) = tokio::fs::metadata(&file_path).await {
+                    let size = metadata.len();
+                    total_size += size;
+                    let size_mb = size as f64 / (1024.0 * 1024.0);
+                    println!("  {} ({:.1} MB)", filename, size_mb);
+                }
+            }
+
+            for filename in &missing_files {
+                println!("  {} (missing)", filename);
+            }
+
+            let total_mb = total_size as f64 / (1024.0 * 1024.0);
+            println!("Existing: {:.1} MB", total_mb);
+            println!("Downloading missing files...");
+
+            // Continue with download, but we'll modify the download logic to only get missing files
+        }
     }
 
     // Setup inferno-specific cache directory structure
@@ -140,8 +198,27 @@ pub async fn download_model(
     // Download model from Hugging Face with resume capability
     println!("Downloading model from Hugging Face: {}", model_id);
 
+    // Check what files to download (all or just missing ones)
+    let files_to_download =
+        if let Some((_, missing_files)) = check_existing_model_files(output_dir, model_id).await? {
+            if !missing_files.is_empty() {
+                Some(missing_files)
+            } else {
+                None // This case shouldn't happen since we already returned above
+            }
+        } else {
+            None // No existing files, download all
+        };
+
     if use_xet {
-        download_model_with_xet(model_id, &model_dir, token.as_deref(), &hf_cache_dir).await?;
+        download_model_with_xet(
+            model_id,
+            &model_dir,
+            token.as_deref(),
+            &hf_cache_dir,
+            files_to_download.as_ref(),
+        )
+        .await?;
     } else {
         println!("Using Git LFS backend");
         download_huggingface_model(model_id, &model_dir, token.as_deref(), resume).await?;
@@ -158,12 +235,12 @@ async fn get_hf_token(provided_token: Option<&String>) -> Result<Option<String>>
 
     // 2. Check environment variables
     if let Ok(token) = env::var("HUGGINGFACE_HUB_TOKEN") {
-        println!("🔑 Using HF token from HUGGINGFACE_HUB_TOKEN environment variable");
+        println!("Using HF token from HUGGINGFACE_HUB_TOKEN environment variable");
         return Ok(Some(token));
     }
 
     if let Ok(token) = env::var("HF_TOKEN") {
-        println!("🔑 Using HF token from HF_TOKEN environment variable");
+        println!("Using HF token from HF_TOKEN environment variable");
         return Ok(Some(token));
     }
 
@@ -173,7 +250,7 @@ async fn get_hf_token(provided_token: Option<&String>) -> Result<Option<String>>
         if let Ok(token) = tokio::fs::read_to_string(&token_file).await {
             let token = token.trim().to_string();
             if !token.is_empty() {
-                println!("🔑 Using HF token from cache file: {}", token_file);
+                println!("Using HF token from cache file: {}", token_file);
                 return Ok(Some(token));
             }
         }
@@ -223,7 +300,7 @@ async fn download_huggingface_model(
     }
 
     // Method 2: Fallback to wget for individual files
-    println!("🌐 Using wget to download model files...");
+    println!("Using wget to download model files...");
     download_model_files_with_wget(model_id, output_dir, hf_token).await?;
 
     Ok(())
@@ -259,10 +336,13 @@ async fn clone_repo_with_lfs(
         progress_bar.set_message("Cloning repository...");
 
         let mut callbacks = RemoteCallbacks::new();
-        callbacks.credentials(|_url, username_from_url, _allowed_types| {
+        callbacks.credentials(|_url, _username_from_url, _allowed_types| {
             if let Some(token) = hf_token {
-                Cred::userpass_plaintext(username_from_url.unwrap_or("oauth2"), token)
+                println!("Using HF token for Git authentication");
+                // Use the token as username and empty password for HuggingFace
+                Cred::userpass_plaintext(token, "")
             } else {
+                // For public repositories, try default credentials first
                 Cred::default()
             }
         });
@@ -609,11 +689,13 @@ async fn download_model_files_with_wget(
 ) -> Result<()> {
     let base_url = format!("https://huggingface.co/{}/resolve/main", model_id);
 
-    // Essential files: only .safetensors and tokenizer files
+    // Essential files: .safetensors, config, and tokenizer files
     let files_to_try = vec![
-        "model.safetensors",     // Primary model weights (safetensors format only)
-        "tokenizer.json",        // Tokenizer configuration
-        "tokenizer_config.json", // Tokenizer metadata
+        "model.safetensors",      // Primary model weights (safetensors format only)
+        "config.json",            // Model configuration (architecture, dimensions, etc.)
+        "tokenizer.json",         // Tokenizer configuration
+        "tokenizer_config.json",  // Tokenizer metadata
+        "generation_config.json", // Generation parameters (optional but recommended)
     ];
 
     let mut downloaded_any = false;
@@ -629,6 +711,7 @@ async fn download_model_files_with_wget(
         // Add authorization header if token is provided
         let auth_header;
         if let Some(token) = hf_token {
+            println!("Using HF token for wget authentication");
             auth_header = format!("Authorization: Bearer {}", token);
             wget_args.extend_from_slice(&["--header", &auth_header]);
         }
@@ -688,19 +771,21 @@ pub(crate) async fn download_model_with_xet(
     model_id: &str,
     output_dir: &str,
     hf_token: Option<&str>,
-    cache_dir: &Path,
+    _cache_dir: &Path,
+    files_to_download: Option<&Vec<String>>,
 ) -> Result<()> {
     println!("Using HuggingFace Hub's native API with xet backend for optimal performance");
 
-    // Initialize the API client with custom cache directory
+    // Initialize the API client with proper token authentication
     let api_result = if let Some(token) = hf_token {
+        println!("Using HF token for authentication");
         hf_hub::api::tokio::ApiBuilder::new()
-            .with_cache_dir(cache_dir.to_path_buf())
             .with_token(Some(token.to_string()))
+            .with_cache_dir(_cache_dir.to_path_buf())
             .build()
     } else {
         hf_hub::api::tokio::ApiBuilder::new()
-            .with_cache_dir(cache_dir.to_path_buf())
+            .with_cache_dir(_cache_dir.to_path_buf())
             .build()
     };
 
@@ -718,18 +803,28 @@ pub(crate) async fn download_model_with_xet(
     // Try to get the repository info first to see what files are available
     println!("Discovering available files...");
 
-    // Essential files: only .safetensors and tokenizer files
-    let essential_files = vec![
-        "model.safetensors",     // Primary model weights (safetensors format only)
-        "tokenizer.json",        // Tokenizer configuration
-        "tokenizer_config.json", // Tokenizer metadata
-    ];
+    // Determine which files to download
+    let essential_files = if let Some(specific_files) = files_to_download {
+        println!("Downloading only missing files: {:?}", specific_files);
+        specific_files.clone()
+    } else {
+        println!("Downloading all essential files");
+        vec![
+            "model.safetensors".to_string(), // Primary model weights (safetensors format only)
+            "config.json".to_string(),       // Model configuration (architecture, dimensions, etc.)
+            "tokenizer.json".to_string(),    // Tokenizer configuration (HuggingFace format)
+            "vocab.json".to_string(),        // Vocabulary file (alternative tokenizer format)
+            "tokenizer_config.json".to_string(), // Tokenizer metadata
+            "generation_config.json".to_string(), // Generation parameters (optional but recommended)
+        ]
+    };
 
     // Additional tokenizer files that some models might have
     let optional_tokenizer_files = vec![
-        "vocab.txt",               // Vocabulary file
+        "vocab.txt",               // Vocabulary file (some tokenizers)
         "merges.txt",              // BPE merges file
         "special_tokens_map.json", // Special tokens configuration
+        "chat_template.jinja",     // Chat template (for instruction models)
     ];
 
     let mut downloaded_files = Vec::new();
@@ -764,17 +859,60 @@ pub(crate) async fn download_model_with_xet(
                     }
                 }
             }
-            Err(_) => {
-                // Silently skip files that don't exist - this is normal
-                failed_files.push(filename.to_string());
+            Err(e) => {
+                let error_msg = e.to_string();
+
+                // Handle different types of authentication errors with helpful messages
+                if error_msg.contains("401 Unauthorized") {
+                    println!(
+                        "Authentication failed for {}: No valid token provided",
+                        filename
+                    );
+                    println!("   Please provide a valid HuggingFace token using --hf-token or HF_TOKEN environment variable");
+                } else if error_msg.contains("403 Forbidden") {
+                    println!("Access denied for {}: Token lacks permissions or model requires license acceptance", filename);
+                    println!("   This model may require accepting license terms at https://huggingface.co/{}", model_id);
+                    println!("   Or your token may not have access to this gated model");
+                } else {
+                    println!("DEBUG: Failed to download {} via hf-hub: {}", filename, e);
+                }
+
+                // Try direct HTTP download as fallback for files that fail with "relative URL" error
+                if error_msg.contains("relative URL without a base") {
+                    println!("DEBUG: Attempting direct HTTP download for {}", filename);
+                    match download_file_direct_with_auth(model_id, filename, output_dir, hf_token)
+                        .await
+                    {
+                        Ok(true) => {
+                            downloaded_files.push(filename.to_string());
+                            println!(
+                                "DEBUG: Successfully downloaded {} via direct HTTP",
+                                filename
+                            );
+                        }
+                        Ok(false) => {
+                            failed_files.push(filename.to_string());
+                            println!("DEBUG: File {} not found on server", filename);
+                        }
+                        Err(http_err) => {
+                            failed_files.push(filename.to_string());
+                            println!(
+                                "DEBUG: Direct HTTP download failed for {}: {}",
+                                filename, http_err
+                            );
+                        }
+                    }
+                } else {
+                    failed_files.push(filename.to_string());
+                }
             }
         }
     }
 
-    // Try optional tokenizer files if we got the essential model file
+    // Try optional tokenizer files if we got the essential model file AND we're not doing targeted downloads
     let has_model_file = downloaded_files.iter().any(|f| f.contains(".safetensors"))
         || cached_files.iter().any(|f| f.contains(".safetensors"));
-    if has_model_file {
+    if has_model_file && files_to_download.is_none() {
         for filename in &optional_tokenizer_files {
             let file_start = std::time::Instant::now();
 
@@ -802,13 +940,34 @@ pub(crate) async fn download_model_with_xet(
     let all_files = [&downloaded_files[..], &cached_files[..]].concat();
 
     if all_files.is_empty() {
-        println!("ERROR: No .safetensors model files found");
+        println!("ERROR: No model files could be downloaded");
+
+        // Check if this was due to authentication issues
+        if !failed_files.is_empty() {
+            let has_auth_error = failed_files.iter().any(|_| hf_token.is_some());
+            if has_auth_error {
+                println!("  This appears to be a gated model that requires:");
+                println!("   1. A valid HuggingFace token with access permissions");
+                println!(
+                    "   2. Accepting the model's license terms at https://huggingface.co/{}",
+                    model_id
+                );
+                println!("   3. Requesting access if it's a restricted model");
+            }
+        }
+
         println!("Falling back to Git LFS...");
         return download_huggingface_model(model_id, output_dir, hf_token, false).await;
     }
 
-    // Ensure we have the essential model file
-    if !has_model_file {
+    // Ensure we have the essential model file (check both downloaded and existing files on disk)
+    let model_file_exists = has_model_file || {
+        // Also check if model file exists on disk (for targeted downloads)
+        let model_path = Path::new(output_dir).join("model.safetensors");
+        model_path.exists()
+    };
+
+    if !model_file_exists {
         println!("ERROR: Required model.safetensors file not found");
         println!("Falling back to Git LFS...");
         return download_huggingface_model(model_id, output_dir, hf_token, false).await;
@@ -870,4 +1029,48 @@ pub(crate) async fn download_model_with_xet(
     }
 
     Ok(())
+}
+
+/// Direct HTTP download fallback for files that fail with hf-hub
+async fn download_file_direct_with_auth(
+    model_id: &str,
+    filename: &str,
+    output_dir: &str,
+    hf_token: Option<&str>,
+) -> Result<bool> {
+    let url = format!(
+        "https://huggingface.co/{}/resolve/main/{}",
+        model_id, filename
+    );
+    let target_path = Path::new(output_dir).join(filename);
+
+    let client = reqwest::Client::new();
+    let mut request = client.get(&url);
+
+    // Add authentication header if token is provided
+    if let Some(token) = hf_token {
+        request = request.header("Authorization", format!("Bearer {}", token));
+    }
+
+    let response = request.send().await?;
+
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(false); // File doesn't exist, this is normal
+    }
+
+    if !response.status().is_success() {
+        return Err(anyhow!(
+            "HTTP error {}: {}",
+            response.status(),
+            response
+                .status()
+                .canonical_reason()
+                .unwrap_or("Unknown error")
+        ));
+    }
+
+    let bytes = response.bytes().await?;
+    tokio::fs::write(&target_path, bytes).await?;
+
+    Ok(true)
 }
