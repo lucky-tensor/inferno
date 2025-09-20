@@ -14,9 +14,9 @@ jobs:
         with:
           components: clippy
       - name: Setup CUDA
-        uses: Jimver/cuda-toolkit@v0.2.16
+        uses: Jimver/cuda-toolkit@v0.2.27
         with:
-          cuda: '12.2.0'
+          cuda: '13.0.0'
           method: 'network'
           sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust"]'
       - name: Cache Rust dependencies
