@@ -134,14 +134,26 @@ impl BF16CompatibleLlama {
         }
     }
 
-    /// Attempt forward pass with native model precision
+    /// Attempt forward pass with careful dtype management for BF16/F16 compatibility
     fn try_native_forward(
         &self,
         input_ids: &Tensor,
         start_pos: usize,
         cache: &mut Cache,
     ) -> Result<Tensor> {
-        self.model.forward(input_ids, start_pos, cache)
+        debug!("Attempting native forward pass with dtype: {:?}", self.original_dtype);
+
+        // Use embedding approach to bypass direct forward() RoPE issues
+        // Step 1: Get embeddings (should work fine)
+        let embeddings = self.model.embed(input_ids)?;
+        debug!("Embeddings shape: {:?}, dtype: {:?}", embeddings.dims(), embeddings.dtype());
+
+        // Step 2: Forward through transformer blocks using forward_input_embed
+        // This method processes embeddings through all transformer layers
+        let logits = self.model.forward_input_embed(&embeddings, start_pos, cache)?;
+        debug!("Forward pass completed, logits shape: {:?}, dtype: {:?}", logits.dims(), logits.dtype());
+
+        Ok(logits)
     }
 
     /// Fallback to F32 conversion for RoPE compatibility

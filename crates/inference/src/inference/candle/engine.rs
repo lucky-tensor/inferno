@@ -276,10 +276,11 @@ impl CandleInferenceEngine {
     ) -> Result<(Vec<u32>, Option<f64>), InferenceError> {
         let start_time = Instant::now();
 
-        // Convert input tokens to tensor
-        let input_tensor = Tensor::new(input_tokens, &wrapper.device).map_err(|e| {
-            InferenceError::InvalidArgument(format!("Failed to create input tensor: {}", e))
-        })?;
+        // Convert input tokens to tensor - explicitly use U32 for token IDs
+        let input_tensor = Tensor::from_slice(input_tokens, input_tokens.len(), &wrapper.device)
+            .map_err(|e| {
+                InferenceError::InvalidArgument(format!("Failed to create input tensor: {}", e))
+            })?;
 
         let input_tensor = input_tensor.unsqueeze(0).map_err(|e| {
             InferenceError::InvalidArgument(format!("Failed to add batch dimension: {}", e))
@@ -300,26 +301,16 @@ impl CandleInferenceEngine {
             // Run forward pass with appropriate method for model type
             let logits = match &wrapper.model {
                 CandleModelType::Regular(llama_model) => {
-                    // Convert input tensor to F32 for RoPE compatibility if needed
-                    let compatible_input = if current_input.dtype() == DType::BF16
-                        || current_input.dtype() == DType::F16
-                    {
-                        debug!(
-                            "Converting input tensor from {:?} to F32 for RoPE compatibility",
+                    // Input tokens should always be U32, no conversion needed
+                    if current_input.dtype() != DType::U32 {
+                        return Err(InferenceError::ProcessingError(format!(
+                            "Invalid input tensor dtype: expected U32, got {:?}",
                             current_input.dtype()
-                        );
-                        current_input.to_dtype(DType::F32).map_err(|e| {
-                            InferenceError::ProcessingError(format!(
-                                "Failed to convert input tensor to F32: {}",
-                                e
-                            ))
-                        })?
-                    } else {
-                        current_input.clone()
-                    };
+                        )));
+                    }
 
                     llama_model
-                        .forward(&compatible_input, 0, &mut cache)
+                        .forward(&current_input, 0, &mut cache)
                         .map_err(|e| {
                             InferenceError::ProcessingError(format!(
                                 "Regular model forward pass failed: {}",
@@ -490,8 +481,8 @@ impl CandleInferenceEngine {
                 break;
             }
 
-            // Prepare next input (just the newly generated token)
-            current_input = Tensor::new(&[next_token], &wrapper.device)
+            // Prepare next input (just the newly generated token) - explicitly use U32
+            current_input = Tensor::from_slice(&[next_token], 1, &wrapper.device)
                 .map_err(|e| {
                     InferenceError::ProcessingError(format!(
                         "Failed to create next input tensor: {}",
@@ -822,18 +813,17 @@ impl InferenceEngine for CandleInferenceEngine {
                 // 2. Native precision (memory efficient) ✅ PREFERRED ❌ BLOCKED BY CANDLE-TRANSFORMERS
                 // 3. Alternative framework (vLLM, tgi-rs) - future consideration
                 //
-                let dtype = if detected_dtype == DType::BF16 || detected_dtype == DType::F16 {
-                    info!("WARNING: Detected model dtype {:?} but candle-transformers doesn't support BF16/F16 RoPE", detected_dtype);
-                    info!("WARNING: Forcing F32 precision - this will use 2x memory until RoPE support is fixed");
-                    info!("RECOMMENDATION: Consider using a framework with native BF16/F16 RoPE support");
+                // Handle model precision with transparency about current limitations
+                let storage_dtype = detected_dtype;
+                let inference_dtype = if detected_dtype == DType::BF16 || detected_dtype == DType::F16 {
+                    info!("Model native format: {:?} (weights stored efficiently)", storage_dtype);
+                    info!("Current limitation: candle-transformers RoPE operations require F32");
+                    info!("Using F32 inference precision until upstream BF16/F16 RoPE support is added");
                     DType::F32
                 } else {
                     detected_dtype
                 };
-                info!(
-                    "Using {:?} precision (temporary workaround for RoPE compatibility)",
-                    dtype
-                );
+                let dtype = inference_dtype;
 
                 // Convert PathBuf to &Path for VarBuilder
                 let model_file_refs: Vec<&std::path::Path> = model_files
@@ -859,14 +849,20 @@ impl InferenceEngine for CandleInferenceEngine {
                     ))
                 })?;
 
-                // Temporarily use F32 model to avoid RoPE dtype issues
-                // TODO: This is a temporary workaround until candle-transformers supports BF16 RoPE
-                info!("WARNING: Using standard Llama model (temp workaround for RoPE dtype compatibility)");
-                info!(
-                    "Model weights are loaded in {:?} but will be upcast for inference",
-                    dtype
-                );
-                CandleModelType::Regular(llama_model)
+                // Use custom BF16CompatibleLlama for BF16/F16 models with native precision
+                if dtype == DType::BF16 || dtype == DType::F16 {
+                    info!("Using BF16CompatibleLlama with custom RoPE implementation for native {:?} precision", dtype);
+                    let bf16_model = BF16CompatibleLlama::new(llama_model, llama_config.clone(), &device).map_err(|e| {
+                        InferenceError::InitializationError(format!(
+                            "Failed to create BF16-compatible model: {}",
+                            e
+                        ))
+                    })?;
+                    CandleModelType::BF16Compatible(bf16_model)
+                } else {
+                    info!("Using standard Llama model for native {:?} precision", dtype);
+                    CandleModelType::Regular(llama_model)
+                }
             };
 
             let param_count = model_config.estimate_parameters();
@@ -955,6 +951,18 @@ impl InferenceEngine for CandleInferenceEngine {
 
             let input_tokens = encoding.get_ids();
             debug!("Tokenized input: {} tokens", input_tokens.len());
+
+            // Validate token IDs against vocabulary size
+            let vocab_size = wrapper.llama_config.vocab_size as u32;
+            for (i, &token_id) in input_tokens.iter().enumerate() {
+                if token_id >= vocab_size {
+                    return Err(InferenceError::ProcessingError(format!(
+                        "Token ID {} at position {} exceeds vocabulary size {}",
+                        token_id, i, vocab_size
+                    )));
+                }
+            }
+            debug!("Token ID validation passed - all tokens within vocab_size {}", vocab_size);
 
             // Generate tokens
             let max_tokens = (request.max_tokens.min(512)) as usize; // Cap at 512 for safety

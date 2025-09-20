@@ -443,11 +443,12 @@ impl TensorOps {
     ) -> candle_core::Result<candle_core::Tensor> {
         if self.precision.is_quantized() {
             // For quantized formats, generate in fallback precision and quantize
-            candle_core::Tensor::randn_f64_impl(0.0, 1.0, shape, self.fallback_precision.to_dtype(), device, false)?
-                .to_dtype(self.precision.to_dtype())
+            let temp_tensor = self.zeros(shape, device)?; // Create template tensor with target dtype
+            temp_tensor.randn_like(0.0, 1.0)?.to_dtype(self.precision.to_dtype())
         } else {
-            // Use native precision for non-quantized formats (no conversion needed!)
-            candle_core::Tensor::randn_f64_impl(0.0, 1.0, shape, self.precision.to_dtype(), device, false)
+            // Use native precision - Candle handles F32->BF16 conversion at device level when needed
+            let temp_tensor = self.zeros(shape, device)?; // Create template tensor with target dtype
+            temp_tensor.randn_like(0.0, 1.0)
         }
     }
 

@@ -43,14 +43,22 @@ impl CandleTokenizer {
             })?;
 
             if let Ok(config) = serde_json::from_str::<serde_json::Value>(&config_str) {
-                // If we find added_tokens_decoder, this is likely a Llama 3.1 model needing special handling
-                if config.get("added_tokens_decoder").is_some() {
-                    info!("Detected Llama 3.1 model with added_tokens_decoder, using enhanced tokenizer loading");
-                    return Self::create_llama31_compatible_tokenizer(
-                        &config_path,
-                        &tokenizer_path,
-                    )
-                    .await;
+                // Check for Llama 3.1 specific tokens (128xxx range) to distinguish from other models like TinyLlama
+                if let Some(added_tokens) = config.get("added_tokens_decoder") {
+                    if let Some(tokens_obj) = added_tokens.as_object() {
+                        // Look for high-numbered tokens (128xxx) that are specific to Llama 3.1
+                        let has_llama31_tokens = tokens_obj.keys().any(|key| {
+                            key.parse::<u32>().map_or(false, |id| id >= 128000)
+                        });
+                        if has_llama31_tokens {
+                            info!("Detected Llama 3.1 model with high-numbered special tokens, using enhanced tokenizer loading");
+                            return Self::create_llama31_compatible_tokenizer(
+                                &config_path,
+                                &tokenizer_path,
+                            )
+                            .await;
+                        }
+                    }
                 }
             }
         }
