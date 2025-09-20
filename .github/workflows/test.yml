@@ -58,6 +58,12 @@ jobs:
       with:
         cache-on-failure: true
 
+    - name: Update dependencies for CUDA 13.0 support
+      if: matrix.backend == 'cuda'
+      run: |
+        echo "Updating dependencies to ensure cudarc 0.17.3+ for CUDA 13.0 support..."
+        cargo update
+
     - name: Setup CUDA
       if: matrix.backend == 'cuda'
       uses: Jimver/cuda-toolkit@v0.2.27
@@ -139,6 +145,11 @@ jobs:
       uses: Swatinem/rust-cache@v2
       with:
         cache-on-failure: true
+
+    - name: Update dependencies for CUDA 13.0 support
+      run: |
+        echo "Updating dependencies to ensure cudarc 0.17.3+ for CUDA 13.0 support..."
+        cargo update
 
     - name: Setup CUDA
       if: env.CUDA_AVAILABLE != 'true'
