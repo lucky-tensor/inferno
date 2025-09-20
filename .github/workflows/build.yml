@@ -48,7 +48,7 @@ jobs:
         cache-on-failure: true
 
     - name: Setup CUDA
-      uses: Jimver/cuda-toolkit@v0.2.18
+      uses: Jimver/cuda-toolkit@v0.2.27
       with:
         cuda: '13.0.0'
         method: 'network'
