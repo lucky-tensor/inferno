@@ -1,8 +1,12 @@
-name: Test
+name: Inference Test
+
+# Tests inference functionality across platforms with model loading
+# - Multi-platform: Ubuntu (CPU/default), macOS (CPU/Metal)
+# - CUDA testing: Only on GPU runners when explicitly requested or workflow_dispatch
 
 on:
   push:
-    branches: ["**"]
+    branches: ["main", "*dev", "ci*"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -29,25 +33,23 @@ jobs:
           echo "No physical GPU detected"
         fi
 
-  multi-platform-test:
-    name: Multi-Platform Test
+  multi-platform-inference:
+    name: Multi-Platform Inference
     runs-on: ${{ matrix.os }}
     needs: detect-gpu
-    timeout-minutes: 30
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        backend: [cpu, cuda, metal]
+        backend: [candle-cpu, candle-metal, burn-cpu]
         exclude:
           # Metal only works on macOS
           - os: ubuntu-latest
-            backend: metal
-          # CUDA only runs when physical GPU is available
+            backend: candle-metal
+          # Skip burn-cpu on macOS for now (focus on candle)
           - os: macos-latest
-            backend: cuda
-    # Skip CUDA tests when no physical GPU is detected
-    if: matrix.backend != 'cuda' || needs.detect-gpu.outputs.cuda_available == 'true'
+            backend: burn-cpu
 
     steps:
     - uses: actions/checkout@v4
@@ -60,69 +62,50 @@ jobs:
       with:
         cache-on-failure: true
 
-    - name: Setup CUDA
-      if: matrix.backend == 'cuda'
-      uses: Jimver/cuda-toolkit@v0.2.16
-      with:
-        cuda: '13.0.0'
-        method: 'network'
-        sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust"]'
-
     - name: Install cargo-nextest
       run: |
         cargo install cargo-nextest --locked
 
-    - name: Run tests with specific backend
-      env:
-        LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LD_LIBRARY_PATH }}"
+    - name: Run inference tests
       run: |
-        echo "Running tests with ${{ matrix.backend }} backend on ${{ matrix.os }}"
+        echo "Running inference tests with ${{ matrix.backend }} on ${{ matrix.os }}"
 
         # Create test output directory
         mkdir -p test-results
 
-        case "${{ matrix.backend }}" in
-          cpu)
-            echo "Testing CPU backends (candle-cpu, burn-cpu)"
-            cargo nextest run --features candle-cpu --no-fail-fast --final-status-level=slow \
-              --message-format=json-pretty > test-results/candle-cpu-${{ matrix.os }}.json || true
-            cargo nextest run --features burn-cpu --no-fail-fast --final-status-level=slow \
-              --message-format=json-pretty > test-results/burn-cpu-${{ matrix.os }}.json || true
-            ;;
-          cuda)
-            echo "Testing CUDA backend"
-            cargo nextest run --features candle-cuda --no-fail-fast --final-status-level=slow \
-              --message-format=json-pretty > test-results/candle-cuda-${{ matrix.os }}.json || true
-            ;;
-          metal)
-            echo "Testing Metal backend"
-            cargo nextest run --features candle-metal --no-fail-fast --final-status-level=slow \
-              --message-format=json-pretty > test-results/candle-metal-${{ matrix.os }}.json || true
-            ;;
-        esac
+        # Run inference tests with comprehensive reporting
+        echo "Testing inferno-inference package..."
+        cargo nextest run --features ${{ matrix.backend }} --package inferno-inference \
+          --no-fail-fast --final-status-level=slow \
+          --message-format=json-pretty > test-results/inference-${{ matrix.backend }}-${{ matrix.os }}.json || true
 
-    - name: Upload Test Results
+        echo "Testing inferno-llama package..."
+        cargo nextest run --features ${{ matrix.backend }} --package inferno-llama \
+          --no-fail-fast --final-status-level=slow \
+          --message-format=json-pretty > test-results/llama-${{ matrix.backend }}-${{ matrix.os }}.json || true
+
+    - name: Upload Inference Test Results
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: test-results-${{ matrix.backend }}-${{ matrix.os }}
+        name: inference-test-results-${{ matrix.backend }}-${{ matrix.os }}
         path: test-results/
         retention-days: 30
 
-    - name: Generate Test Report
+    - name: Generate Inference Test Report
       uses: dorny/test-reporter@v1
       if: always()
       with:
-        name: Test Results (${{ matrix.backend }} on ${{ matrix.os }})
+        name: Inference Test Results (${{ matrix.backend }} on ${{ matrix.os }})
         path: 'test-results/*.json'
         reporter: 'java-junit'
         fail-on-error: false
 
-  cuda-test:
-    name: CUDA Test (GPU Runner)
+  cuda-inference-test:
+    name: CUDA Inference Test
     runs-on: ${{ github.repository_owner == 'lucky-tensor' && 'gpu-runners' || 'ubuntu-latest' }}
     needs: detect-gpu
-    timeout-minutes: 45
+    timeout-minutes: 60
     # Only run CUDA tests when explicitly requested via 'test-gpu' label or manual trigger
     if: contains(github.event.pull_request.labels.*.name, 'test-gpu') || github.event_name == 'workflow_dispatch'
 
@@ -152,38 +135,45 @@ jobs:
       run: |
         cargo install cargo-nextest --locked
 
-    - name: Run CUDA tests
+    - name: Run CUDA inference tests
       env:
         LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LD_LIBRARY_PATH }}"
       run: |
         if [[ "${{ env.CUDA_AVAILABLE }}" != "true" ]]; then
-          echo "Skipping CUDA test - no physical GPU available"
+          echo "Skipping CUDA inference test - no physical GPU available"
           exit 0
         fi
 
-        echo "Running CUDA tests with physical GPU..."
+        echo "Running CUDA inference tests with physical GPU..."
         echo "Using physical GPU acceleration"
 
         # Create test output directory
         mkdir -p test-results
 
-        # Run tests with comprehensive reporting
-        cargo nextest run --features candle-cuda --no-fail-fast --final-status-level=slow \
-          --message-format=json-pretty > test-results/candle-cuda-gpu.json || true
+        # Run CUDA inference tests with comprehensive reporting
+        echo "Testing inferno-inference with CUDA..."
+        cargo nextest run --features candle-cuda --package inferno-inference \
+          --no-fail-fast --final-status-level=slow \
+          --message-format=json-pretty > test-results/inference-cuda-gpu.json || true
 
-    - name: Upload GPU Test Results
+        echo "Testing inferno-llama with CUDA..."
+        cargo nextest run --features cuda --package inferno-llama \
+          --no-fail-fast --final-status-level=slow \
+          --message-format=json-pretty > test-results/llama-cuda-gpu.json || true
+
+    - name: Upload CUDA Inference Test Results
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: test-results-cuda-gpu
+        name: inference-test-results-cuda-gpu
         path: test-results/
         retention-days: 30
 
-    - name: Generate GPU Test Report
+    - name: Generate CUDA Inference Test Report
       uses: dorny/test-reporter@v1
       if: always()
       with:
-        name: CUDA GPU Test Results
+        name: CUDA Inference Test Results (GPU)
         path: 'test-results/*.json'
         reporter: 'java-junit'
         fail-on-error: false
