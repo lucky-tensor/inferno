@@ -32,15 +32,21 @@ validator = { workspace = true }
 
 # Burn ML Framework for real model inference
 burn = { workspace = true, optional = true }
+burn-import = { workspace = true, optional = true }
+llama-burn = { workspace = true, optional = true }
+
+# Candle ML Framework for optimized inference (with CUDA 12.9 support)
+candle-core = { version = "0.9.1", optional = true }
+candle-nn = { version = "0.9.1", optional = true }
+candle-transformers = { version = "0.9.1", optional = true }
+
+# Shared dependencies for both frameworks
 tokenizers = { workspace = true, optional = true }
 hf-hub = { workspace = true, optional = true }
 safetensors = { workspace = true, optional = true }
-burn-import = { workspace = true, optional = true }
-llama-burn = { workspace = true, optional = true }
-# half removed - not used in current implementation
+bytemuck = { version = "1.0", optional = true }
+half = { version = "2.3", optional = true }
 
-[build-dependencies]
-reqwest = { version = "0.11", features = ["blocking"] }
 
 [dev-dependencies]
 tokio-test = { workspace = true }
@@ -51,8 +57,10 @@ tempfile = { workspace = true }
 rstest = { workspace = true }
 
 [features]
-default = ["burn-cpu", "pretrained"]
+default = ["candle-cuda", "pretrained"]
 pretrained = []
+
+# Burn ML Framework features
 burn-cpu = [
     "burn/ndarray",
     "burn/autodiff",
@@ -61,8 +69,47 @@ burn-cpu = [
     "dep:safetensors",
     "dep:burn-import",
     "dep:llama-burn"
-]  # Real deterministic Llama model inference with SafeTensors support
-cuda = []  # Reserved for future CUDA implementation
+]  # Real deterministic Llama model inference with SafeTensors support (default)
+
+# Candle ML Framework features
+candle-cpu = [
+    "dep:candle-core",
+    "dep:candle-nn",
+    "dep:candle-transformers",
+    "dep:tokenizers",
+    "hf-hub/tokio",
+    "dep:safetensors",
+    "dep:bytemuck",
+    "dep:half"
+]  # HuggingFace-compatible inference with Candle framework
+
+candle-cuda = [
+    "dep:candle-core",
+    "dep:candle-nn",
+    "dep:candle-transformers",
+    "dep:tokenizers",
+    "hf-hub/tokio",
+    "dep:safetensors",
+    "dep:bytemuck",
+    "dep:half",
+    "candle-core/cuda",
+    "candle-nn/cuda",
+    "candle-transformers/cuda"
+]  # CUDA-accelerated inference with optimized kernels
+
+candle-metal = [
+    "dep:candle-core",
+    "dep:candle-nn",
+    "dep:candle-transformers",
+    "dep:tokenizers",
+    "hf-hub/tokio",
+    "dep:safetensors",
+    "dep:bytemuck",
+    "dep:half",
+    "candle-core/metal",
+    "candle-nn/metal",
+    "candle-transformers/metal"
+]  # Metal-accelerated inference for Apple Silicon
 
 # Benchmarks will be added in later phases
 # [[bench]]

@@ -22,6 +22,7 @@ pub mod cli;
 pub mod error;
 pub mod metrics;
 pub mod operations_server;
+pub mod paths;
 pub mod service_discovery;
 
 pub mod test_utils;
@@ -33,6 +34,10 @@ pub use metrics::{MetricsCollector, MetricsSnapshot};
 pub use operations_server::OperationsServer;
 // Backward compatibility alias
 pub use operations_server::OperationsServer as MetricsServer;
+pub use paths::{
+    default_cache_dir, default_models_dir, default_models_dir_string, expand_home_dir,
+    resolve_models_path,
+};
 pub use service_discovery::{
     AuthMode, BackendRegistration, HealthCheckResult, HealthChecker, HttpHealthChecker, NodeInfo,
     NodeType, NodeVitals, PeerInfo, ServiceDiscovery, ServiceDiscoveryConfig,

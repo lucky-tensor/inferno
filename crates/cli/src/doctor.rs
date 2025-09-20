@@ -104,16 +104,16 @@ pub enum CompatibilityStatus {
 impl std::fmt::Display for CompatibilityStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CompatibilityStatus::Compatible => write!(f, "✅"),
-            CompatibilityStatus::Warning(_) => write!(f, "⚠️"),
-            CompatibilityStatus::Incompatible(_) => write!(f, "❌"),
+            CompatibilityStatus::Compatible => write!(f, "OK"),
+            CompatibilityStatus::Warning(_) => write!(f, "WARN"),
+            CompatibilityStatus::Incompatible(_) => write!(f, "FAIL"),
         }
     }
 }
 
 /// Main entry point for the doctor command
 pub async fn run_diagnostics(opts: DoctorCliOptions) -> Result<()> {
-    println!("🔍 Inferno System Diagnostics");
+    println!("Inferno System Diagnostics");
     println!("=============================\n");
 
     if opts.verbose {
@@ -906,9 +906,9 @@ pub fn display_results_table(diagnostics: &DiagnosticsResult, verbose: bool) {
     println!(
         "{} CPU: {} ({} cores, {} threads)",
         if diagnostics.cpu.is_compatible {
-            "✅"
+            "OK"
         } else {
-            "⚠️"
+            "WARN"
         },
         diagnostics.cpu.name,
         diagnostics.cpu.cores,
@@ -919,29 +919,29 @@ pub fn display_results_table(diagnostics: &DiagnosticsResult, verbose: bool) {
         println!(
             "   Features: AVX: {}, AVX2: {}, AVX512: {}",
             if diagnostics.cpu.supports_avx {
-                "✅"
+                "YES"
             } else {
-                "❌"
+                "NO"
             },
             if diagnostics.cpu.supports_avx2 {
-                "✅"
+                "YES"
             } else {
-                "❌"
+                "NO"
             },
             if diagnostics.cpu.supports_avx512 {
-                "✅"
+                "YES"
             } else {
-                "❌"
+                "NO"
             }
         );
         for issue in &diagnostics.cpu.issues {
-            println!("   ⚠️  {}", issue);
+            println!("   WARNING: {}", issue);
         }
     }
 
     // GPU Info
     if diagnostics.gpus.is_empty() {
-        println!("❌ No GPUs detected");
+        println!("No GPUs detected");
     } else {
         for gpu in &diagnostics.gpus {
             let vendor_str = match gpu.vendor {
@@ -953,7 +953,7 @@ pub fn display_results_table(diagnostics: &DiagnosticsResult, verbose: bool) {
 
             println!(
                 "{} GPU: {} {} {}",
-                if gpu.is_compatible { "✅" } else { "⚠️" },
+                if gpu.is_compatible { "OK" } else { "WARN" },
                 vendor_str,
                 gpu.name,
                 gpu.memory_mb
@@ -972,7 +972,7 @@ pub fn display_results_table(diagnostics: &DiagnosticsResult, verbose: bool) {
                     println!("   Compute Capability: {}", cc);
                 }
                 for issue in &gpu.issues {
-                    println!("   ⚠️  {}", issue);
+                    println!("   WARNING: {}", issue);
                 }
             }
         }
@@ -989,7 +989,7 @@ pub fn display_results_table(diagnostics: &DiagnosticsResult, verbose: bool) {
     } else if verbose {
         // Verbose mode shows more detail
         for model in &diagnostics.models {
-            println!("📁 Model: {}", model.name);
+            println!("Model: {}", model.name);
             println!("   Path: {}", model.path);
             println!("   Format: {:?}", model.format);
             println!("   Size: {} MB", model.size_mb);
@@ -998,7 +998,7 @@ pub fn display_results_table(diagnostics: &DiagnosticsResult, verbose: bool) {
             }
             println!(
                 "   Optimized: {}",
-                if model.is_optimized { "✅" } else { "❌" }
+                if model.is_optimized { "YES" } else { "NO" }
             );
 
             if let Some(model_compat) = diagnostics.compatibility_matrix.get(&model.name) {
@@ -1017,7 +1017,7 @@ pub fn display_results_table(diagnostics: &DiagnosticsResult, verbose: bool) {
             }
 
             for issue in &model.issues {
-                println!("   ⚠️  {}", issue);
+                println!("   WARNING: {}", issue);
             }
             println!();
         }
@@ -1084,9 +1084,9 @@ pub fn display_results_table(diagnostics: &DiagnosticsResult, verbose: bool) {
     println!(
         "Status: {}",
         if diagnostics.system_ready {
-            "✅ System ready for inference"
+            "System ready for inference"
         } else {
-            "⚠️  System needs configuration"
+            "System needs configuration"
         }
     );
 

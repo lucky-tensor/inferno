@@ -1,6 +1,6 @@
 //! GPU memory management
 
-use crate::error::{AllocationError, VLLMResult};
+use crate::error::{AllocationError, InfernoResult};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -9,13 +9,13 @@ use std::sync::atomic::{AtomicU64, Ordering};
 #[async_trait]
 pub trait GpuAllocator: Send + Sync {
     /// Allocate memory on the GPU
-    async fn allocate(&self, size: usize, alignment: usize) -> VLLMResult<DeviceMemory>;
+    async fn allocate(&self, size: usize, alignment: usize) -> InfernoResult<DeviceMemory>;
 
     /// Deallocate memory on the GPU
-    async fn deallocate(&self, memory: DeviceMemory) -> VLLMResult<()>;
+    async fn deallocate(&self, memory: DeviceMemory) -> InfernoResult<()>;
 
     /// Get memory statistics
-    async fn get_stats(&self) -> VLLMResult<MemoryStats>;
+    async fn get_stats(&self) -> InfernoResult<MemoryStats>;
 }
 
 /// CUDA memory pool implementation
@@ -26,7 +26,7 @@ pub struct CudaMemoryPool {
 
 impl CudaMemoryPool {
     /// Create a new CUDA memory pool
-    pub fn new(device_id: i32) -> VLLMResult<Self> {
+    pub fn new(device_id: i32) -> InfernoResult<Self> {
         // Validate device ID
         if device_id < -1 {
             return Err(crate::error::AllocationError::DeviceMemory(format!(
@@ -63,7 +63,7 @@ impl CudaMemoryPool {
 
 #[async_trait]
 impl GpuAllocator for CudaMemoryPool {
-    async fn allocate(&self, size: usize, alignment: usize) -> VLLMResult<DeviceMemory> {
+    async fn allocate(&self, size: usize, alignment: usize) -> InfernoResult<DeviceMemory> {
         // Validate input parameters
         if size == 0 {
             return Err(AllocationError::InvalidAlignment(size).into());
@@ -99,12 +99,12 @@ impl GpuAllocator for CudaMemoryPool {
             })
         } else {
             // GPU allocation would be implemented here with CUDA
-            #[cfg(not(feature = "cuda"))]
+            #[cfg(not(feature = "candle-cuda"))]
             {
-                Err(crate::error::VLLMError::CudaNotAvailable)
+                Err(crate::error::InfernoError::CudaNotAvailable)
             }
 
-            #[cfg(feature = "cuda")]
+            #[cfg(feature = "candle-cuda")]
             {
                 // TODO: Implement actual CUDA allocation using cudarc
                 let allocation_id = self.allocation_counter.fetch_add(1, Ordering::SeqCst);
@@ -119,7 +119,7 @@ impl GpuAllocator for CudaMemoryPool {
         }
     }
 
-    async fn deallocate(&self, memory: DeviceMemory) -> VLLMResult<()> {
+    async fn deallocate(&self, memory: DeviceMemory) -> InfernoResult<()> {
         if memory.device_id != self.device_id {
             return Err(AllocationError::DeviceMemory(format!(
                 "Device ID mismatch: expected {}, got {}",
@@ -146,12 +146,12 @@ impl GpuAllocator for CudaMemoryPool {
             }
         } else {
             // GPU deallocation would be implemented here
-            #[cfg(not(feature = "cuda"))]
+            #[cfg(not(feature = "candle-cuda"))]
             {
-                return Err(crate::error::VLLMError::CudaNotAvailable);
+                return Err(crate::error::InfernoError::CudaNotAvailable);
             }
 
-            #[cfg(feature = "cuda")]
+            #[cfg(feature = "candle-cuda")]
             {
                 // TODO: Implement actual CUDA deallocation
                 tracing::debug!(
@@ -165,7 +165,7 @@ impl GpuAllocator for CudaMemoryPool {
     }
 
     #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
-    async fn get_stats(&self) -> VLLMResult<MemoryStats> {
+    async fn get_stats(&self) -> InfernoResult<MemoryStats> {
         let mut stats = MemoryStats {
             device_id: self.device_id,
             ..Default::default()
@@ -177,12 +177,12 @@ impl GpuAllocator for CudaMemoryPool {
             stats.utilization_percentage = 0.5; // Placeholder
             stats.num_allocations = self.allocation_counter.load(Ordering::SeqCst) as usize;
         } else {
-            #[cfg(not(feature = "cuda"))]
+            #[cfg(not(feature = "candle-cuda"))]
             {
-                return Err(crate::error::VLLMError::CudaNotAvailable);
+                return Err(crate::error::InfernoError::CudaNotAvailable);
             }
 
-            #[cfg(feature = "cuda")]
+            #[cfg(feature = "candle-cuda")]
             {
                 // TODO: Get actual CUDA memory stats using cudarc
                 stats.total_memory_bytes = 12 * 1024 * 1024 * 1024; // Placeholder: 12GB GPU

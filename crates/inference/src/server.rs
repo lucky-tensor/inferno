@@ -1,36 +1,36 @@
-//! HTTP server for VLLM backend
+//! HTTP server for Inferno backend
 
-use crate::config::{ServerConfig, VLLMConfig};
-use crate::error::VLLMResult;
+use crate::config::{InfernoConfig, ServerConfig};
+use crate::error::InfernoResult;
 
-/// VLLM HTTP server
-pub struct VLLMServer {
+/// Inferno HTTP server
+pub struct InfernoServer {
     config: ServerConfig,
 }
 
-impl VLLMServer {
+impl InfernoServer {
     /// Create a new server
     #[must_use]
-    pub fn new(config: VLLMConfig) -> Self {
+    pub fn new(config: InfernoConfig) -> Self {
         Self {
             config: config.server,
         }
     }
 
     /// Start the server
-    pub fn start(&self) -> VLLMResult<()> {
+    pub fn start(&self) -> InfernoResult<()> {
         // TODO: Implement HTTP server with axum
         // - /v1/completions endpoint
         // - /v1/chat/completions endpoint
         // - /health endpoint
         // - /metrics endpoint
-        tracing::info!("VLLM server would start on {}", self.config.host);
+        tracing::info!("Inferno server would start on {}", self.config.host);
         Ok(())
     }
 
     /// Stop the server
-    pub fn stop(&self) -> VLLMResult<()> {
-        tracing::info!("VLLM server stopping");
+    pub fn stop(&self) -> InfernoResult<()> {
+        tracing::info!("Inferno server stopping");
         Ok(())
     }
 
