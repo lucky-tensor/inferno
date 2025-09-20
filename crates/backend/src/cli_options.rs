@@ -65,8 +65,8 @@ pub struct BackendCliOptions {
     #[arg(long, default_value_t = 32, env = "INFERNO_MAX_BATCH_SIZE")]
     pub max_batch_size: usize,
 
-    /// GPU device ID to use (-1 for CPU)
-    #[arg(long, default_value_t = -1, env = "INFERNO_GPU_DEVICE_ID")]
+    /// GPU device ID to use (GPU only - no CPU support)
+    #[arg(long, default_value_t = 0, env = "INFERNO_GPU_DEVICE_ID")]
     pub gpu_device_id: i32,
 
     /// Maximum context length

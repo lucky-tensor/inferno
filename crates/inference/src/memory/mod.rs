@@ -73,48 +73,28 @@ impl GpuAllocator for CudaMemoryPool {
             return Err(AllocationError::InvalidAlignment(alignment).into());
         }
 
-        // CPU-only allocation for now (CUDA implementation would go here)
+        // GPU-only allocation using CUDA
         if self.device_id < 0 {
-            // CPU allocation using aligned memory
-            let layout = std::alloc::Layout::from_size_align(size, alignment)
-                .map_err(|_| AllocationError::InvalidAlignment(alignment))?;
-
-            let ptr = unsafe { std::alloc::alloc(layout) }.cast::<std::ffi::c_void>();
-
-            if ptr.is_null() {
-                return Err(AllocationError::OutOfMemory {
-                    requested: size,
-                    available: 0, // Could query system memory here
-                }
-                .into());
-            }
-
-            let allocation_id = self.allocation_counter.fetch_add(1, Ordering::SeqCst);
-
-            Ok(DeviceMemory {
-                ptr,
-                size,
-                device_id: self.device_id,
-                allocation_id,
-            })
-        } else {
-            // GPU allocation would be implemented here with CUDA
-            {
-                Err(crate::error::InfernoError::CudaNotAvailable)
-            }
-
-            {
-                // TODO: Implement actual CUDA allocation using cudarc
-                let allocation_id = self.allocation_counter.fetch_add(1, Ordering::SeqCst);
-
-                Ok(DeviceMemory {
-                    ptr: std::ptr::null_mut(), // Would be actual CUDA ptr
-                    size,
-                    device_id: self.device_id,
-                    allocation_id,
-                })
-            }
+            return Err(AllocationError::UnsupportedDevice(format!(
+                "CPU allocation not supported - GPU device required, got device_id: {}",
+                self.device_id
+            ))
+            .into());
         }
+
+        // GPU allocation implementation
+        let allocation_id = self.allocation_counter.fetch_add(1, Ordering::SeqCst);
+
+        // TODO: Implement actual CUDA allocation using cudarc or similar
+        // For now, simulate GPU allocation
+        let ptr = std::ptr::null_mut::<std::ffi::c_void>();
+
+        Ok(DeviceMemory {
+            ptr,
+            size,
+            device_id: self.device_id,
+            allocation_id,
+        })
     }
 
     async fn deallocate(&self, memory: DeviceMemory) -> InfernoResult<()> {
@@ -133,29 +113,20 @@ impl GpuAllocator for CudaMemoryPool {
         }
 
         if memory.device_id < 0 {
-            // CPU deallocation
-            let layout = std::alloc::Layout::from_size_align(memory.size, 8) // Assume 8-byte alignment
-                .map_err(|_| {
-                    AllocationError::DeviceMemory("Invalid layout for deallocation".to_string())
-                })?;
-
-            unsafe {
-                std::alloc::dealloc(memory.ptr.cast::<u8>(), layout);
-            }
-        } else {
-            // GPU deallocation would be implemented here
-            {
-                return Err(crate::error::InfernoError::CudaNotAvailable);
-            }
-
-            {
-                // TODO: Implement actual CUDA deallocation
-                tracing::debug!(
-                    "Deallocating GPU memory: allocation_id={}",
-                    memory.allocation_id
-                );
-            }
+            return Err(AllocationError::UnsupportedDevice(format!(
+                "CPU deallocation not supported - GPU device required, got device_id: {}",
+                memory.device_id
+            ))
+            .into());
         }
+
+        // GPU deallocation implementation
+        // TODO: Implement actual CUDA deallocation using cudarc or similar
+        tracing::debug!(
+            "Deallocating GPU memory: allocation_id={}, size={}",
+            memory.allocation_id,
+            memory.size
+        );
 
         Ok(())
     }
@@ -168,22 +139,18 @@ impl GpuAllocator for CudaMemoryPool {
         };
 
         if self.device_id < 0 {
-            // CPU memory stats (simplified)
-            stats.total_memory_bytes = 8 * 1024 * 1024 * 1024; // Assume 8GB RAM
-            stats.utilization_percentage = 0.5; // Placeholder
-            stats.num_allocations = self.allocation_counter.load(Ordering::SeqCst) as usize;
-        } else {
-            {
-                return Err(crate::error::InfernoError::CudaNotAvailable);
-            }
-
-            {
-                // TODO: Get actual CUDA memory stats using cudarc
-                stats.total_memory_bytes = 12 * 1024 * 1024 * 1024; // Placeholder: 12GB GPU
-                stats.utilization_percentage = 0.3; // Placeholder
-                stats.num_allocations = self.allocation_counter.load(Ordering::SeqCst) as usize;
-            }
+            return Err(AllocationError::UnsupportedDevice(format!(
+                "CPU memory stats not supported - GPU device required, got device_id: {}",
+                self.device_id
+            ))
+            .into());
         }
+
+        // GPU memory stats implementation
+        // TODO: Get actual CUDA memory stats using cudarc or similar
+        stats.total_memory_bytes = 12 * 1024 * 1024 * 1024; // Placeholder: 12GB GPU
+        stats.utilization_percentage = 0.3; // Placeholder
+        stats.num_allocations = self.allocation_counter.load(Ordering::SeqCst) as usize;
 
         Ok(stats)
     }

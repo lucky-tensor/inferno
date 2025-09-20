@@ -198,6 +198,10 @@ pub enum AllocationError {
     /// Memory pool management error
     #[error("Memory pool error: {0}")]
     MemoryPool(String),
+
+    /// Unsupported device type (GPU only)
+    #[error("Unsupported device: {0}")]
+    UnsupportedDevice(String),
 }
 
 /// Service registration errors

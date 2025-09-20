@@ -34,7 +34,6 @@ type Backend = NdArray<f32>;
 
 /// Load Llama model with pre-trained weights from `SafeTensors`
 /// Supports dynamic configuration loading from config.json
-#[cfg(all(feature = "llama-burn", feature = "pretrained"))]
 pub fn load_llama_weights(
     model_path: &Path,
     device: &Device<Backend>,
@@ -122,7 +121,6 @@ pub fn load_llama_weights(
 }
 
 // Helper function to load SafeTensors weights using burn-import
-#[cfg(all(feature = "llama-burn", feature = "pretrained"))]
 fn load_safetensors_weights(
     weights_path: &Path,
     model: &mut Llama<Backend, SentiencePieceTokenizer>,
@@ -268,7 +266,6 @@ fn load_safetensors_weights(
 }
 
 /// Load weights from SafeTensors into a Burn Llama model
-#[cfg(all(feature = "llama-burn", feature = "pretrained"))]
 fn load_weights_from_safetensors<'a>(
     tensors: &'a SafeTensors<'a>,
     model: &mut Llama<Backend, SentiencePieceTokenizer>,
@@ -408,22 +405,3 @@ pub fn load_model_config(
     }
 }
 
-/// Fallback for when pretrained feature is not available
-
-pub fn load_llama_weights(
-    model_path: &Path,
-    device: &Device<Backend>,
-) -> Result<Llama<Backend, SentiencePieceTokenizer>, Box<dyn Error>> {
-    println!("   Loading Llama with random weights (pretrained feature not enabled)");
-
-    let tokenizer_path = model_path.join("tokenizer.json");
-    let effective_tokenizer_path = tokenizer_path.to_str().unwrap().to_string();
-
-    // Load configuration from config.json or use defaults
-    let config = load_model_config(model_path, &effective_tokenizer_path)?;
-
-    // Initialize the model with random weights
-    let model = config.init::<Backend, SentiencePieceTokenizer>(device)?;
-
-    Ok(model)
-}
