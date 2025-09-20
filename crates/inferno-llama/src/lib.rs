@@ -26,9 +26,13 @@
 //! - `attention`: Multi-head attention mechanism
 //! - `feed_forward`: Feed-forward network layers
 //! - `model`: Complete Llama model implementation
+//! - `candle_extensions`: Forked and extended Candle components for generic support
+//! - `diagnostic`: Model variant detection and analysis system
 
 pub mod attention;
+pub mod candle_extensions;
 pub mod config;
+pub mod diagnostic;
 pub mod error;
 pub mod feed_forward;
 pub mod loader;
@@ -42,15 +46,20 @@ pub mod transformer_block;
 
 // Re-export key types for convenience
 pub use attention::MultiHeadAttention;
+pub use candle_extensions::{GenericConfig, GenericLlamaConfig, LlamaVariant};
 pub use config::LlamaConfig;
+pub use diagnostic::{
+    ConfigParser, ModelDetector, ModelMemoryLayout, OptimizationHint,
+    QuantizationConfig as DiagnosticQuantizationConfig, QuantizationScheme, WeightAnalyzer,
+};
 pub use error::{LlamaError, Result};
 pub use feed_forward::FeedForward;
 pub use loader::ModelLoader;
 pub use model::InfernoLlama;
 pub use normalization::RMSNorm;
 pub use precision::{
-    DetectedModelInfo, ModelDetector, ModelFormat, PrecisionConfig, PrecisionError,
-    QuantizationConfig, TensorOps,
+    DetectedModelInfo, ModelDetector as PrecisionModelDetector, ModelFormat, PrecisionConfig,
+    PrecisionError, QuantizationConfig, TensorOps,
 };
 pub use rope::{apply_rotary_emb, precompute_freqs_cis};
 pub use tokenizer::{load_tokenizer_from_path, TokenizedInfernoLlama};

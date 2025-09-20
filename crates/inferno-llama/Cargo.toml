@@ -11,6 +11,7 @@ description = "Native BF16/F16 Llama implementation for high-performance distrib
 # Core candle dependencies for tensor operations
 candle-core = { version = "0.9.1" }
 candle-nn = { version = "0.9.1" }
+candle-transformers = { version = "0.9.1" }
 
 # Workspace dependencies
 thiserror = { workspace = true }

@@ -444,7 +444,9 @@ impl TensorOps {
         if self.precision.is_quantized() {
             // For quantized formats, generate in fallback precision and quantize
             let temp_tensor = self.zeros(shape, device)?; // Create template tensor with target dtype
-            temp_tensor.randn_like(0.0, 1.0)?.to_dtype(self.precision.to_dtype())
+            temp_tensor
+                .randn_like(0.0, 1.0)?
+                .to_dtype(self.precision.to_dtype())
         } else {
             // Use native precision - Candle handles F32->BF16 conversion at device level when needed
             let temp_tensor = self.zeros(shape, device)?; // Create template tensor with target dtype
