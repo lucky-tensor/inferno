@@ -6,13 +6,11 @@
 use std::env;
 use std::time::Instant;
 
-#[cfg(feature = "candle-cuda")]
 use inferno_inference::{
     config::InfernoConfig,
     inference::{CandleInferenceEngine, InferenceEngine, InferenceRequest},
 };
 
-#[cfg(feature = "candle-cuda")]
 #[tokio::test]
 async fn test_llama31_gpu_full_inference() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 GPU INFERENCE TEST: Llama 3.1 with 24GB GPU");
@@ -259,7 +257,6 @@ async fn test_llama31_gpu_full_inference() -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
-#[cfg(feature = "candle-cuda")]
 #[tokio::test]
 async fn test_llama31_gpu_performance_benchmark() -> Result<(), Box<dyn std::error::Error>> {
     println!("⚡ GPU PERFORMANCE: Llama 3.1 Throughput Benchmark");
@@ -404,7 +401,6 @@ async fn test_llama31_gpu_performance_benchmark() -> Result<(), Box<dyn std::err
     Ok(())
 }
 
-#[cfg(not(feature = "candle-cuda"))]
 mod disabled_tests {
     #[tokio::test]
     async fn test_llama31_gpu_inference_requires_cuda() {

@@ -8,10 +8,10 @@ repository.workspace = true
 description = "Unified command-line interface for Inferno distributed systems"
 
 [dependencies]
-inferno-shared = { path = "../shared" }
-inferno-proxy = { path = "../proxy" }
-inferno-backend = { path = "../backend" }
-inferno-governator = { path = "../governator" }
+inferno-shared = { workspace = true }
+inferno-proxy = { workspace = true }
+inferno-backend = { workspace = true }
+inferno-governator = { workspace = true }
 
 # Core dependencies
 tokio = { workspace = true }
@@ -22,12 +22,12 @@ serde = { workspace = true }
 # Download functionality dependencies
 anyhow = { workspace = true }
 git2 = { workspace = true }
-reqwest = { workspace = true, features = ["stream"] }
+reqwest = { workspace = true }
 futures-util = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
 indicatif = { workspace = true }
-hf-hub = { workspace = true, features = ["tokio"] }
+hf-hub = { workspace = true }
 
 # Doctor command dependencies
 sysinfo = { workspace = true }
@@ -38,7 +38,7 @@ walkdir = { workspace = true }
 
 # Play mode dependencies
 rustyline = { workspace = true }
-inferno-inference = { path = "../inference" }
+inferno-inference = { workspace = true }
 tracing = { workspace = true }
 rand = { workspace = true }
 
@@ -46,6 +46,15 @@ rand = { workspace = true }
 tokio-test = { workspace = true }
 tempfile = { workspace = true }
 
+[features]
+default = ["candle-cuda", "pretrained"]
+
+# Pass-through features to backend
+burn-cpu = ["inferno-backend/burn-cpu"]
+candle-cpu = ["inferno-backend/candle-cpu"]
+candle-cuda = ["inferno-backend/candle-cuda"]
+candle-metal = ["inferno-backend/candle-metal"]
+pretrained = ["inferno-backend/pretrained"]
 
 [[bin]]
 name = "inferno"

@@ -7,13 +7,11 @@
 use std::env;
 use std::time::Instant;
 
-#[cfg(feature = "candle-cpu")]
 use inferno_inference::{
     config::InfernoConfig,
     inference::{CandleInferenceEngine, InferenceEngine, InferenceRequest},
 };
 
-#[cfg(feature = "candle-cpu")]
 #[tokio::test]
 async fn test_llama31_full_model_loading_pipeline() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 FULL PIPELINE TEST: Llama 3.1 Model Loading & Inference");
@@ -239,7 +237,6 @@ async fn test_llama31_full_model_loading_pipeline() -> Result<(), Box<dyn std::e
     Ok(())
 }
 
-#[cfg(feature = "candle-cpu")]
 #[tokio::test]
 async fn test_llama31_performance_benchmarks() -> Result<(), Box<dyn std::error::Error>> {
     println!("⚡ PERFORMANCE TEST: Llama 3.1 Inference Benchmarks");
@@ -361,7 +358,6 @@ async fn test_llama31_performance_benchmarks() -> Result<(), Box<dyn std::error:
     Ok(())
 }
 
-#[cfg(feature = "candle-cpu")]
 #[tokio::test]
 async fn test_llama31_error_handling() -> Result<(), Box<dyn std::error::Error>> {
     println!("🛡️  ERROR HANDLING TEST: Llama 3.1 Edge Cases");
@@ -471,7 +467,6 @@ async fn test_llama31_error_handling() -> Result<(), Box<dyn std::error::Error>>
     Ok(())
 }
 
-#[cfg(not(feature = "candle-cpu"))]
 mod disabled_tests {
     #[tokio::test]
     async fn test_llama31_full_pipeline_requires_candle_cpu() {

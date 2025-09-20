@@ -48,7 +48,10 @@ async fn test_end_to_end_quantized_model_loading() {
             if param_count > 500_000_000 && param_count < 2_000_000_000 {
                 println!("✅ Parameter count is in expected range for 1B model");
             } else {
-                println!("⚠️ Parameter count {} seems unusual for 1B model", param_count);
+                println!(
+                    "⚠️ Parameter count {} seems unusual for 1B model",
+                    param_count
+                );
             }
         }
         Err(e) => {
@@ -103,7 +106,10 @@ async fn test_end_to_end_standard_model_loading() {
             if param_count > 6_000_000_000 && param_count < 10_000_000_000 {
                 println!("✅ Parameter count is in expected range for 8B model");
             } else {
-                println!("⚠️ Parameter count {} seems unusual for 8B model", param_count);
+                println!(
+                    "⚠️ Parameter count {} seems unusual for 8B model",
+                    param_count
+                );
             }
         }
         Err(e) => {

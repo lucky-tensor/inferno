@@ -49,7 +49,6 @@ fn test_safetensors_weight_loading() {
     );
 }
 
-
 #[test]
 fn test_weight_index_parsing() {
     let model_path = Path::new(MODEL_PATH);

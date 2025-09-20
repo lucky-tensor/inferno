@@ -3,10 +3,10 @@
 //! These tests validate that the actual SafeTensors weight loading works correctly
 //! with real model files while preserving dtypes and supporting sharded models.
 
+use candle_core::{DType, Device, Tensor};
 use inferno_llama::{InfernoLlama, LlamaConfig, LlamaError};
-use candle_core::{Device, DType, Tensor};
-use tempfile::TempDir;
 use std::fs;
+use tempfile::TempDir;
 
 /// Test that load_weights_into_model actually loads weights instead of returning placeholder error
 #[test]
@@ -38,9 +38,7 @@ fn test_load_weights_into_model_not_placeholder() {
     // Since load_weights_into_model is private, we'll test through the public API
 
     // Test that the placeholder implementation is detected through load_from_path
-    let result = tokio_test::block_on(async {
-        InfernoLlama::load_from_path(&temp_path).await
-    });
+    let result = tokio_test::block_on(async { InfernoLlama::load_from_path(&temp_path).await });
 
     // The current implementation should return a placeholder error - this test should fail initially
     match result {
@@ -55,7 +53,6 @@ fn test_load_weights_into_model_not_placeholder() {
     }
 }
 
-
 /// Test loading weights from a mock SafeTensors file
 #[test]
 fn test_load_tensors_from_mock_safetensors() {
@@ -64,7 +61,10 @@ fn test_load_tensors_from_mock_safetensors() {
 
     // Create a mock SafeTensors file with some test weights (using HuggingFace naming)
     // Note: This is a simplified test - real implementation would use actual SafeTensors format
-    let test_weights = vec!["model.embed_tokens.weight", "model.layers.0.self_attn.q_proj.weight"];
+    let test_weights = vec![
+        "model.embed_tokens.weight",
+        "model.layers.0.self_attn.q_proj.weight",
+    ];
 
     // This test validates the interface exists - but method is private, so skip for now
     // TODO: Test through public API once available
@@ -118,7 +118,8 @@ fn test_sharded_weight_loading_interface() {
     fs::write(
         temp_dir.path().join("model.safetensors.index.json"),
         index_content,
-    ).unwrap();
+    )
+    .unwrap();
 
     // Test weight mapping loading
     let result = InfernoLlama::get_weight_mapping(temp_dir.path());
@@ -215,13 +216,19 @@ fn test_safetensors_sharding_patterns() {
     // Create multiple index patterns to test flexibility
     let patterns = vec![
         // Standard sharded pattern
-        (r#"{"weight_map": {"model.embed_tokens.weight": "model-00001-of-00004.safetensors"}}"#, 1),
+        (
+            r#"{"weight_map": {"model.embed_tokens.weight": "model-00001-of-00004.safetensors"}}"#,
+            1,
+        ),
         // Multi-shard pattern
-        (r#"{"weight_map": {
+        (
+            r#"{"weight_map": {
             "model.embed_tokens.weight": "model-00001-of-00004.safetensors",
             "model.layers.0.self_attn.q_proj.weight": "model-00002-of-00004.safetensors",
             "model.layers.31.mlp.down_proj.weight": "model-00004-of-00004.safetensors"
-        }}"#, 3),
+        }}"#,
+            3,
+        ),
     ];
 
     for (index_content, expected_weights) in patterns {
@@ -263,12 +270,20 @@ fn test_huggingface_naming_consistency() {
     for pattern in expected_patterns {
         // Test that pattern follows expected format
         if pattern.starts_with("model.layers.") {
-            assert!(pattern.contains("self_attn") || pattern.contains("mlp") || pattern.contains("layernorm"));
+            assert!(
+                pattern.contains("self_attn")
+                    || pattern.contains("mlp")
+                    || pattern.contains("layernorm")
+            );
         }
 
         // Test pattern parsing doesn't fail
         let parts: Vec<&str> = pattern.split('.').collect();
-        assert!(parts.len() >= 2, "Pattern should have at least 2 parts: {}", pattern);
+        assert!(
+            parts.len() >= 2,
+            "Pattern should have at least 2 parts: {}",
+            pattern
+        );
     }
 }
 

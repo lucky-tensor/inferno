@@ -135,13 +135,20 @@ impl ModelLoader {
         if single_file.exists() {
             // Load directly from single SafeTensors file
             let vb = unsafe {
-                VarBuilder::from_mmaped_safetensors(&[single_file.clone()], self.dtype, &self.device)
-                    .map_err(|e| {
-                        LlamaError::io_error(
-                            format!("Failed to create VarBuilder from SafeTensors file {:?}: {}", single_file, e),
-                            "load_model_single_file",
-                        )
-                    })?
+                VarBuilder::from_mmaped_safetensors(
+                    &[single_file.clone()],
+                    self.dtype,
+                    &self.device,
+                )
+                .map_err(|e| {
+                    LlamaError::io_error(
+                        format!(
+                            "Failed to create VarBuilder from SafeTensors file {:?}: {}",
+                            single_file, e
+                        ),
+                        "load_model_single_file",
+                    )
+                })?
             };
 
             // Create the model with loaded weights
@@ -306,7 +313,10 @@ impl ModelLoader {
                 })?
                 .as_object()
                 .ok_or_else(|| {
-                    LlamaError::config_error("weight_map", "weight_map must be an object".to_string())
+                    LlamaError::config_error(
+                        "weight_map",
+                        "weight_map must be an object".to_string(),
+                    )
                 })?;
 
             let mut result = HashMap::new();
@@ -327,7 +337,10 @@ impl ModelLoader {
                 // Read the single safetensors file to get all weight names
                 let buffer = fs::read(&single_file).map_err(|e| {
                     LlamaError::io_error(
-                        format!("Failed to read single SafeTensors file {:?}: {}", single_file, e),
+                        format!(
+                            "Failed to read single SafeTensors file {:?}: {}",
+                            single_file, e
+                        ),
                         "load_single_safetensors",
                     )
                 })?;
@@ -352,7 +365,6 @@ impl ModelLoader {
             }
         }
     }
-
 
     /// Loads specific weights from a single SafeTensors file.
     ///
@@ -400,9 +412,7 @@ impl ModelLoader {
                 let bf16_data = bytemuck::cast_slice::<u8, half::bf16>(data);
                 Tensor::from_slice(bf16_data, shape, &self.device)
             }
-            DType::U8 => {
-                Tensor::from_slice(data, shape, &self.device)
-            }
+            DType::U8 => Tensor::from_slice(data, shape, &self.device),
             DType::I64 => {
                 let i64_data = bytemuck::cast_slice::<u8, i64>(data);
                 Tensor::from_slice(i64_data, shape, &self.device)
@@ -413,7 +423,10 @@ impl ModelLoader {
             }
             _ => {
                 return Err(LlamaError::tensor_error(
-                    &format!("Unsupported tensor dtype {:?} for weight '{}'", dtype, weight_name),
+                    &format!(
+                        "Unsupported tensor dtype {:?} for weight '{}'",
+                        dtype, weight_name
+                    ),
                     "safetensors_to_candle_tensor",
                 ));
             }
@@ -421,7 +434,10 @@ impl ModelLoader {
 
         tensor.map_err(|e| {
             LlamaError::tensor_error(
-                &format!("Failed to create Candle tensor for weight '{}': {}", weight_name, e),
+                &format!(
+                    "Failed to create Candle tensor for weight '{}': {}",
+                    weight_name, e
+                ),
                 "safetensors_to_candle_tensor",
             )
         })
@@ -449,7 +465,6 @@ impl ModelLoader {
 
         Ok(candle_dtype)
     }
-
 }
 
 // The load_from_path method is now implemented in simple_loader.rs

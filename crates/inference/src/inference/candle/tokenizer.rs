@@ -5,11 +5,6 @@
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::redundant_closure_for_method_calls)]
 
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 use tokenizers::{
     models::bpe::BPE, processors::template::TemplateProcessing, AddedToken, PaddingDirection,
     PaddingParams, Tokenizer, TruncationDirection, TruncationParams,
@@ -22,11 +17,6 @@ pub struct CandleTokenizer;
 
 impl CandleTokenizer {
     /// Load tokenizer from model directory with Llama 3.2 compatibility
-    #[cfg(any(
-        feature = "candle-cpu",
-        feature = "candle-cuda",
-        feature = "candle-metal"
-    ))]
     pub async fn load_from_path(model_path: &str) -> Result<Tokenizer, InferenceError> {
         let model_path = std::path::Path::new(model_path);
         let tokenizer_path = model_path.join("tokenizer.json");
@@ -49,7 +39,7 @@ impl CandleTokenizer {
                         // Look for high-numbered tokens (128xxx) that are specific to Llama 3.1
                         let has_llama31_tokens = tokens_obj
                             .keys()
-                            .any(|key| key.parse::<u32>().map_or(false, |id| id >= 128000));
+                            .any(|key| key.parse::<u32>().is_ok_and(|id| id >= 128_000));
                         if has_llama31_tokens {
                             info!("Detected Llama 3.1 model with high-numbered special tokens, using enhanced tokenizer loading");
                             return Self::create_llama31_compatible_tokenizer(
@@ -133,11 +123,6 @@ impl CandleTokenizer {
     }
 
     /// Create a Llama 3.1 compatible tokenizer from tokenizer files
-    #[cfg(any(
-        feature = "candle-cpu",
-        feature = "candle-cuda",
-        feature = "candle-metal"
-    ))]
     #[allow(clippy::too_many_lines)]
     async fn create_llama31_compatible_tokenizer(
         config_path: &std::path::Path,
@@ -308,11 +293,6 @@ impl CandleTokenizer {
     }
 
     /// Create a Llama 3.2 compatible tokenizer from tokenizer files
-    #[cfg(any(
-        feature = "candle-cpu",
-        feature = "candle-cuda",
-        feature = "candle-metal"
-    ))]
     #[allow(clippy::too_many_lines)]
     async fn create_llama32_compatible_tokenizer(
         config_path: &std::path::Path,

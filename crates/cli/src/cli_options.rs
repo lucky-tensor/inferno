@@ -17,23 +17,8 @@ use crate::model_downloader;
 #[allow(unreachable_code)]
 fn default_engine() -> String {
     // Priority order: GPU engines first (faster), then CPU engines
-    #[cfg(feature = "candle-cuda")]
-    {
-        return "candle-cuda".to_string();
-    }
-
-    #[cfg(feature = "candle-metal")]
-    {
-        return "candle-metal".to_string();
-    }
-
-    #[cfg(feature = "candle-cpu")]
-    {
-        return "candle-cpu".to_string();
-    }
-
-    // Fallback to burn-cpu (always available)
-    "burn-cpu".to_string()
+    // Always prefer CUDA if available
+    "candle-cuda".to_string()
 }
 
 /// CLI options for play mode

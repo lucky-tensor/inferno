@@ -7,10 +7,10 @@ use crate::health::HealthService;
 use crate::BackendConfig;
 use clap::Parser;
 use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
-use hyper::server::conn::http1;
-use hyper::service::service_fn;
-use hyper::{body::Incoming, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
+use hyper_v1::server::conn::http1;
+use hyper_v1::service::service_fn;
+use hyper_v1::{body::Incoming, Request, Response, StatusCode};
 use inferno_inference::{
     config::InfernoConfig,
     inference::{create_engine, EngineType, InferenceEngine, InferenceRequest},
@@ -30,23 +30,8 @@ use tracing::{info, warn};
 #[allow(unreachable_code)]
 fn default_engine() -> String {
     // Priority order: GPU engines first (faster), then CPU engines
-    #[cfg(feature = "candle-cuda")]
-    {
-        return "candle-cuda".to_string();
-    }
-
-    #[cfg(feature = "candle-metal")]
-    {
-        return "candle-metal".to_string();
-    }
-
-    #[cfg(feature = "candle-cpu")]
-    {
-        return "candle-cpu".to_string();
-    }
-
-    // Fallback to burn-cpu (always available)
-    "burn-cpu".to_string()
+    // Always prefer CUDA if available
+    "candle-cuda".to_string()
 }
 
 /// Inferno Backend - AI inference backend server
@@ -178,9 +163,7 @@ impl BackendCliOptions {
         let engine_type = match self.engine.as_str() {
             "burn-cpu" => EngineType::BurnCpu,
             "candle-cpu" => EngineType::CandleCpu,
-            #[cfg(feature = "candle-cuda")]
             "candle-cuda" => EngineType::CandleCuda,
-            #[cfg(feature = "candle-metal")]
             "candle-metal" => EngineType::CandleMetal,
             _ => {
                 warn!(
@@ -390,9 +373,9 @@ async fn handle_inference_request(
             Box<dyn InferenceEngine<Error = inferno_inference::inference::InferenceError>>,
         >,
     >,
-) -> std::result::Result<Response<BoxBody<bytes::Bytes, hyper::Error>>, hyper::Error> {
+) -> std::result::Result<Response<BoxBody<bytes::Bytes, hyper_v1::Error>>, hyper_v1::Error> {
     let response = match (req.method(), req.uri().path()) {
-        (&hyper::Method::POST, "/v1/completions") | (&hyper::Method::POST, "/inference") => {
+        (&hyper_v1::Method::POST, "/v1/completions") | (&hyper_v1::Method::POST, "/inference") => {
             // Read request body
             let body_bytes = match req.into_body().collect().await {
                 Ok(collected) => collected.to_bytes(),
@@ -470,7 +453,7 @@ async fn handle_inference_request(
                 )
                 .unwrap()
         }
-        (&hyper::Method::GET, "/health") => Response::builder()
+        (&hyper_v1::Method::GET, "/health") => Response::builder()
             .status(StatusCode::OK)
             .body(
                 Full::new("OK".into())

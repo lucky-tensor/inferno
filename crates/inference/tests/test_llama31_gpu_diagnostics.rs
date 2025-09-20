@@ -4,13 +4,11 @@
 
 use std::env;
 
-#[cfg(feature = "candle-cuda")]
 use inferno_inference::{
     config::InfernoConfig,
     inference::{CandleInferenceEngine, InferenceEngine},
 };
 
-#[cfg(feature = "candle-cuda")]
 #[tokio::test]
 async fn test_llama31_gpu_diagnostics() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔍 GPU DIAGNOSTICS: Llama 3.1 Memory Analysis");
@@ -179,7 +177,6 @@ async fn test_llama31_gpu_diagnostics() -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
-#[cfg(feature = "candle-cuda")]
 #[tokio::test]
 async fn test_llama31_gpu_memory_check() -> Result<(), Box<dyn std::error::Error>> {
     println!("📊 GPU MEMORY CHECK: Current Status");
@@ -214,7 +211,6 @@ async fn test_llama31_gpu_memory_check() -> Result<(), Box<dyn std::error::Error
     Ok(())
 }
 
-#[cfg(not(feature = "candle-cuda"))]
 mod disabled_tests {
     #[tokio::test]
     async fn test_llama31_gpu_diagnostics_requires_cuda() {

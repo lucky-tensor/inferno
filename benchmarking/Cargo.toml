@@ -9,8 +9,8 @@ description = "Performance benchmarks for Inferno distributed systems"
 publish = false
 
 [dependencies]
-inferno-proxy = { path = "../crates/proxy" }
-inferno-shared = { path = "../crates/shared" }
+inferno-proxy = { workspace = true }
+inferno-shared = { workspace = true }
 criterion = { workspace = true }
 tokio = { workspace = true }
 serde_json = { workspace = true }

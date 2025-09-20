@@ -83,9 +83,7 @@ fn test_empty_model_creation() {
     }
 
     // Test creating empty model structure (no weights loaded) - async function needs await
-    let result = tokio_test::block_on(async {
-        InfernoLlama::load_from_path(MODEL_PATH).await
-    });
+    let result = tokio_test::block_on(async { InfernoLlama::load_from_path(MODEL_PATH).await });
     assert!(
         result.is_ok(),
         "Empty model creation should succeed: {:?}",

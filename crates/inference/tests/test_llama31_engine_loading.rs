@@ -6,10 +6,8 @@
 
 use std::env;
 
-#[cfg(feature = "candle-cpu")]
 use inferno_inference::inference::candle::tokenizer::CandleTokenizer;
 
-#[cfg(feature = "candle-cpu")]
 #[tokio::test]
 async fn test_llama31_candle_engine_initialization() -> Result<(), Box<dyn std::error::Error>> {
     println!("Testing Llama 3.1 model loading with CandleInferenceEngine");
@@ -32,7 +30,6 @@ async fn test_llama31_candle_engine_initialization() -> Result<(), Box<dyn std::
     Ok(())
 }
 
-#[cfg(feature = "candle-cpu")]
 #[tokio::test]
 async fn test_llama31_model_structure_validation() -> Result<(), Box<dyn std::error::Error>> {
     println!("Testing Llama 3.1 model structure for CandleInferenceEngine compatibility");
@@ -104,7 +101,6 @@ async fn test_llama31_model_structure_validation() -> Result<(), Box<dyn std::er
     Ok(())
 }
 
-#[cfg(feature = "candle-cpu")]
 #[tokio::test]
 async fn test_llama31_tokenizer_compatibility() -> Result<(), Box<dyn std::error::Error>> {
     println!("Testing Llama 3.1 tokenizer compatibility with CandleInferenceEngine");
@@ -182,7 +178,6 @@ async fn test_llama31_tokenizer_compatibility() -> Result<(), Box<dyn std::error
     Ok(())
 }
 
-#[cfg(not(feature = "candle-cpu"))]
 mod disabled_tests {
     #[tokio::test]
     async fn test_llama31_tests_require_candle_cpu_feature() {

@@ -10,7 +10,7 @@
 
 use candle_core::DType;
 use inferno_llama::factory::UnifiedModelFactory;
-use inferno_llama::{WeightAnalyzer, InfernoLlama};
+use inferno_llama::{InfernoLlama, WeightAnalyzer};
 use std::path::Path;
 
 const TEST_MODEL_PATHS: &[&str] = &[
@@ -45,7 +45,10 @@ async fn test_complete_pipeline_standard_model() {
 
     // Validate analysis results
     assert_eq!(analysis.primary_dtype, DType::BF16);
-    assert!(analysis.total_params > 8_000_000_000, "Should detect ~8.8B parameters");
+    assert!(
+        analysis.total_params > 8_000_000_000,
+        "Should detect ~8.8B parameters"
+    );
     assert!(analysis.is_sharded, "Meta Llama 3.1 8B should be sharded");
 
     // Step 2: Model Detection
@@ -72,8 +75,11 @@ async fn test_complete_pipeline_standard_model() {
     // Validate model structure
     assert_eq!(model.layers.len(), 32);
     let param_count = model.parameter_count();
-    assert!(param_count > 8_000_000_000 && param_count < 9_000_000_000,
-            "Parameter count {} should be around 8.8B", param_count);
+    assert!(
+        param_count > 8_000_000_000 && param_count < 9_000_000_000,
+        "Parameter count {} should be around 8.8B",
+        param_count
+    );
 
     println!("✅ Complete pipeline test passed for standard model!");
 }
@@ -92,36 +98,52 @@ async fn test_complete_pipeline_quantized_model() {
     // Step 1: Weight Analysis (should work even for quantized)
     println!("Step 1: Analyzing quantized model weights...");
     let weight_analysis = WeightAnalyzer::analyze_weights(model_path).await;
-    assert!(weight_analysis.is_ok(), "Weight analysis should work for quantized models");
+    assert!(
+        weight_analysis.is_ok(),
+        "Weight analysis should work for quantized models"
+    );
 
     let analysis = weight_analysis.unwrap();
     println!("  Primary dtype: {:?}", analysis.primary_dtype);
     println!("  Quantization: {:?}", analysis.quantization.scheme);
 
     // Validate quantization detection
-    assert!(analysis.quantization.scheme.to_string().contains("W8A8"),
-            "Should detect W8A8 quantization");
+    assert!(
+        analysis.quantization.scheme.to_string().contains("W8A8"),
+        "Should detect W8A8 quantization"
+    );
 
     // Step 2: Model Detection (should work)
     println!("Step 2: Detecting quantized model configuration...");
     let factory = UnifiedModelFactory::new().unwrap();
     let config = factory.detect_model_config(model_path).await.unwrap();
 
-    assert!(config.quantization.is_some(), "Should detect quantization config");
+    assert!(
+        config.quantization.is_some(),
+        "Should detect quantization config"
+    );
 
     // Step 3: Model Loading (expected to fail due to I8 dtype limitation)
     println!("Step 3: Attempting to load quantized model...");
     let model_result = factory.load_model(model_path, config).await;
 
     // This should fail with I8 dtype error as identified in engineering review
-    assert!(model_result.is_err(), "Quantized model loading should fail due to I8 dtype limitation");
+    assert!(
+        model_result.is_err(),
+        "Quantized model loading should fail due to I8 dtype limitation"
+    );
 
     let error = model_result.unwrap_err();
     let error_msg = error.to_string();
-    assert!(error_msg.contains("I8") || error_msg.contains("dtype"),
-            "Error should mention I8 dtype issue: {}", error_msg);
+    assert!(
+        error_msg.contains("I8") || error_msg.contains("dtype"),
+        "Error should mention I8 dtype issue: {}",
+        error_msg
+    );
 
-    println!("✅ Complete pipeline test passed for quantized model (expected I8 dtype limitation)!");
+    println!(
+        "✅ Complete pipeline test passed for quantized model (expected I8 dtype limitation)!"
+    );
 }
 
 #[test]
@@ -132,17 +154,14 @@ fn test_safetensors_weight_name_validation() {
         "model.embed_tokens.weight",
         "model.norm.weight",
         "lm_head.weight",
-
         // Transformer layer weights
         "model.layers.0.input_layernorm.weight",
         "model.layers.0.post_attention_layernorm.weight",
-
         // Attention weights (HuggingFace naming)
         "model.layers.0.self_attn.q_proj.weight",
         "model.layers.0.self_attn.k_proj.weight",
         "model.layers.0.self_attn.v_proj.weight",
         "model.layers.0.self_attn.o_proj.weight",
-
         // MLP weights (HuggingFace naming)
         "model.layers.0.mlp.gate_proj.weight",
         "model.layers.0.mlp.up_proj.weight",
@@ -153,20 +172,29 @@ fn test_safetensors_weight_name_validation() {
     for pattern in expected_weight_patterns {
         // Should start with "model." for most weights, except lm_head
         if !pattern.starts_with("lm_head.") {
-            assert!(pattern.starts_with("model."),
-                    "Pattern should start with 'model.': {}", pattern);
+            assert!(
+                pattern.starts_with("model."),
+                "Pattern should start with 'model.': {}",
+                pattern
+            );
         }
 
         // Attention weights should use "self_attn" (HuggingFace) not "attention" (old mapping)
         if pattern.contains("attn") {
-            assert!(pattern.contains("self_attn"),
-                    "Should use 'self_attn' not 'attention': {}", pattern);
+            assert!(
+                pattern.contains("self_attn"),
+                "Should use 'self_attn' not 'attention': {}",
+                pattern
+            );
         }
 
         // MLP weights should use "mlp" (HuggingFace) not "feed_forward" (old mapping)
         if pattern.contains("proj.weight") && !pattern.contains("attn") {
-            assert!(pattern.contains("mlp"),
-                    "Should use 'mlp' not 'feed_forward': {}", pattern);
+            assert!(
+                pattern.contains("mlp"),
+                "Should use 'mlp' not 'feed_forward': {}",
+                pattern
+            );
         }
     }
 
@@ -184,8 +212,13 @@ async fn test_error_handling_coverage() {
 
     // Test 2: Directory without proper model files
     let temp_dir = tempfile::TempDir::new().unwrap();
-    let result = factory.detect_model_config(temp_dir.path().to_str().unwrap()).await;
-    assert!(result.is_err(), "Should fail for directory without model files");
+    let result = factory
+        .detect_model_config(temp_dir.path().to_str().unwrap())
+        .await;
+    assert!(
+        result.is_err(),
+        "Should fail for directory without model files"
+    );
 
     println!("✅ Error handling coverage test passed!");
 }
@@ -199,25 +232,32 @@ fn test_parameter_count_accuracy() {
 
     // Calculate expected parameters for 8B model
     let embedding_params = config_8b.vocab_size * config_8b.dim;
-    let layer_params = config_8b.n_layers * (
-        // Attention: q,k,v,o projections
-        4 * config_8b.dim * config_8b.dim +
+    let layer_params = config_8b.n_layers
+        * (
+            // Attention: q,k,v,o projections
+            4 * config_8b.dim * config_8b.dim +
         // FFN: gate, up, down projections
         config_8b.dim * config_8b.intermediate_size * 3 +
         // Layer norms: input + post-attention
         config_8b.dim * 2
-    );
+        );
     let final_norm_params = config_8b.dim;
     let lm_head_params = config_8b.vocab_size * config_8b.dim;
 
     let expected_total = embedding_params + layer_params + final_norm_params + lm_head_params;
 
     println!("Expected total parameters: {}", expected_total);
-    println!("Expected ~8.8B parameters, got: {:.2}B", expected_total as f64 / 1_000_000_000.0);
+    println!(
+        "Expected ~8.8B parameters, got: {:.2}B",
+        expected_total as f64 / 1_000_000_000.0
+    );
 
     // Should be approximately 8.8B parameters
-    assert!(expected_total > 8_000_000_000 && expected_total < 9_000_000_000,
-            "Parameter count should be ~8.8B, got {}", expected_total);
+    assert!(
+        expected_total > 8_000_000_000 && expected_total < 9_000_000_000,
+        "Parameter count should be ~8.8B, got {}",
+        expected_total
+    );
 
     println!("✅ Parameter count accuracy validation passed!");
 }

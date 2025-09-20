@@ -6,13 +6,11 @@
 
 use std::env;
 
-#[cfg(feature = "candle-cpu")]
 use inferno_inference::{
     config::InfernoConfig,
     inference::{CandleInferenceEngine, InferenceEngine, InferenceRequest},
 };
 
-#[cfg(feature = "candle-cpu")]
 #[tokio::test]
 async fn test_llama31_pipeline_components_validation() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔧 PIPELINE VALIDATION: Llama 3.1 Components Test");
@@ -251,7 +249,6 @@ async fn test_llama31_pipeline_components_validation() -> Result<(), Box<dyn std
     Ok(())
 }
 
-#[cfg(feature = "candle-cpu")]
 #[tokio::test]
 async fn test_llama31_attempted_initialization() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 INITIALIZATION ATTEMPT: Llama 3.1 Model Loading");
@@ -343,7 +340,6 @@ async fn test_llama31_attempted_initialization() -> Result<(), Box<dyn std::erro
     Ok(())
 }
 
-#[cfg(not(feature = "candle-cpu"))]
 mod disabled_tests {
     #[tokio::test]
     async fn test_llama31_pipeline_validation_requires_candle_cpu() {

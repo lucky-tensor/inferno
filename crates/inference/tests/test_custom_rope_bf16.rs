@@ -1,6 +1,5 @@
 //! Test for custom RoPE implementation with BF16 support
 
-#[cfg(feature = "candle-cuda")]
 #[tokio::test]
 async fn test_custom_rope_bf16() -> Result<(), Box<dyn std::error::Error>> {
     println!("CUSTOM ROPE BF16 TEST");
@@ -135,7 +134,6 @@ async fn test_custom_rope_bf16() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(feature = "candle-cuda")]
 #[tokio::test]
 async fn test_custom_rope_f16() -> Result<(), Box<dyn std::error::Error>> {
     println!("CUSTOM ROPE F16 TEST");
@@ -179,7 +177,6 @@ async fn test_custom_rope_f16() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(not(feature = "candle-cuda"))]
 mod disabled_tests {
     #[tokio::test]
     async fn test_custom_rope_requires_cuda() {

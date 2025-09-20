@@ -170,7 +170,9 @@ impl InfernoLlama {
     ///
     /// This method first tries to load from model.safetensors.index.json (for sharded models),
     /// and if that fails, falls back to reading directly from model.safetensors (for single-file models).
-    pub fn get_weight_mapping_flexible<P: AsRef<Path>>(model_path: P) -> Result<HashMap<String, String>> {
+    pub fn get_weight_mapping_flexible<P: AsRef<Path>>(
+        model_path: P,
+    ) -> Result<HashMap<String, String>> {
         let model_path = model_path.as_ref();
 
         // First try to get sharded mapping
@@ -183,17 +185,21 @@ impl InfernoLlama {
                     // Read the single safetensors file to get all weight names
                     let buffer = fs::read(&single_file).map_err(|e| {
                         LlamaError::io_error(
-                            format!("Failed to read single SafeTensors file {:?}: {}", single_file, e),
+                            format!(
+                                "Failed to read single SafeTensors file {:?}: {}",
+                                single_file, e
+                            ),
                             "load_single_safetensors",
                         )
                     })?;
 
-                    let safetensors = safetensors::SafeTensors::deserialize(&buffer).map_err(|e| {
-                        LlamaError::config_error(
-                            "safetensors_format",
-                            format!("Failed to parse SafeTensors file: {}", e),
-                        )
-                    })?;
+                    let safetensors =
+                        safetensors::SafeTensors::deserialize(&buffer).map_err(|e| {
+                            LlamaError::config_error(
+                                "safetensors_format",
+                                format!("Failed to parse SafeTensors file: {}", e),
+                            )
+                        })?;
 
                     let mut mapping = HashMap::new();
                     for tensor_name in safetensors.names() {
@@ -202,7 +208,8 @@ impl InfernoLlama {
                     Ok(mapping)
                 } else {
                     Err(LlamaError::io_error(
-                        "No model.safetensors.index.json or model.safetensors file found".to_string(),
+                        "No model.safetensors.index.json or model.safetensors file found"
+                            .to_string(),
                         "find_safetensors_files",
                     ))
                 }
@@ -289,7 +296,6 @@ impl InfernoLlama {
 
         Ok(tensor)
     }
-
 
     /// Simple method to generate text (placeholder for now)
     pub fn generate(&self, prompt: &str, max_tokens: usize) -> Result<String> {

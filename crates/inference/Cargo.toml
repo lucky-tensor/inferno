@@ -34,18 +34,18 @@ validator = { workspace = true }
 # (removing feature complexity as requested)
 
 # Candle ML Framework for optimized inference (with CUDA 12.9 support)
-candle-core = { workspace = true }
-candle-nn = { workspace = true }
-candle-transformers = { workspace = true }
+candle-core = { workspace = true, optional = true }
+candle-nn = { workspace = true, optional = true }
+candle-transformers = { workspace = true, optional = true }
 
 # Shared dependencies for ML frameworks
-tokenizers = { workspace = true }
-hf-hub = { workspace = true }
-safetensors = { workspace = true }
-bytemuck = { workspace = true }
-half = { workspace = true }
+tokenizers = { workspace = true, optional = true }
+hf-hub = { workspace = true, optional = true }
+safetensors = { workspace = true, optional = true }
+bytemuck = { workspace = true, optional = true }
+half = { workspace = true, optional = true }
 
-# Burn ML Framework - commented out due to compilation issues
+# Burn ML Framework - commented out due to upstream compilation issues
 # burn = { workspace = true }
 # burn-import = { workspace = true }
 # llama-burn = { workspace = true }
@@ -59,6 +59,63 @@ serial_test = { workspace = true }
 tempfile = { workspace = true }
 rstest = { workspace = true }
 
+[features]
+default = ["candle-cuda", "pretrained"]
+test = ["candle-cpu"]  # Note: burn-cpu temporarily disabled
+pretrained = []
+
+# Burn ML Framework features (currently disabled due to compilation issues)
+# burn-cpu = [
+#     "burn/ndarray",
+#     "burn/autodiff",
+#     "dep:tokenizers",
+#     "hf-hub/tokio",
+#     "dep:safetensors",
+#     "dep:burn-import",
+#     "dep:llama-burn"
+# ]
+# For now, burn-cpu is a stub that enables candle-cpu instead
+burn-cpu = ["candle-cpu"]
+
+# Candle ML Framework features
+candle-cpu = [
+    "dep:candle-core",
+    "dep:candle-nn",
+    "dep:candle-transformers",
+    "dep:tokenizers",
+    "hf-hub/tokio",
+    "dep:safetensors",
+    "dep:bytemuck",
+    "dep:half"
+]
+
+candle-cuda = [
+    "dep:candle-core",
+    "dep:candle-nn",
+    "dep:candle-transformers",
+    "dep:tokenizers",
+    "hf-hub/tokio",
+    "dep:safetensors",
+    "dep:bytemuck",
+    "dep:half",
+    "candle-core/cuda",
+    "candle-nn/cuda",
+    "candle-transformers/cuda"
+]
+
+candle-metal = [
+    "dep:candle-core",
+    "dep:candle-nn",
+    "dep:candle-transformers",
+    "dep:tokenizers",
+    "hf-hub/tokio",
+    "dep:safetensors",
+    "dep:bytemuck",
+    "dep:half",
+    "candle-core/metal",
+    "candle-nn/metal",
+    "candle-transformers/metal"
+]
 
 # Benchmarks will be added in later phases
 # [[bench]]

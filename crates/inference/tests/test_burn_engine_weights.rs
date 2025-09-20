@@ -1,12 +1,10 @@
 //! Test BurnInferenceEngine with real pre-trained weights
 
-#[cfg(feature = "burn-cpu")]
 use inferno_inference::{
     config::InfernoConfig,
     inference::{BurnInferenceEngine, InferenceRequest},
 };
 
-#[cfg(feature = "burn-cpu")]
 #[tokio::test]
 async fn test_burn_engine_real_weights() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Testing BurnInferenceEngine with real TinyLlama pre-trained weights");

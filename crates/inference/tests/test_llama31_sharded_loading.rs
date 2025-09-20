@@ -6,7 +6,6 @@
 use std::env;
 use std::path::PathBuf;
 
-#[cfg(feature = "candle-cpu")]
 #[tokio::test]
 async fn test_llama31_sharded_model_detection() -> Result<(), Box<dyn std::error::Error>> {
     println!("Testing Llama 3.1 sharded model detection");
@@ -70,7 +69,6 @@ async fn test_llama31_sharded_model_detection() -> Result<(), Box<dyn std::error
     Ok(())
 }
 
-#[cfg(feature = "candle-cpu")]
 #[tokio::test]
 async fn test_llama31_tokenizer_special_tokens() -> Result<(), Box<dyn std::error::Error>> {
     println!("Testing Llama 3.1 tokenizer special token mappings");
@@ -149,7 +147,6 @@ async fn test_llama31_tokenizer_special_tokens() -> Result<(), Box<dyn std::erro
     Ok(())
 }
 
-#[cfg(feature = "candle-cpu")]
 #[tokio::test]
 async fn test_llama31_candle_sharding_detection() -> Result<(), Box<dyn std::error::Error>> {
     println!("Testing Llama 3.1 Candle sharding detection");
@@ -280,7 +277,7 @@ async fn test_llama31_model_index_parsing() -> Result<(), Box<dyn std::error::Er
 }
 
 // Test actual tokenizer loading using our CandleTokenizer implementation
-#[cfg(feature = "candle-cpu")]
+
 #[tokio::test]
 async fn test_llama31_tokenizer_loading() -> Result<(), Box<dyn std::error::Error>> {
     use inferno_inference::inference::candle::tokenizer::CandleTokenizer;
@@ -364,7 +361,7 @@ async fn test_llama31_tokenizer_loading() -> Result<(), Box<dyn std::error::Erro
 }
 
 // Test that sharding detection logic works correctly (without full model loading)
-#[cfg(feature = "candle-cpu")]
+
 #[tokio::test]
 async fn test_llama31_sharding_logic_verification() -> Result<(), Box<dyn std::error::Error>> {
     println!("Testing Llama 3.1 sharding logic verification");

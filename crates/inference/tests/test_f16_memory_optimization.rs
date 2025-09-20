@@ -1,6 +1,5 @@
 //! Test to verify F16 memory optimization for GPU inference
 
-#[cfg(feature = "candle-cuda")]
 #[tokio::test]
 async fn test_f16_gpu_memory_optimization() -> Result<(), Box<dyn std::error::Error>> {
     println!("F16 MEMORY OPTIMIZATION TEST");
@@ -52,7 +51,6 @@ async fn test_f16_gpu_memory_optimization() -> Result<(), Box<dyn std::error::Er
     Ok(())
 }
 
-#[cfg(feature = "candle-cuda")]
 #[tokio::test]
 async fn test_precision_impact_analysis() -> Result<(), Box<dyn std::error::Error>> {
     println!("PRECISION IMPACT ANALYSIS");
@@ -80,7 +78,6 @@ async fn test_precision_impact_analysis() -> Result<(), Box<dyn std::error::Erro
     Ok(())
 }
 
-#[cfg(not(feature = "candle-cuda"))]
 mod disabled_tests {
     #[tokio::test]
     async fn test_f16_optimization_requires_cuda() {

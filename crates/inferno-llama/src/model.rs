@@ -134,21 +134,26 @@ impl InfernoLlama {
         let dtype = vb.dtype();
 
         // Initialize token embeddings (using HuggingFace naming convention)
-        let embed_tokens =
-            candle_nn::embedding(config.vocab_size, config.dim, vb.pp("model").pp("embed_tokens")).map_err(
-                |e| {
-                    LlamaError::tensor_error(
-                        format!("Failed to create token embeddings: {}", e),
-                        "model_init",
-                    )
-                },
-            )?;
+        let embed_tokens = candle_nn::embedding(
+            config.vocab_size,
+            config.dim,
+            vb.pp("model").pp("embed_tokens"),
+        )
+        .map_err(|e| {
+            LlamaError::tensor_error(
+                format!("Failed to create token embeddings: {}", e),
+                "model_init",
+            )
+        })?;
 
         // Initialize transformer blocks (using HuggingFace naming convention)
         let mut layers = Vec::with_capacity(config.n_layers);
         for layer_idx in 0..config.n_layers {
-            let layer =
-                TransformerBlock::new(layer_idx, config, vb.pp("model").pp(format!("layers.{}", layer_idx)))?;
+            let layer = TransformerBlock::new(
+                layer_idx,
+                config,
+                vb.pp("model").pp(format!("layers.{}", layer_idx)),
+            )?;
             layers.push(layer);
         }
 
@@ -156,8 +161,8 @@ impl InfernoLlama {
         let norm = RMSNorm::from_config(config, vb.pp("model").pp("norm"))?;
 
         // Initialize output projection (language modeling head, no bias)
-        let lm_head =
-            candle_nn::linear_no_bias(config.dim, config.vocab_size, vb.pp("lm_head")).map_err(|e| {
+        let lm_head = candle_nn::linear_no_bias(config.dim, config.vocab_size, vb.pp("lm_head"))
+            .map_err(|e| {
                 LlamaError::tensor_error(
                     format!("Failed to create output projection: {}", e),
                     "model_init",

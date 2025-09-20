@@ -1,4 +1,3 @@
-#[cfg(feature = "burn-cpu")]
 mod tests {
     use burn::{
         backend::ndarray::NdArray,

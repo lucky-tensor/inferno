@@ -8,7 +8,7 @@ repository.workspace = true
 description = "Cost optimization and resource governance component of Inferno distributed systems"
 
 [dependencies]
-inferno-shared = { path = "../shared" }
+inferno-shared = { workspace = true }
 
 # Core dependencies
 tokio = { workspace = true }

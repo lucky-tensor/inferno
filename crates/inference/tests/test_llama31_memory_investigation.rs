@@ -6,7 +6,6 @@
 use std::env;
 use std::process::Command;
 
-#[cfg(feature = "candle-cuda")]
 use inferno_inference::{
     config::InfernoConfig,
     inference::{CandleInferenceEngine, InferenceEngine},
@@ -34,7 +33,6 @@ fn get_gpu_memory_mb() -> Option<(u32, u32, u32)> {
     }
 }
 
-#[cfg(feature = "candle-cuda")]
 #[tokio::test]
 async fn test_llama31_memory_usage_investigation() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔍 MEMORY INVESTIGATION: Llama 3.1 Loading Analysis");
@@ -235,7 +233,6 @@ async fn test_llama31_memory_usage_investigation() -> Result<(), Box<dyn std::er
     Ok(())
 }
 
-#[cfg(feature = "candle-cuda")]
 #[tokio::test]
 async fn test_memory_allocation_patterns() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔬 MEMORY PATTERNS: Understanding Candle Memory Allocation");
@@ -278,7 +275,6 @@ async fn test_memory_allocation_patterns() -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
-#[cfg(not(feature = "candle-cuda"))]
 mod disabled_tests {
     #[tokio::test]
     async fn test_memory_investigation_requires_cuda() {

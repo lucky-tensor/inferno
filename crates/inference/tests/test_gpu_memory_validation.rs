@@ -2,16 +2,13 @@
 
 use std::env;
 
-#[cfg(feature = "candle-cuda")]
 use inferno_inference::{
     config::InfernoConfig,
     inference::{CandleInferenceEngine, InferenceEngine},
 };
 
-#[cfg(feature = "candle-cuda")]
 use inferno_shared::{monitor_model_loading, validate_and_display_model_memory, GpuDiagnostics};
 
-#[cfg(feature = "candle-cuda")]
 #[tokio::test]
 async fn test_memory_validation_system_integration() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔬 GPU MEMORY VALIDATION SYSTEM TEST");
@@ -106,7 +103,6 @@ async fn test_memory_validation_system_integration() -> Result<(), Box<dyn std::
     Ok(())
 }
 
-#[cfg(feature = "candle-cuda")]
 #[tokio::test]
 async fn test_memory_monitoring_during_simulation() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔍 MEMORY MONITORING SIMULATION");
@@ -148,7 +144,6 @@ async fn test_memory_monitoring_during_simulation() -> Result<(), Box<dyn std::e
     Ok(())
 }
 
-#[cfg(not(feature = "candle-cuda"))]
 mod disabled_tests {
     #[tokio::test]
     async fn test_memory_validation_requires_cuda() {

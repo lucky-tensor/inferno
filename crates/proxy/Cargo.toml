@@ -8,7 +8,7 @@ repository.workspace = true
 description = "High-performance reverse proxy component of Inferno distributed systems"
 
 [dependencies]
-inferno-shared = { path = "../shared" }
+inferno-shared = { workspace = true }
 
 # Pingora dependencies
 pingora-core = { workspace = true }
@@ -23,7 +23,7 @@ async-trait = { workspace = true }
 clap = { workspace = true }
 
 [dev-dependencies]
-inferno-shared = { path = "../shared" }
+inferno-shared = { workspace = true }
 criterion = { workspace = true }
 tokio-test = { workspace = true }
 proptest = { workspace = true }

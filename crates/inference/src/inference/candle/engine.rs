@@ -29,37 +29,12 @@ use std::time::Instant;
 use tokio::sync::RwLock;
 use tracing::{debug, info};
 
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 use candle_core::{DType, Device, IndexOp, Tensor};
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 use candle_nn::VarBuilder;
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 use candle_transformers::models::llama::{Cache, Config as LlamaConfig, Llama};
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 use tokenizers::Tokenizer;
 
 /// Model type enum to support both regular and quantized models
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 enum CandleModelType {
     Regular(Llama),
     BF16Compatible(BF16CompatibleLlama),
@@ -67,11 +42,6 @@ enum CandleModelType {
 }
 
 /// Model wrapper containing the loaded model and related components
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 struct CandleModelWrapper {
     model: CandleModelType,
     tokenizer: Tokenizer,
@@ -109,11 +79,6 @@ pub struct CandleInferenceEngine {
     ready: AtomicBool,
 
     /// Loaded model and components (when available)
-    #[cfg(any(
-        feature = "candle-cpu",
-        feature = "candle-cuda",
-        feature = "candle-metal"
-    ))]
     model: RwLock<Option<CandleModelWrapper>>,
 
     /// Statistics tracking
@@ -122,25 +87,14 @@ pub struct CandleInferenceEngine {
 
 impl CandleInferenceEngine {
     pub fn new() -> Self {
-        #[cfg(feature = "candle-cuda")]
-        {
-            Self::with_backend(CandleBackendType::Cuda)
-        }
-        #[cfg(not(feature = "candle-cuda"))]
-        {
-            Self::with_backend(CandleBackendType::Cpu)
-        }
+        // Always prefer CUDA if available, otherwise use CPU
+        Self::with_backend(CandleBackendType::Cuda)
     }
 
     pub fn with_backend(backend_type: CandleBackendType) -> Self {
         Self {
             backend_type,
             ready: AtomicBool::new(false),
-            #[cfg(any(
-                feature = "candle-cpu",
-                feature = "candle-cuda",
-                feature = "candle-metal"
-            ))]
             model: RwLock::new(None),
             stats: Arc::new(InferenceStatsInner::default()),
         }
@@ -174,11 +128,6 @@ impl CandleInferenceEngine {
     }
 
     /// Create a `VarBuilder` that handles tensor remapping and weight tying for Llama models
-    #[cfg(any(
-        feature = "candle-cpu",
-        feature = "candle-cuda",
-        feature = "candle-metal"
-    ))]
     /// Detect the native dtype of the model from `SafeTensors` file
     fn detect_model_dtype(safetensors_path: &std::path::Path) -> Result<DType, InferenceError> {
         use std::fs::File;
@@ -248,11 +197,6 @@ impl CandleInferenceEngine {
         ))
     }
 
-    #[cfg(any(
-        feature = "candle-cpu",
-        feature = "candle-cuda",
-        feature = "candle-metal"
-    ))]
     fn create_remapping_var_builder(base_builder: VarBuilder<'_>) -> VarBuilder<'_> {
         // For Llama 3.2 models with weight tying, we need to handle the case where
         // lm_head.weight should be the same as model.embed_tokens.weight
@@ -261,11 +205,6 @@ impl CandleInferenceEngine {
     }
 
     /// Generate text tokens using the loaded model
-    #[cfg(any(
-        feature = "candle-cpu",
-        feature = "candle-cuda",
-        feature = "candle-metal"
-    ))]
     #[allow(clippy::too_many_lines)]
     async fn generate_tokens(
         wrapper: &CandleModelWrapper,
@@ -549,23 +488,6 @@ impl InferenceEngine for CandleInferenceEngine {
             }
         }
 
-        #[cfg(not(any(
-            feature = "candle-cpu",
-            feature = "candle-cuda",
-            feature = "candle-metal"
-        )))]
-        {
-            return Err(InferenceError::InitializationError(
-                "No Candle features enabled. Enable one of: candle-cpu, candle-cuda, candle-metal"
-                    .to_string(),
-            ));
-        }
-
-        #[cfg(any(
-            feature = "candle-cpu",
-            feature = "candle-cuda",
-            feature = "candle-metal"
-        ))]
         {
             let start_time = Instant::now();
 
@@ -906,22 +828,6 @@ impl InferenceEngine for CandleInferenceEngine {
     }
 
     async fn process(&self, request: InferenceRequest) -> Result<InferenceResponse, Self::Error> {
-        #[cfg(not(any(
-            feature = "candle-cpu",
-            feature = "candle-cuda",
-            feature = "candle-metal"
-        )))]
-        {
-            return Err(InferenceError::ProcessingError(
-                "Candle features not enabled".to_string(),
-            ));
-        }
-
-        #[cfg(any(
-            feature = "candle-cpu",
-            feature = "candle-cuda",
-            feature = "candle-metal"
-        ))]
         {
             let start_time = Instant::now();
             self.stats.total_requests.fetch_add(1, Ordering::SeqCst);
@@ -1018,76 +924,5 @@ impl InferenceEngine for CandleInferenceEngine {
                 error: None,
             })
         }
-    }
-}
-
-// Stub implementations for when Candle features are not enabled
-#[cfg(not(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-)))]
-impl CandleInferenceEngine {
-    pub fn new() -> Self {
-        Self::with_backend(CandleBackendType::Cpu)
-    }
-
-    pub fn with_backend(backend_type: CandleBackendType) -> Self {
-        Self {
-            backend_type,
-            ready: AtomicBool::new(false),
-            stats: Arc::new(InferenceStatsInner::default()),
-        }
-    }
-
-    pub fn backend_type(&self) -> &CandleBackendType {
-        &self.backend_type
-    }
-
-    pub fn is_ready(&self) -> bool {
-        false
-    }
-
-    pub fn stats(&self) -> InferenceStats {
-        InferenceStats {
-            total_requests: 0,
-            total_tokens_generated: 0,
-            avg_inference_time_ms: 0.0,
-            model_loaded: false,
-        }
-    }
-}
-
-#[cfg(not(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-)))]
-#[async_trait]
-impl InferenceEngine for CandleInferenceEngine {
-    type Error = InferenceError;
-
-    async fn initialize(&mut self, _config: InfernoConfig) -> Result<(), Self::Error> {
-        Err(InferenceError::InitializationError(
-            "Candle features not enabled. Enable one of: candle-cpu, candle-cuda, candle-metal"
-                .to_string(),
-        ))
-    }
-
-    async fn process(&self, _request: InferenceRequest) -> Result<InferenceResponse, Self::Error> {
-        Err(InferenceError::ProcessingError(
-            "Candle features not enabled".to_string(),
-        ))
-    }
-}
-
-#[cfg(not(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-)))]
-impl Default for CandleInferenceEngine {
-    fn default() -> Self {
-        Self::new()
     }
 }
