@@ -34,6 +34,7 @@ pub mod candle_extensions;
 pub mod config;
 pub mod diagnostic;
 pub mod error;
+pub mod factory;
 pub mod feed_forward;
 pub mod loader;
 pub mod model;
@@ -53,6 +54,7 @@ pub use diagnostic::{
     QuantizationConfig as DiagnosticQuantizationConfig, QuantizationScheme, WeightAnalyzer,
 };
 pub use error::{LlamaError, Result};
+pub use factory::UnifiedModelFactory;
 pub use feed_forward::FeedForward;
 pub use loader::ModelLoader;
 pub use model::InfernoLlama;

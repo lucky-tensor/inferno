@@ -47,9 +47,9 @@ impl CandleTokenizer {
                 if let Some(added_tokens) = config.get("added_tokens_decoder") {
                     if let Some(tokens_obj) = added_tokens.as_object() {
                         // Look for high-numbered tokens (128xxx) that are specific to Llama 3.1
-                        let has_llama31_tokens = tokens_obj.keys().any(|key| {
-                            key.parse::<u32>().map_or(false, |id| id >= 128000)
-                        });
+                        let has_llama31_tokens = tokens_obj
+                            .keys()
+                            .any(|key| key.parse::<u32>().map_or(false, |id| id >= 128000));
                         if has_llama31_tokens {
                             info!("Detected Llama 3.1 model with high-numbered special tokens, using enhanced tokenizer loading");
                             return Self::create_llama31_compatible_tokenizer(

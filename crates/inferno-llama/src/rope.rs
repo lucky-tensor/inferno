@@ -173,9 +173,18 @@ pub fn apply_rotary_emb(
         ));
     }
 
-    // For tensor format [batch_size, seq_len, num_heads, head_dim]
-    let seq_len = tensor_shape[tensor_rank - 3];
-    let head_dim = tensor_shape[tensor_rank - 1];
+    // Handle tensor format [batch_size, num_heads, seq_len, head_dim] (standard attention format)
+    if tensor_rank != 4 {
+        return Err(LlamaError::dimension_error(
+            "apply_rotary_emb",
+            vec![0, 0, 0, 0], // Expected 4D tensor
+            tensor_shape.to_vec(),
+        ));
+    }
+
+    // Extract dimensions from [batch_size, num_heads, seq_len, head_dim]
+    let seq_len = tensor_shape[2];
+    let head_dim = tensor_shape[3];
 
     // Validate head_dim is even
     if head_dim % 2 != 0 {
@@ -226,18 +235,19 @@ pub fn apply_rotary_emb(
     // Then split the last dimension into pairs for rotation
 
     // Split the head dimension into two halves for complex rotation
-    let x1 = tensor.narrow(tensor_rank - 1, 0, half_head_dim)?;
-    let x2 = tensor.narrow(tensor_rank - 1, half_head_dim, half_head_dim)?;
+    // For format [batch, num_heads, seq_len, head_dim], split last dimension
+    let x1 = tensor.narrow(3, 0, half_head_dim)?;
+    let x2 = tensor.narrow(3, half_head_dim, half_head_dim)?;
 
     // Expand frequency tensors to match tensor dimensions
     // cos_selected and sin_selected are [seq_len, half_head_dim]
-    // We need to broadcast them to [..., seq_len, num_heads, half_head_dim]
+    // We need to broadcast them to [batch, num_heads, seq_len, half_head_dim]
 
     let mut target_shape = tensor_shape.to_vec();
-    target_shape[tensor_rank - 1] = half_head_dim; // Replace head_dim with half_head_dim
+    target_shape[3] = half_head_dim; // Replace head_dim with half_head_dim
 
-    let cos_expanded = expand_frequencies(&cos_selected, &target_shape, tensor_rank)?;
-    let sin_expanded = expand_frequencies(&sin_selected, &target_shape, tensor_rank)?;
+    let cos_expanded = expand_frequencies(&cos_selected, &target_shape)?;
+    let sin_expanded = expand_frequencies(&sin_selected, &target_shape)?;
 
     // Apply rotation:
     // x1' = x1 * cos - x2 * sin
@@ -251,7 +261,8 @@ pub fn apply_rotary_emb(
     let x2_rotated = x1_sin.add(&x2_cos)?;
 
     // Concatenate the rotated halves back together
-    let rotated = Tensor::cat(&[x1_rotated, x2_rotated], tensor_rank - 1)?;
+    // For format [batch, num_heads, seq_len, head_dim], concatenate on last dimension
+    let rotated = Tensor::cat(&[x1_rotated, x2_rotated], 3)?;
 
     Ok(rotated)
 }
@@ -259,12 +270,8 @@ pub fn apply_rotary_emb(
 /// Helper function to expand frequency tensors to match input tensor dimensions.
 ///
 /// This function broadcasts 2D frequency tensors [seq_len, half_head_dim] to match
-/// the target tensor shape [..., seq_len, num_heads, half_head_dim].
-fn expand_frequencies(
-    freq_tensor: &Tensor,
-    target_shape: &[usize],
-    tensor_rank: usize,
-) -> Result<Tensor> {
+/// the target tensor shape [batch, num_heads, seq_len, half_head_dim].
+fn expand_frequencies(freq_tensor: &Tensor, target_shape: &[usize]) -> Result<Tensor> {
     let freq_shape = freq_tensor.dims();
 
     if freq_shape.len() != 2 {
@@ -277,10 +284,8 @@ fn expand_frequencies(
     let seq_len = freq_shape[0];
     let half_head_dim = freq_shape[1];
 
-    // Build the expansion shape: [1, seq_len, 1, half_head_dim] for tensor format [batch, seq_len, num_heads, head_dim]
-    let mut expand_shape = vec![1; tensor_rank];
-    expand_shape[tensor_rank - 3] = seq_len; // seq_len dimension (index 1 for rank 4)
-    expand_shape[tensor_rank - 1] = half_head_dim; // half_head_dim dimension (index 3 for rank 4)
+    // Build the expansion shape: [1, 1, seq_len, half_head_dim] for tensor format [batch, num_heads, seq_len, head_dim]
+    let expand_shape = vec![1, 1, seq_len, half_head_dim];
 
     let expanded = freq_tensor.reshape(expand_shape)?;
     let broadcasted = expanded.broadcast_as(target_shape)?;
@@ -404,8 +409,8 @@ mod tests {
         let (cos_freqs, sin_freqs) =
             precompute_freqs_cis(dim, seq_len * 2, 10000.0, DType::F32, &device)?;
 
-        // Create test tensor [batch_size, seq_len, num_heads, head_dim]
-        let tensor = Tensor::randn(0.0, 1.0, (batch_size, seq_len, num_heads, dim), &device)?
+        // Create test tensor [batch_size, num_heads, seq_len, head_dim] (attention format)
+        let tensor = Tensor::randn(0.0, 1.0, (batch_size, num_heads, seq_len, dim), &device)?
             .to_dtype(DType::F32)?;
 
         // Apply RoPE
@@ -513,14 +518,14 @@ mod tests {
         let tensor_odd = Tensor::randn(0.0, 1.0, (1, 4, 2, 31), &device)?.to_dtype(DType::F32)?;
         assert!(apply_rotary_emb(&tensor_odd, &cos_freqs, &sin_freqs, 0).is_err());
 
-        // Sequence too long should fail
+        // Sequence too long should fail - format [batch, num_heads, seq_len, head_dim]
         let tensor_long =
-            Tensor::randn(0.0, 1.0, (1, 20, 2, dim), &device)?.to_dtype(DType::F32)?;
+            Tensor::randn(0.0, 1.0, (1, 2, 20, dim), &device)?.to_dtype(DType::F32)?;
         assert!(apply_rotary_emb(&tensor_long, &cos_freqs, &sin_freqs, 0).is_err());
 
-        // Offset too large should fail
+        // Offset too large should fail - format [batch, num_heads, seq_len, head_dim]
         let tensor_normal =
-            Tensor::randn(0.0, 1.0, (1, 4, 2, dim), &device)?.to_dtype(DType::F32)?;
+            Tensor::randn(0.0, 1.0, (1, 2, 4, dim), &device)?.to_dtype(DType::F32)?;
         assert!(apply_rotary_emb(&tensor_normal, &cos_freqs, &sin_freqs, 15).is_err());
 
         Ok(())

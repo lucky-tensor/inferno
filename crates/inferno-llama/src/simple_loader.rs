@@ -18,10 +18,10 @@ use crate::model::InfernoLlama;
 impl InfernoLlama {
     /// Loads a pre-trained Llama model from the specified path using a simple approach.
     ///
-    /// This is a simplified loader that focuses on getting basic model loading working
-    /// for testing purposes. It may not be optimal for production use but serves to
-    /// validate the core functionality.
-    pub fn load_from_path<P: AsRef<Path>>(model_path: P) -> Result<Self> {
+    /// NOTE: This method has been replaced by the real load_from_path implementation
+    /// in model.rs that includes weight analysis and dtype preservation.
+    /// This method is kept for reference but renamed to avoid conflicts.
+    pub fn load_from_path_simple<P: AsRef<Path>>(model_path: P) -> Result<Self> {
         let model_path = model_path.as_ref();
 
         // Load configuration
@@ -351,6 +351,11 @@ impl InfernoLlama {
             .ok_or_else(|| LlamaError::config_error("vocab_size", "Must be a number"))?
             as usize;
 
+        let intermediate_size = config
+            .get("intermediate_size")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(11008) as usize; // Default for most Llama models
+
         let rms_norm_eps = config
             .get("rms_norm_eps")
             .and_then(|v| v.as_f64())
@@ -368,6 +373,7 @@ impl InfernoLlama {
             n_kv_heads,
             vocab_size,
             ffn_dim_multiplier: None, // We calculate from intermediate_size
+            intermediate_size: intermediate_size, // Use extracted value
             multiple_of: 256,         // Standard value
             norm_eps: rms_norm_eps,
             rope_theta,

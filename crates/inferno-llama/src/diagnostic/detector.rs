@@ -7,9 +7,21 @@ use crate::candle_extensions::llama_models::GenericLlamaConfig;
 use std::path::Path;
 
 /// Main model detection engine
+#[derive(Debug)]
 pub struct ModelDetector;
 
+impl Default for ModelDetector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ModelDetector {
+    /// Create a new ModelDetector
+    pub fn new() -> Self {
+        Self
+    }
+
     /// Detect model variant from a model directory
     ///
     /// Analyzes config.json, model files, and directory structure

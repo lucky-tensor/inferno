@@ -141,17 +141,30 @@ impl BF16CompatibleLlama {
         start_pos: usize,
         cache: &mut Cache,
     ) -> Result<Tensor> {
-        debug!("Attempting native forward pass with dtype: {:?}", self.original_dtype);
+        debug!(
+            "Attempting native forward pass with dtype: {:?}",
+            self.original_dtype
+        );
 
         // Use embedding approach to bypass direct forward() RoPE issues
         // Step 1: Get embeddings (should work fine)
         let embeddings = self.model.embed(input_ids)?;
-        debug!("Embeddings shape: {:?}, dtype: {:?}", embeddings.dims(), embeddings.dtype());
+        debug!(
+            "Embeddings shape: {:?}, dtype: {:?}",
+            embeddings.dims(),
+            embeddings.dtype()
+        );
 
         // Step 2: Forward through transformer blocks using forward_input_embed
         // This method processes embeddings through all transformer layers
-        let logits = self.model.forward_input_embed(&embeddings, start_pos, cache)?;
-        debug!("Forward pass completed, logits shape: {:?}, dtype: {:?}", logits.dims(), logits.dtype());
+        let logits = self
+            .model
+            .forward_input_embed(&embeddings, start_pos, cache)?;
+        debug!(
+            "Forward pass completed, logits shape: {:?}, dtype: {:?}",
+            logits.dims(),
+            logits.dtype()
+        );
 
         Ok(logits)
     }

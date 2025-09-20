@@ -815,8 +815,13 @@ impl InferenceEngine for CandleInferenceEngine {
                 //
                 // Handle model precision with transparency about current limitations
                 let storage_dtype = detected_dtype;
-                let inference_dtype = if detected_dtype == DType::BF16 || detected_dtype == DType::F16 {
-                    info!("Model native format: {:?} (weights stored efficiently)", storage_dtype);
+                let inference_dtype = if detected_dtype == DType::BF16
+                    || detected_dtype == DType::F16
+                {
+                    info!(
+                        "Model native format: {:?} (weights stored efficiently)",
+                        storage_dtype
+                    );
                     info!("Current limitation: candle-transformers RoPE operations require F32");
                     info!("Using F32 inference precision until upstream BF16/F16 RoPE support is added");
                     DType::F32
@@ -852,15 +857,20 @@ impl InferenceEngine for CandleInferenceEngine {
                 // Use custom BF16CompatibleLlama for BF16/F16 models with native precision
                 if dtype == DType::BF16 || dtype == DType::F16 {
                     info!("Using BF16CompatibleLlama with custom RoPE implementation for native {:?} precision", dtype);
-                    let bf16_model = BF16CompatibleLlama::new(llama_model, llama_config.clone(), &device).map_err(|e| {
-                        InferenceError::InitializationError(format!(
-                            "Failed to create BF16-compatible model: {}",
-                            e
-                        ))
-                    })?;
+                    let bf16_model =
+                        BF16CompatibleLlama::new(llama_model, llama_config.clone(), &device)
+                            .map_err(|e| {
+                                InferenceError::InitializationError(format!(
+                                    "Failed to create BF16-compatible model: {}",
+                                    e
+                                ))
+                            })?;
                     CandleModelType::BF16Compatible(bf16_model)
                 } else {
-                    info!("Using standard Llama model for native {:?} precision", dtype);
+                    info!(
+                        "Using standard Llama model for native {:?} precision",
+                        dtype
+                    );
                     CandleModelType::Regular(llama_model)
                 }
             };
@@ -962,7 +972,10 @@ impl InferenceEngine for CandleInferenceEngine {
                     )));
                 }
             }
-            debug!("Token ID validation passed - all tokens within vocab_size {}", vocab_size);
+            debug!(
+                "Token ID validation passed - all tokens within vocab_size {}",
+                vocab_size
+            );
 
             // Generate tokens
             let max_tokens = (request.max_tokens.min(512)) as usize; // Cap at 512 for safety

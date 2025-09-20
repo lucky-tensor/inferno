@@ -251,7 +251,19 @@ impl MultiHeadAttention {
         };
 
         // Compute attention scores: Q @ K^T / sqrt(head_dim)
-        let scores = xq.matmul(&xk.transpose(2, 3)?)?;
+        // Handle BF16/F16 precision limitations on CPU by converting to F32 for matmul
+        let scores = if (self.dtype == DType::BF16 || self.dtype == DType::F16)
+            && matches!(self.device, Device::Cpu)
+        {
+            // Convert to F32 for matmul, then back to original dtype
+            let xq_f32 = xq.to_dtype(DType::F32)?;
+            let xk_f32 = xk.to_dtype(DType::F32)?;
+            let scores_f32 = xq_f32.matmul(&xk_f32.transpose(2, 3)?)?;
+            scores_f32.to_dtype(self.dtype)?
+        } else {
+            xq.matmul(&xk.transpose(2, 3)?)?
+        };
+
         let scale = 1.0 / (self.head_dim as f64).sqrt();
         let scores = (scores * scale)?;
 
@@ -266,7 +278,18 @@ impl MultiHeadAttention {
         let attention_weights = candle_nn::ops::softmax_last_dim(&scores)?;
 
         // Apply attention to values: attention_weights @ V
-        let output = attention_weights.matmul(&xv)?;
+        // Handle BF16/F16 precision limitations on CPU
+        let output = if (self.dtype == DType::BF16 || self.dtype == DType::F16)
+            && matches!(self.device, Device::Cpu)
+        {
+            // Convert to F32 for matmul, then back to original dtype
+            let attention_f32 = attention_weights.to_dtype(DType::F32)?;
+            let xv_f32 = xv.to_dtype(DType::F32)?;
+            let output_f32 = attention_f32.matmul(&xv_f32)?;
+            output_f32.to_dtype(self.dtype)?
+        } else {
+            attention_weights.matmul(&xv)?
+        };
 
         // Concatenate heads: [B, H, L, Hd] -> [B, L, H*Hd]
         let output =

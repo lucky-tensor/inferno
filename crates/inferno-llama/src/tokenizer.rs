@@ -106,7 +106,7 @@ impl TokenizedInfernoLlama {
     /// Load a model and tokenizer from a directory path
     pub async fn load_from_path(model_path: &str) -> Result<Self> {
         // Load the model
-        let model = crate::InfernoLlama::load_from_path(model_path)?;
+        let model = crate::InfernoLlama::load_from_path(model_path).await?;
 
         // Load the tokenizer
         let tokenizer = load_tokenizer_from_path(model_path).await?;

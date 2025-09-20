@@ -15,7 +15,7 @@ pub mod weight_analyzer;
 pub use config_parser::ConfigParser;
 pub use detector::ModelDetector;
 pub use memory_estimator::MemoryEstimator;
-pub use weight_analyzer::WeightAnalyzer;
+pub use weight_analyzer::{WeightAnalysisResult, WeightAnalyzer};
 
 use candle_core::DType;
 use serde::{Deserialize, Serialize};
@@ -34,6 +34,18 @@ pub enum QuantizationScheme {
     CompressedTensors(String),
     /// Custom quantization scheme
     Custom(String),
+}
+
+impl std::fmt::Display for QuantizationScheme {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            QuantizationScheme::None => write!(f, "None"),
+            QuantizationScheme::W8A8 => write!(f, "W8A8"),
+            QuantizationScheme::W4A16 => write!(f, "W4A16"),
+            QuantizationScheme::CompressedTensors(scheme) => write!(f, "CompressedTensors({})", scheme),
+            QuantizationScheme::Custom(scheme) => write!(f, "Custom({})", scheme),
+        }
+    }
 }
 
 /// Quantization configuration metadata

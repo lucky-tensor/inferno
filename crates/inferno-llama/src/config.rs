@@ -44,6 +44,10 @@ pub struct LlamaConfig {
     /// If None, calculated from dim and multiple_of
     pub ffn_dim_multiplier: Option<f32>,
 
+    /// Intermediate size for feed-forward network
+    /// Explicit FFN dimension (common in modern configs)
+    pub intermediate_size: usize,
+
     /// Normalization epsilon for RMSNorm
     pub norm_eps: f32,
 
@@ -84,6 +88,7 @@ impl LlamaConfig {
             vocab_size,
             multiple_of: 256,
             ffn_dim_multiplier: None,
+            intermediate_size: 11008, // Common Llama default
             norm_eps: 1e-6,
             max_seq_len: 2048,
             rope_theta: 10_000.0,
@@ -111,6 +116,7 @@ impl LlamaConfig {
             vocab_size: 128256,
             multiple_of: 1024,
             ffn_dim_multiplier: Some(1.3),
+            intermediate_size: 14336, // Llama 3.1 8B specific
             norm_eps: 1e-5,
             max_seq_len: 131072, // 128k context
             rope_theta: 500_000.0,
@@ -403,5 +409,216 @@ mod tests {
         let deserialized: LlamaConfig = serde_json::from_str(&json).unwrap();
 
         assert_eq!(config, deserialized);
+    }
+}
+
+impl LlamaConfig {
+    /// Create LlamaConfig from a JSON value
+    ///
+    /// This method parses various JSON configuration formats commonly used by
+    /// different Llama implementations and converts them to a unified LlamaConfig.
+    ///
+    /// # Arguments
+    ///
+    /// * `json_value` - JSON configuration object
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result<LlamaConfig>` containing the parsed configuration,
+    /// or an error if parsing fails or configuration is invalid.
+    ///
+    /// # Supported Formats
+    ///
+    /// This method handles various configuration formats:
+    /// - HuggingFace transformers config format
+    /// - Meta's original Llama config format
+    /// - Various quantized model configurations
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use inferno_llama::LlamaConfig;
+    /// use serde_json::json;
+    ///
+    /// let config_json = json!({
+    ///     "hidden_size": 4096,
+    ///     "num_hidden_layers": 32,
+    ///     "num_attention_heads": 32,
+    ///     "vocab_size": 128256
+    /// });
+    ///
+    /// let config = LlamaConfig::from_json_value(config_json)?;
+    /// # Ok::<(), inferno_llama::LlamaError>(())
+    /// ```
+    pub fn from_json_value(json: serde_json::Value) -> Result<Self> {
+        use serde_json::Value;
+
+        let obj = json.as_object().ok_or_else(|| {
+            LlamaError::config_error(
+                "config_format",
+                "Configuration must be a JSON object".to_string(),
+            )
+        })?;
+
+        // Extract required fields with fallbacks for different naming conventions
+        let dim = Self::extract_dimension(obj)?;
+        let n_layers = Self::extract_num_layers(obj)?;
+        let n_heads = Self::extract_num_heads(obj)?;
+        let vocab_size = Self::extract_vocab_size(obj)?;
+
+        // Extract optional fields
+        let n_kv_heads = Self::extract_kv_heads(obj);
+        let intermediate_size = Self::extract_intermediate_size(obj);
+        let norm_eps = Self::extract_norm_eps(obj);
+        let max_seq_len = Self::extract_max_seq_len(obj);
+        let rope_theta = Self::extract_rope_theta(obj);
+
+        let config = Self {
+            dim,
+            n_layers,
+            n_heads,
+            n_kv_heads,
+            vocab_size,
+            multiple_of: 256, // Standard default
+            ffn_dim_multiplier: None,
+            norm_eps,
+            max_seq_len,
+            rope_theta,
+            use_scaled_rope: false,
+            intermediate_size,
+        };
+
+        config.validate()?;
+        Ok(config)
+    }
+
+    /// Extract dimension from various JSON field names
+    fn extract_dimension(obj: &serde_json::Map<String, serde_json::Value>) -> Result<usize> {
+        let fields = ["hidden_size", "dim", "d_model"];
+        for field in &fields {
+            if let Some(value) = obj.get(*field) {
+                if let Some(dim) = value.as_u64() {
+                    return Ok(dim as usize);
+                }
+            }
+        }
+        Err(LlamaError::config_error(
+            "missing_dimension",
+            "Could not find dimension field (hidden_size, dim, or d_model)".to_string(),
+        ))
+    }
+
+    /// Extract number of layers from various JSON field names
+    fn extract_num_layers(obj: &serde_json::Map<String, serde_json::Value>) -> Result<usize> {
+        let fields = ["num_hidden_layers", "n_layers", "num_layers"];
+        for field in &fields {
+            if let Some(value) = obj.get(*field) {
+                if let Some(layers) = value.as_u64() {
+                    return Ok(layers as usize);
+                }
+            }
+        }
+        Err(LlamaError::config_error(
+            "missing_layers",
+            "Could not find num_layers field (num_hidden_layers, n_layers, or num_layers)".to_string(),
+        ))
+    }
+
+    /// Extract number of attention heads from various JSON field names
+    fn extract_num_heads(obj: &serde_json::Map<String, serde_json::Value>) -> Result<usize> {
+        let fields = ["num_attention_heads", "n_heads", "num_heads"];
+        for field in &fields {
+            if let Some(value) = obj.get(*field) {
+                if let Some(heads) = value.as_u64() {
+                    return Ok(heads as usize);
+                }
+            }
+        }
+        Err(LlamaError::config_error(
+            "missing_heads",
+            "Could not find num_heads field (num_attention_heads, n_heads, or num_heads)".to_string(),
+        ))
+    }
+
+    /// Extract vocabulary size from various JSON field names
+    fn extract_vocab_size(obj: &serde_json::Map<String, serde_json::Value>) -> Result<usize> {
+        let fields = ["vocab_size", "vocabulary_size"];
+        for field in &fields {
+            if let Some(value) = obj.get(*field) {
+                if let Some(vocab) = value.as_u64() {
+                    return Ok(vocab as usize);
+                }
+            }
+        }
+        Err(LlamaError::config_error(
+            "missing_vocab",
+            "Could not find vocab_size field (vocab_size or vocabulary_size)".to_string(),
+        ))
+    }
+
+    /// Extract number of key-value heads (optional)
+    fn extract_kv_heads(obj: &serde_json::Map<String, serde_json::Value>) -> Option<usize> {
+        let fields = ["num_key_value_heads", "n_kv_heads", "num_kv_heads"];
+        for field in &fields {
+            if let Some(value) = obj.get(*field) {
+                if let Some(kv_heads) = value.as_u64() {
+                    return Some(kv_heads as usize);
+                }
+            }
+        }
+        None
+    }
+
+    /// Extract intermediate size for FFN (optional)
+    fn extract_intermediate_size(obj: &serde_json::Map<String, serde_json::Value>) -> usize {
+        let fields = ["intermediate_size", "ffn_dim"];
+        for field in &fields {
+            if let Some(value) = obj.get(*field) {
+                if let Some(size) = value.as_u64() {
+                    return size as usize;
+                }
+            }
+        }
+        // Default calculation if not specified
+        11008 // Common Llama default
+    }
+
+    /// Extract normalization epsilon (optional)
+    fn extract_norm_eps(obj: &serde_json::Map<String, serde_json::Value>) -> f32 {
+        let fields = ["rms_norm_eps", "norm_eps", "layer_norm_eps"];
+        for field in &fields {
+            if let Some(value) = obj.get(*field) {
+                if let Some(eps) = value.as_f64() {
+                    return eps as f32;
+                }
+            }
+        }
+        1e-6 // Default
+    }
+
+    /// Extract maximum sequence length (optional)
+    fn extract_max_seq_len(obj: &serde_json::Map<String, serde_json::Value>) -> usize {
+        let fields = ["max_position_embeddings", "max_seq_len", "max_sequence_length"];
+        for field in &fields {
+            if let Some(value) = obj.get(*field) {
+                if let Some(max_len) = value.as_u64() {
+                    return max_len as usize;
+                }
+            }
+        }
+        4096 // Common default
+    }
+
+    /// Extract RoPE theta parameter (optional)
+    fn extract_rope_theta(obj: &serde_json::Map<String, serde_json::Value>) -> f32 {
+        let fields = ["rope_theta", "rotary_emb_base"];
+        for field in &fields {
+            if let Some(value) = obj.get(*field) {
+                if let Some(theta) = value.as_f64() {
+                    return theta as f32;
+                }
+            }
+        }
+        10_000.0 // Default
     }
 }
