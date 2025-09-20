@@ -46,8 +46,6 @@ jobs:
           # CUDA only runs when physical GPU is available
           - os: macos-latest
             backend: cuda
-    # Skip CUDA tests when no physical GPU is detected
-    if: matrix.backend != 'cuda' || needs.detect-gpu.outputs.cuda_available == 'true'
 
     steps:
     - uses: actions/checkout@v4
@@ -73,6 +71,8 @@ jobs:
         cargo install cargo-nextest --locked
 
     - name: Run tests with specific backend
+      # Skip CUDA tests when no physical GPU is detected
+      if: matrix.backend != 'cuda' || needs.detect-gpu.outputs.cuda_available == 'true'
       env:
         LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LD_LIBRARY_PATH }}"
       run: |
@@ -115,7 +115,7 @@ jobs:
       with:
         name: Test Results (${{ matrix.backend }} on ${{ matrix.os }})
         path: 'test-results/*.json'
-        reporter: 'java-junit'
+        reporter: 'jest-junit'
         fail-on-error: false
 
   cuda-test:
@@ -185,5 +185,5 @@ jobs:
       with:
         name: CUDA GPU Test Results
         path: 'test-results/*.json'
-        reporter: 'java-junit'
+        reporter: 'jest-junit'
         fail-on-error: false
