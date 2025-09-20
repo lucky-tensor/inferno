@@ -152,6 +152,13 @@ fn test_weight_mapping_edge_cases() {
     assert!(InfernoLlama::map_weight_name("model.layers.").is_err());
     assert!(InfernoLlama::map_weight_name("model.layers.0").is_err());
 
+    // Non-numeric layer indices should error
+    assert!(InfernoLlama::map_weight_name("model.layers.abc.self_attn.q_proj.weight").is_err());
+    assert!(InfernoLlama::map_weight_name("model.layers.1a.mlp.gate_proj.weight").is_err());
+
+    // Edge case: just "model." prefix should error
+    assert!(InfernoLlama::map_weight_name("model.").is_err());
+
     // Unknown component (should pass through unchanged after model. removal)
     assert_eq!(
         InfernoLlama::map_weight_name("model.unknown.weight").unwrap(),

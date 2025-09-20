@@ -354,6 +354,12 @@ impl InfernoLlama {
                     name.to_string()
                 }
             }
+        } else if name == "layers" {
+            // Handle incomplete layer names
+            return Err(LlamaError::config_error(
+                "weight_mapping",
+                format!("Incomplete layer weight name: {}", hf_name),
+            ));
         } else {
             // Non-layer weights, keep as-is
             name.to_string()

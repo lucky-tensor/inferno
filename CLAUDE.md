@@ -16,3 +16,16 @@
 - Follow Rust best practices and clippy suggestions
 - Maintain consistent formatting with rustfmt
 - Write clear, self-documenting code
+
+## File Organization
+
+### Project Specifications
+- Place all technical specifications in `./docs/`
+- Examples: API specs, architecture documents, requirements
+
+### Project Management
+- Place todo lists, reviews, and plans in `./.claude/`
+- Structure:
+  - `./.claude/todo.md` - Current task list
+  - `./.claude/reviews/` - Manager reviews and status assessments
+  - `./.claude/plans/` - Implementation plans and analysis documents
