@@ -52,7 +52,7 @@ jobs:
       with:
         cuda: '13.0.0'
         method: 'network'
-        sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust", "visual_studio_integration"]'
+        sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust"]'
 
     - name: Setup cuDNN
       run: |
