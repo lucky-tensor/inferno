@@ -112,5 +112,5 @@ jobs:
       with:
         cache-on-failure: true
 
-    - name: Build with default features
-      run: cargo build --release
+    - name: Build with CPU-only features
+      run: cargo build --release --no-default-features --features candle-cpu,pretrained
