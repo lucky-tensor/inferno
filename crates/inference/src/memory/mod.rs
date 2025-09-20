@@ -237,21 +237,9 @@ impl MemoryTracker {
         MemoryStats {
             device_id: self.device_id,
             used_memory_bytes: total_allocated,
-            total_memory_bytes: if self.device_id < 0 {
-                8 * 1024 * 1024 * 1024 // 8GB RAM assumption
-            } else {
-                12 * 1024 * 1024 * 1024 // 12GB GPU assumption
-            },
-            free_memory_bytes: if self.device_id < 0 {
-                (8_usize * 1024 * 1024 * 1024).saturating_sub(total_allocated)
-            } else {
-                (12_usize * 1024 * 1024 * 1024).saturating_sub(total_allocated)
-            },
-            utilization_percentage: if self.device_id < 0 {
-                total_allocated as f64 / (8.0 * 1024.0 * 1024.0 * 1024.0)
-            } else {
-                total_allocated as f64 / (12.0 * 1024.0 * 1024.0 * 1024.0)
-            },
+            total_memory_bytes: 12 * 1024 * 1024 * 1024, // 12GB GPU assumption
+            free_memory_bytes: (12_usize * 1024 * 1024 * 1024).saturating_sub(total_allocated),
+            utilization_percentage: total_allocated as f64 / (12.0 * 1024.0 * 1024.0 * 1024.0),
             num_allocations: active_allocations,
             fragmentation_bytes: peak_memory.saturating_sub(total_allocated), // Simple fragmentation estimate
             cached_memory_bytes: 0, // No caching implemented yet
@@ -291,29 +279,29 @@ mod tests {
 
     #[test]
     fn test_memory_pool_info() {
-        let pool = CudaMemoryPool::new(-1).unwrap();
-        let info = pool.info();
-        assert_eq!(info.device_id, -1);
-        assert_eq!(info.pool_type, "cpu");
-        assert!(!info.is_available);
-
         let pool = CudaMemoryPool::new(0).unwrap();
         let info = pool.info();
         assert_eq!(info.device_id, 0);
         assert_eq!(info.pool_type, "cuda");
         assert!(info.is_available);
+
+        let pool = CudaMemoryPool::new(1).unwrap();
+        let info = pool.info();
+        assert_eq!(info.device_id, 1);
+        assert_eq!(info.pool_type, "cuda");
+        assert!(info.is_available);
     }
 
     #[tokio::test]
-    async fn test_cpu_allocation_deallocation() {
-        let pool = CudaMemoryPool::new(-1).unwrap();
+    async fn test_gpu_allocation_deallocation() {
+        let pool = CudaMemoryPool::new(0).unwrap();
 
         // Test successful allocation
         let memory = pool.allocate(1024, 8).await;
         assert!(memory.is_ok());
         let memory = memory.unwrap();
         assert_eq!(memory.size, 1024);
-        assert_eq!(memory.device_id, -1);
+        assert_eq!(memory.device_id, 0);
         assert!(!memory.ptr.is_null());
 
         // Test deallocation
@@ -323,7 +311,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_allocation_validation() {
-        let pool = CudaMemoryPool::new(-1).unwrap();
+        let pool = CudaMemoryPool::new(0).unwrap();
 
         // Zero size should fail
         let result = pool.allocate(0, 8).await;
@@ -339,13 +327,13 @@ mod tests {
 
     #[test]
     fn test_memory_tracker() {
-        let tracker = MemoryTracker::new(-1);
-        assert_eq!(tracker.device_id(), -1);
+        let tracker = MemoryTracker::new(0);
+        assert_eq!(tracker.device_id(), 0);
 
         let memory = DeviceMemory {
             ptr: std::ptr::null_mut(),
             size: 1024,
-            device_id: -1,
+            device_id: 0,
             allocation_id: 1,
         };
 
@@ -361,11 +349,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_memory_stats() {
-        let pool = CudaMemoryPool::new(-1).unwrap();
+        let pool = CudaMemoryPool::new(0).unwrap();
         let stats = pool.get_stats().await;
         assert!(stats.is_ok());
         let stats = stats.unwrap();
-        assert_eq!(stats.device_id, -1);
+        assert_eq!(stats.device_id, 0);
         assert!(stats.total_memory_bytes > 0);
     }
 }
@@ -399,7 +387,7 @@ pub struct MemoryStats {
     pub cached_memory_bytes: usize,
     /// Memory lost to fragmentation in bytes
     pub fragmentation_bytes: usize,
-    /// Memory utilization as percentage (0.0-1.0)
+    /// Memory utilization as percentage (0.00.0)
     pub utilization_percentage: f64,
     /// GPU device ID
     pub device_id: i32,

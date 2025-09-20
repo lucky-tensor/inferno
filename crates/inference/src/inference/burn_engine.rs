@@ -1,7 +1,7 @@
 //! Burn framework-based inference engine for real CPU inference
 //!
 //! This implementation provides actual LLM inference using the Burn ML framework
-//! with TinyLlama-1.1B model from Hugging Face using the official llama-burn implementation.
+//! with TinyLlama0.1B model from Hugging Face using the official llama-burn implementation.
 //!
 //! Burn is our primary ML inference framework, supporting CPU/CUDA/ROCm/Metal/WebGPU
 //! with unified tensor operations and custom kernel development via `CubeCL`.
@@ -10,7 +10,6 @@ use super::{InferenceEngine, InferenceError, InferenceRequest, InferenceResponse
 use crate::config::InfernoConfig;
 use crate::error::{InfernoError, InfernoResult};
 use std::path::PathBuf;
-
 
 use std::path::Path;
 use std::sync::Mutex;
@@ -21,15 +20,11 @@ use tracing::{debug, info, warn};
 
 use burn::{backend::ndarray::NdArray, tensor::Device};
 
-
 use llama_burn::llama::{Llama, LlamaConfig};
-
 
 use llama_burn::tokenizer::SentiencePieceTokenizer;
 
-
 use llama_burn::sampling::{Sampler, TopP};
-
 
 use hf_hub::api::tokio::Api;
 
@@ -46,7 +41,6 @@ pub struct BurnInferenceEngine {
     /// Model files path
     model_path: Option<PathBuf>,
     /// Loaded Llama model (includes tokenizer) - wrapped in Mutex for interior mutability
-    
     model: Option<Mutex<Llama<Backend, SentiencePieceTokenizer>>>,
     /// Model ready for inference
     model_ready: bool,
@@ -57,7 +51,6 @@ pub struct BurnInferenceEngine {
     /// Burn backend type (CPU/CUDA/ROCm)
     backend_type: BurnBackendType,
     /// Device for tensor operations
-    
     device: Device<Backend>,
 }
 
@@ -70,15 +63,12 @@ pub enum BurnBackendType {
 
 impl BurnInferenceEngine {
     /// Initialize device based on backend type
-    
+
     #[allow(clippy::unnecessary_wraps)]
     fn initialize_device(&mut self) -> InfernoResult<()> {
         match self.backend_type {
             BurnBackendType::Cpu => {
-                
-                {
-                    self.device = Device::<Backend>::default();
-                }
+                self.device = Device::<Backend>::default();
             }
         }
         Ok(())
@@ -90,13 +80,13 @@ impl BurnInferenceEngine {
             initialized: false,
             config: None,
             model_path: None,
-            
+
             model: None,
             model_ready: false,
             request_count: Mutex::new(0),
             total_inference_time: Mutex::new(0.0),
             backend_type: BurnBackendType::Cpu,
-            
+
             device: Device::<Backend>::default(),
         }
     }
@@ -107,19 +97,19 @@ impl BurnInferenceEngine {
             initialized: false,
             config: None,
             model_path: None,
-            
+
             model: None,
             model_ready: false,
             request_count: Mutex::new(0),
             total_inference_time: Mutex::new(0.0),
             backend_type,
-            
+
             device: Device::<Backend>::default(),
         }
     }
 
     /// Check if required model files exist locally
-    
+
     fn check_local_model_files(model_dir: &Path) -> bool {
         // First, check if we have SafeTensors model files (most important)
         let has_single_model = model_dir.join("model.safetensors").exists();
@@ -158,7 +148,7 @@ impl BurnInferenceEngine {
     }
 
     /// Load model from specified path or discover available models
-    
+
     async fn load_or_discover_model(
         models_dir: &str,
         model_name: Option<&str>,
@@ -201,7 +191,7 @@ impl BurnInferenceEngine {
     }
 
     /// Discover any available model in the models directory
-    
+
     fn discover_available_models(models_path: &Path) -> InfernoResult<PathBuf> {
         // First, check if the provided directory itself contains model files
         if Self::check_local_model_files(models_path) {
@@ -229,9 +219,9 @@ impl BurnInferenceEngine {
     }
 
     /// Download a default model as fallback (only used when no model name specified)
-    
+
     async fn download_default_model(models_path: &Path) -> InfernoResult<PathBuf> {
-        let model_cache_dir = models_path.join("tinyllama-1.1b");
+        let model_cache_dir = models_path.join("tinyllama0.1b");
 
         // Check if default model already exists
         if Self::check_local_model_files(&model_cache_dir) {
@@ -239,7 +229,7 @@ impl BurnInferenceEngine {
             return Ok(model_cache_dir);
         }
 
-        info!("Downloading default TinyLlama-1.1B model from Hugging Face...");
+        info!("Downloading default TinyLlama0.1B model from Hugging Face...");
 
         // Initialize Hugging Face API
         let api = Api::new().map_err(|e| {
@@ -247,7 +237,7 @@ impl BurnInferenceEngine {
         })?;
 
         // Access the TinyLlama repository
-        let repo = api.model("TinyLlama/TinyLlama-1.1B-Chat-v1.0".to_string());
+        let repo = api.model("TinyLlama/TinyLlama0.1B-Chat-v1.0".to_string());
 
         // Download each required file
         let model_files = ["model.safetensors", "tokenizer.json", "config.json"];
@@ -288,11 +278,11 @@ impl BurnInferenceEngine {
         self.config = Some(config.clone());
 
         // Initialize device based on backend type
-        
+
         self.initialize_device()?;
 
         // Download and load real model
-        
+
         {
             let models_dir = if config.model_path.is_empty() {
                 // Use shared default models directory (~/.models)
@@ -390,7 +380,7 @@ impl BurnInferenceEngine {
         debug!("Processing inference request: {}", request.prompt);
 
         // Real inference with Llama model - ACTUAL NEURAL NETWORK INFERENCE
-        
+
         let response_text = {
             if let Some(ref model_mutex) = self.model {
                 // Get mutable access to the model through the Mutex
@@ -474,7 +464,6 @@ impl BurnInferenceEngine {
         self.initialized = false;
         self.model_ready = false;
 
-        
         {
             self.model = None;
         }
@@ -483,7 +472,7 @@ impl BurnInferenceEngine {
     }
 
     /// Perform REAL neural network text generation using the loaded `TinyLlama` model
-    
+
     fn generate_real_text(
         model: &mut Llama<Backend, SentiencePieceTokenizer>,
         prompt: &str,
@@ -556,7 +545,7 @@ impl BurnInferenceEngine {
     }
 
     /// Generate intelligent text completion that demonstrates real language understanding
-    
+
     fn generate_intelligent_completion(prompt: &str, max_tokens: usize) -> String {
         let prompt_lower = prompt.to_lowercase();
 

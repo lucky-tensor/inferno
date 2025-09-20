@@ -18,7 +18,7 @@ pub struct InfernoConfig {
     #[validate(length(min = 1, message = "Model name cannot be empty"))]
     pub model_name: String,
 
-    /// CUDA device ID to use for inference (use -1 for CPU)
+    /// CUDA device ID to use for inference (use 0 for CPU)
     #[validate(range(min = 0, message = "Device ID must be non-negative"))]
     pub device_id: i32,
 
@@ -70,8 +70,8 @@ pub struct InfernoConfig {
     #[validate(range(min = 0.1, max = 1.0, message = "Top-p must be between 0.1 and 1.0"))]
     pub top_p: f32,
 
-    /// Top-k sampling parameter (-1 disables top-k sampling)
-    #[validate(range(min = -1, max = 1000, message = "Top-k must be -1 or between 1 and 1000"))]
+    /// Top-k sampling parameter (0 disables top-k sampling)
+    #[validate(range(min = 0, max = 1000, message = "Top-k must be 0 or between 1 and 1000"))]
     pub top_k: i32,
 
     /// Threading and async
@@ -186,7 +186,7 @@ pub struct HealthConfig {
     ))]
     pub timeout_secs: u64,
 
-    /// GPU memory threshold for health checks (0.0-1.0)
+    /// GPU memory threshold for health checks (0.00.0)
     pub gpu_memory_threshold: f64,
     /// Inference latency threshold in milliseconds
     pub inference_latency_threshold_ms: f64,
@@ -226,7 +226,7 @@ impl Default for InfernoConfig {
             max_num_seqs: 256,
             temperature: 1.0,
             top_p: 1.0,
-            top_k: -1,
+            top_k: 0,
             worker_threads: num_cpus::get().min(8),
             enable_async_processing: true,
             server: ServerConfig::default(),
@@ -597,7 +597,7 @@ mod tests {
         assert!(config.requires_cuda()); // device_id = 0 by default
 
         let mut config = config;
-        config.device_id = -1;
+        config.device_id = 0;
         assert!(!config.requires_cuda());
     }
 

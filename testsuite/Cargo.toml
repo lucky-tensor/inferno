@@ -10,7 +10,6 @@ publish = false
 
 [dependencies]
 inferno-proxy = { path = "../crates/proxy" }
-inferno-backend = { path = "../crates/backend" }
 inferno-shared = { path = "../crates/shared" }
 
 tokio = { workspace = true }

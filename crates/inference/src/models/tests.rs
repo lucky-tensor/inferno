@@ -104,7 +104,6 @@ mod model_loading_tests {
             let tokenizer_path = temp_dir.path().join("tokenizer.json");
             fs::write(&tokenizer_path, r#"{"version": "1.0"}"#).unwrap();
 
-            
             {
                 use llama_burn::llama::LlamaConfig;
 
@@ -134,7 +133,7 @@ mod model_loading_tests {
             let config_path = temp_dir.path().join("config.json");
             let tokenizer_path = temp_dir.path().join("tokenizer.json");
 
-            // Create Llama-3.2-1B config.json (matching the downloaded model)
+            // Create Llama-3.20B config.json (matching the downloaded model)
             let config_json = r#"{
                 "architectures": ["LlamaForCausalLM"],
                 "attention_bias": false,
@@ -174,7 +173,6 @@ mod model_loading_tests {
             fs::write(&config_path, config_json).unwrap();
             fs::write(&tokenizer_path, r#"{"version": "1.0"}"#).unwrap();
 
-            
             {
                 // Test that our config loading function works
                 use crate::models::llama_loader::*;
@@ -184,7 +182,7 @@ mod model_loading_tests {
 
                 match result {
                     Ok(config) => {
-                        // Verify Llama-3.2-1B specific parameters
+                        // Verify Llama-3.20B specific parameters
                         assert_eq!(config.d_model, 2048, "d_model should match config.json");
                         assert_eq!(config.hidden_size, 8192, "intermediate_size should match");
                         assert_eq!(config.num_hidden_layers, 16, "num_layers should match");
@@ -197,7 +195,7 @@ mod model_loading_tests {
                         );
 
                         println!(
-                            "  Successfully loaded Llama-3.2-1B configuration from config.json"
+                            "  Successfully loaded Llama-3.20B configuration from config.json"
                         );
                         println!(
                             "  Config: d_model={}, layers={}, heads={}, vocab={}",
@@ -235,7 +233,7 @@ mod model_loading_tests {
                 type Backend = NdArray<f32>;
 
                 let home = std::env::var("HOME").unwrap_or_else(|_| "/home/jeef".to_string());
-                let model_path = PathBuf::from(format!("{}/models/tinyllama-1.1b", home));
+                let model_path = PathBuf::from(format!("{}/models/tinyllama0.1b", home));
 
                 // Skip test if model not available (for CI/other environments)
                 if !model_path.exists() {
@@ -270,7 +268,7 @@ mod model_loading_tests {
                 // Attempt to load the model - this will test our enhanced config loading
                 match load_llama_weights(&model_path, &device) {
                     Ok(model) => {
-                        println!("  Successfully loaded Llama-3.2-1B model!");
+                        println!("  Successfully loaded Llama-3.20B model!");
                         // Model structure tests would go here
                         drop(model); // Ensure proper cleanup
                     }
@@ -283,10 +281,10 @@ mod model_loading_tests {
                             "data did not match any variant of untagged enum ModelWrapper",
                         ) {
                             println!("  Detected tokenizer format incompatibility - HuggingFace tokenizer.json not compatible with SentiencePieceTokenizer");
-                            println!("  This is expected: Llama-3.2-1B uses HuggingFace tokenizer format, but burn-llama expects SentencePiece format");
+                            println!("  This is expected: Llama-3.20B uses HuggingFace tokenizer format, but burn-llama expects SentencePiece format");
 
                             // Test should fail here to indicate the real issue
-                            panic!("EXPECTED FAILURE: Tokenizer format incompatibility detected. This test correctly identifies that the tokenizer.json format from Llama-3.2-1B is incompatible with the current llama_burn SentiencePieceTokenizer implementation.");
+                            panic!("EXPECTED FAILURE: Tokenizer format incompatibility detected. This test correctly identifies that the tokenizer.json format from Llama-3.20B is incompatible with the current llama_burn SentiencePieceTokenizer implementation.");
                         } else if error_msg.contains("Failed to initialize")
                             && error_msg.contains("model")
                         {
@@ -314,7 +312,7 @@ mod model_loading_tests {
             // Test detection of different tokenizer formats
             let temp_dir = TempDir::new().unwrap();
 
-            // Test HuggingFace tokenizer format (like Llama-3.2-1B)
+            // Test HuggingFace tokenizer format (like Llama-3.20B)
             let hf_tokenizer_path = temp_dir.path().join("hf_tokenizer.json");
             let hf_tokenizer_content = r#"{
                 "version": "1.0",
@@ -426,18 +424,18 @@ mod model_loading_tests {
         fn test_real_tinyllama_tokenizer_format_validation() {
             // Test the actual tokenizer format from the TinyLlama model
             let home = std::env::var("HOME").unwrap_or_else(|_| "/home/jeef".to_string());
-            let tokenizer_path = format!("{}/models/tinyllama-1.1b/tokenizer.json", home);
+            let tokenizer_path = format!("{}/models/tinyllama0.1b/tokenizer.json", home);
 
             if std::path::Path::new(&tokenizer_path).exists() {
                 let content = fs::read_to_string(&tokenizer_path).unwrap();
                 let json: serde_json::Value = serde_json::from_str(&content).unwrap();
 
                 // Validate this is HuggingFace format (incompatible with SentencePiece)
-                println!("  Analyzing real Llama-3.2-1B tokenizer format...");
+                println!("  Analyzing real Llama-3.20B tokenizer format...");
 
                 if let Some(model_type) = json["model"]["type"].as_str() {
                     println!("  Model type: {}", model_type);
-                    assert_eq!(model_type, "BPE", "Llama-3.2-1B should use BPE tokenizer");
+                    assert_eq!(model_type, "BPE", "Llama-3.20B should use BPE tokenizer");
                 }
 
                 if let Some(added_tokens) = json["added_tokens"].as_array() {
@@ -449,7 +447,7 @@ mod model_loading_tests {
                 }
 
                 // This format is incompatible with burn-llama's SentiencePieceTokenizer
-                println!("   Confirmed: Llama-3.2-1B uses HuggingFace BPE tokenizer format");
+                println!("   Confirmed: Llama-3.20B uses HuggingFace BPE tokenizer format");
                 println!("  This explains why model loading fails with 'ModelWrapper' error");
             } else {
                 println!(
@@ -461,7 +459,6 @@ mod model_loading_tests {
 
         #[test]
         fn test_device_initialization() {
-            
             {
                 use burn::{backend::ndarray::NdArray, tensor::Device};
                 type Backend = NdArray<f32>;
@@ -589,8 +586,8 @@ mod model_loading_tests {
                 // Add fallback models from inferno directory
                 test_models.extend(vec![
                     ("/home/jeef/inferno/models/hf-internal-testing_tiny-random-gpt2/model.safetensors".to_string(), "tiny-random-gpt2".to_string()),
-                    ("/home/jeef/inferno/models/smollm2-135m/model.safetensors".to_string(), "smollm2-135m".to_string()),
-                    ("/home/jeef/inferno/models/tinyllama-1.1b/model.safetensors".to_string(), "tinyllama-1.1b-from-inferno".to_string()),
+                    ("/home/jeef/inferno/models/smollm2035m/model.safetensors".to_string(), "smollm2035m".to_string()),
+                    ("/home/jeef/inferno/models/tinyllama0.1b/model.safetensors".to_string(), "tinyllama0.1b-from-inferno".to_string()),
                 ]);
 
                 println!(
@@ -809,7 +806,7 @@ mod model_loading_tests {
 #[cfg(test)]
 mod inference_tests {
     use crate::config::InfernoConfig;
-    
+
     use crate::inference::burn_engine::*;
     use crate::inference::{InferenceRequest, InferenceResponse};
     use tempfile::TempDir;
@@ -1035,7 +1032,7 @@ mod inference_tests {
             let config = InfernoConfig {
                 model_path: temp_dir.path().to_str().unwrap().to_string(),
                 model_name: "test-model".to_string(),
-                device_id: -1, // CPU
+                device_id: 0, // CPU
                 max_batch_size: 1,
                 max_sequence_length: 128,
                 ..Default::default()

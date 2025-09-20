@@ -288,8 +288,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_health_check_with_memory_components() {
-        let memory_pool = Arc::new(CudaMemoryPool::new(-1).unwrap());
-        let memory_tracker = Arc::new(MemoryTracker::new(-1));
+        let memory_pool = Arc::new(CudaMemoryPool::new(0).unwrap());
+        let memory_tracker = Arc::new(MemoryTracker::new(0));
 
         let checker = InfernoHealthChecker::new()
             .with_memory_pool(memory_pool)
@@ -301,7 +301,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_detailed_health_check() {
-        let memory_tracker = Arc::new(MemoryTracker::new(-1));
+        let memory_tracker = Arc::new(MemoryTracker::new(0));
 
         let checker = InfernoHealthChecker::new().with_memory_tracker(memory_tracker);
 
@@ -318,13 +318,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_memory_threshold_check() {
-        let memory_tracker = Arc::new(MemoryTracker::new(-1));
+        let memory_tracker = Arc::new(MemoryTracker::new(0));
 
         // Simulate high memory usage by tracking a large allocation
         let large_memory = DeviceMemory {
             ptr: std::ptr::null_mut(),
             size: 8 * 1024 * 1024 * 1024, // 8GB - will exceed threshold
-            device_id: -1,
+            device_id: 0,
             allocation_id: 1,
         };
         memory_tracker.track_allocation(&large_memory);

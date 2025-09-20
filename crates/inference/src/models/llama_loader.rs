@@ -1,6 +1,5 @@
 //! Llama model loader using the official burn-llama implementation
 
-
 use serde::{Deserialize, Serialize};
 
 use std::error::Error;
@@ -15,12 +14,9 @@ use burn::{backend::ndarray::NdArray, tensor::Device};
 
 // CUDA backend imports
 
-
 use llama_burn::llama::{Llama, LlamaConfig};
 
-
 use llama_burn::tokenizer::SentiencePieceTokenizer;
-
 
 use burn::record::FullPrecisionSettings;
 
@@ -291,7 +287,7 @@ fn load_weights_from_safetensors<'a>(
         "model.layers.0.self_attn.q_proj.weight",
         "model.layers.0.self_attn.k_proj.weight",
         "model.layers.0.self_attn.v_proj.weight",
-        "model.layers.0.self_attn.o_proj.weight"
+        "model.layers.0.self_attn.o_proj.weight",
     ];
 
     let mut found_count = 0;
@@ -306,8 +302,11 @@ fn load_weights_from_safetensors<'a>(
     }
 
     if found_count > 0 {
-        println!("  Found {}/{} expected tensors - SafeTensors appears to be valid Llama format",
-                found_count, expected_tensors.len());
+        println!(
+            "  Found {}/{} expected tensors - SafeTensors appears to be valid Llama format",
+            found_count,
+            expected_tensors.len()
+        );
     } else {
         return Err("SafeTensors doesn't contain expected Llama model tensors".into());
     }
@@ -386,7 +385,7 @@ pub fn load_model_config(
 
         Ok(config)
     } else {
-        println!("   config.json not found, using TinyLlama-1.1B defaults");
+        println!("   config.json not found, using TinyLlama0.1B defaults");
 
         // Fallback to TinyLlama configuration
         Ok(LlamaConfig {
@@ -404,4 +403,3 @@ pub fn load_model_config(
         })
     }
 }
-

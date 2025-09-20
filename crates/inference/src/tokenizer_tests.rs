@@ -13,7 +13,7 @@ mod tests {
 
     fn get_small_model_path() -> String {
         let home = env::var("HOME").unwrap_or_else(|_| ".".to_string());
-        format!("{}/models/Nikity_lille-130m-instruct", home)
+        format!("{}/models/Nikity_lille030m-instruct", home)
     }
 
     // ==== WORKING TESTS: File Access & JSON Parsing ====
