@@ -62,7 +62,7 @@ jobs:
       if: matrix.backend == 'cuda'
       uses: Jimver/cuda-toolkit@v0.2.16
       with:
-        cuda: '13.0.0'
+        cuda: '12.2.0'
         method: 'network'
         sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust"]'
 
@@ -144,7 +144,7 @@ jobs:
       if: env.CUDA_AVAILABLE != 'true'
       uses: Jimver/cuda-toolkit@v0.2.16
       with:
-        cuda: '13.0.0'
+        cuda: '12.2.0'
         method: 'network'
         sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust"]'
 
