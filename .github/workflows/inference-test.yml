@@ -98,7 +98,7 @@ jobs:
       with:
         name: Inference Test Results (${{ matrix.backend }} on ${{ matrix.os }})
         path: 'test-results/*.json'
-        reporter: 'java-junit'
+        reporter: 'jest-junit'
         fail-on-error: false
 
   cuda-inference-test:
@@ -175,5 +175,5 @@ jobs:
       with:
         name: CUDA Inference Test Results (GPU)
         path: 'test-results/*.json'
-        reporter: 'java-junit'
+        reporter: 'jest-junit'
         fail-on-error: false
