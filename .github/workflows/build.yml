@@ -50,15 +50,15 @@ jobs:
     - name: Setup CUDA
       uses: Jimver/cuda-toolkit@v0.2.18
       with:
-        cuda: '12.1.0'
+        cuda: '13.0.0'
         method: 'network'
         sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust", "visual_studio_integration"]'
 
     - name: Setup cuDNN
       run: |
-        # Install cuDNN using apt (compatible with CUDA 12.1)
+        # Install cuDNN using apt (compatible with CUDA 13.0)
         sudo apt-get update
-        sudo apt-get -y install libcudnn8-dev
+        sudo apt-get -y install libcudnn9-dev
 
     - name: Verify CUDA Installation
       run: |
