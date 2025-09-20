@@ -46,16 +46,6 @@ rand = "0.8"
 tokio-test = { workspace = true }
 tempfile = "3.8"
 
-[features]
-default = ["candle-cuda", "pretrained"]
-
-# Pass-through features to backend
-burn-cpu = ["inferno-backend/burn-cpu"]
-candle-cpu = ["inferno-backend/candle-cpu"]
-candle-cuda = ["inferno-backend/candle-cuda"]
-candle-metal = ["inferno-backend/candle-metal"]
-pretrained = ["inferno-backend/pretrained"]
-
 [[bin]]
 name = "inferno"
 path = "src/main.rs"

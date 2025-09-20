@@ -1,4 +1,4 @@
-//! Integration test to demonstrate burn-cpu neural network inference working
+//! Integration test to demonstrate llama-burn neural network inference working
 //! This test shows real model inference with quality output
 
 use inferno_inference::config::InfernoConfig;

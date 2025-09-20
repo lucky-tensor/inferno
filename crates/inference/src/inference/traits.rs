@@ -1,4 +1,4 @@
-//! Common inference traits and types shared between Burn and Candle engines
+//! Common inference traits and types for llama-burn engine
 
 use crate::config::InfernoConfig;
 use async_trait::async_trait;
@@ -23,17 +23,6 @@ pub enum InferenceError {
     /// IO operation failed
     #[error("IO error: {0}")]
     IoError(String),
-}
-
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
-impl From<candle_core::Error> for InferenceError {
-    fn from(error: candle_core::Error) -> Self {
-        Self::ProcessingError(format!("Candle error: {}", error))
-    }
 }
 
 /// Request for inference
@@ -136,34 +125,6 @@ pub trait InferenceEngine: Send + Sync {
     async fn process(&self, request: InferenceRequest) -> Result<InferenceResponse, Self::Error>;
 }
 
-/// Engine type enumeration for backend selection
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum EngineType {
-    /// Burn framework with CPU backend
-    BurnCpu,
-    /// Candle framework with CPU backend
-    CandleCpu,
-    /// Candle framework with CUDA backend
-    #[cfg(feature = "candle-cuda")]
-    CandleCuda,
-    /// Candle framework with Metal backend
-    #[cfg(feature = "candle-metal")]
-    CandleMetal,
-}
-
-impl std::fmt::Display for EngineType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::BurnCpu => write!(f, "Burn-CPU"),
-            Self::CandleCpu => write!(f, "Candle-CPU"),
-            #[cfg(feature = "candle-cuda")]
-            Self::CandleCuda => write!(f, "Candle-CUDA"),
-            #[cfg(feature = "candle-metal")]
-            Self::CandleMetal => write!(f, "Candle-Metal"),
-        }
-    }
-}
-
 /// Utility function to create a test inference request
 pub fn create_test_request(prompt: &str) -> InferenceRequest {
     InferenceRequest {
@@ -214,11 +175,5 @@ mod tests {
         assert_eq!(response.request_id, 0);
         assert!(response.is_finished);
         assert!(response.error.is_none());
-    }
-
-    #[test]
-    fn test_engine_type_display() {
-        assert_eq!(format!("{}", EngineType::BurnCpu), "Burn-CPU");
-        assert_eq!(format!("{}", EngineType::CandleCpu), "Candle-CPU");
     }
 }

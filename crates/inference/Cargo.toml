@@ -28,8 +28,6 @@ num_cpus = { workspace = true }
 # JSON and validation
 validator = { workspace = true }
 
-# Process execution is handled by std::process (no additional crate needed)
-
 # Burn ML Framework for real model inference
 burn = { workspace = true, optional = true }
 burn-import = { workspace = true, optional = true }
@@ -47,6 +45,10 @@ safetensors = { workspace = true, optional = true }
 bytemuck = { version = "1.0", optional = true }
 half = { version = "2.3", optional = true }
 
+# Required dependencies for model loading
+tokenizers = { workspace = true }
+hf-hub = { workspace = true, features = ["tokio"] }
+safetensors = { workspace = true }
 
 [dev-dependencies]
 tokio-test = { workspace = true }

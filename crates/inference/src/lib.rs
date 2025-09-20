@@ -87,11 +87,8 @@ pub use error::{
 };
 pub use health::{HealthStatus, InfernoHealthChecker};
 pub use inference::{
-    create_engine, create_math_test_request, InferenceEngine, InferenceRequest, InferenceResponse,
+    create_engine, create_math_test_request, BurnInferenceEngine, InferenceEngine, InferenceRequest, InferenceResponse,
 };
-
-#[cfg(feature = "burn-cpu")]
-pub use inference::BurnInferenceEngine;
 
 pub use server::InfernoServer;
 pub use service::InfernoServiceRegistration;

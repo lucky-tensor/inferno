@@ -489,9 +489,6 @@ mod tests {
         }
 
         #[cfg(not(any(
-            feature = "candle-cpu",
-            feature = "candle-cuda",
-            feature = "candle-metal"
         )))]
         {
             println!("    Tokenizers crate not available (no candle features)");

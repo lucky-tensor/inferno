@@ -79,21 +79,12 @@ use crate::inference::InferenceError;
 use serde::{Deserialize, Serialize};
 
 #[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
 ))]
 use candle_core::{Device, Tensor};
 
 #[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
 ))]
 #[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
 ))]
 use safetensors::SafeTensors;
 
@@ -185,9 +176,6 @@ impl QuantizedModelConfig {
 
 /// Runtime quantized tensor that preserves INT8 weights in memory
 #[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
 ))]
 #[derive(Debug, Clone)]
 pub struct QuantizedTensor {
@@ -220,9 +208,6 @@ pub enum QuantizationScheme {
 
 /// Runtime quantized matrix multiplication operations
 #[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
 ))]
 impl QuantizedTensor {
     /// Create a new quantized tensor from INT8 data
@@ -272,12 +257,10 @@ impl QuantizedTensor {
         activation_scale: f32,
         activation_zero_point: i8,
     ) -> Result<Tensor, InferenceError> {
-        #[cfg(feature = "candle-cuda")]
         {
             // Use proper cuBLAS INT8 GEMM
             self.cuda_cublas_i8_gemm(input_activations, activation_scale, activation_zero_point)
         }
-        #[cfg(not(feature = "candle-cuda"))]
         {
             // Fallback for non-CUDA builds
             self.fallback_dequantized_matmul(
@@ -291,7 +274,6 @@ impl QuantizedTensor {
     /// TRUE cuBLAS INT8 GEMM implementation using Tensor Cores
     ///
     /// This uses actual INT8 x INT8 -> INT32 cuBLAS operations for maximum performance
-    #[cfg(feature = "candle-cuda")]
     fn cuda_cublas_i8_gemm(
         &self,
         input_activations: &Tensor,
@@ -332,7 +314,6 @@ impl QuantizedTensor {
     }
 
     /// GPU-accelerated dequantization and scaling
-    #[cfg(feature = "candle-cuda")]
     fn gpu_accelerated_dequantization(
         &self,
         int32_result: Vec<i32>,
@@ -712,9 +693,6 @@ impl QuantizedTensor {
 
 /// Variable builder for quantized tensors - provides access to INT8 weights
 #[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
 ))]
 pub struct QuantizedVarBuilder {
     /// Storage for quantized tensors by name
@@ -724,9 +702,6 @@ pub struct QuantizedVarBuilder {
 }
 
 #[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
 ))]
 impl QuantizedVarBuilder {
     /// Get a quantized tensor by name
@@ -817,9 +792,6 @@ impl QuantizedVarBuilder {
 
 /// Native Rust compressed-tensors loader for w8a8 quantization
 #[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
 ))]
 pub struct CompressedTensorsLoader {
     device: Device,
@@ -827,9 +799,6 @@ pub struct CompressedTensorsLoader {
 }
 
 #[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
 ))]
 impl CompressedTensorsLoader {
     pub fn new(device: Device, config: QuantizedModelConfig) -> Self {
@@ -1467,7 +1436,6 @@ mod tests {
             return;
         }
 
-        #[cfg(feature = "candle-cpu")]
         {
             use candle_core::Device;
 
@@ -1502,7 +1470,6 @@ mod tests {
 
     #[test]
     fn test_dequantization_logic() {
-        #[cfg(feature = "candle-cpu")]
         {
             use candle_core::Device;
 

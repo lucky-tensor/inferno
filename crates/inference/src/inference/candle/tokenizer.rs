@@ -6,9 +6,6 @@
 #![allow(clippy::redundant_closure_for_method_calls)]
 
 #[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
 ))]
 use tokenizers::{
     models::bpe::BPE, processors::template::TemplateProcessing, AddedToken, PaddingDirection,
@@ -23,9 +20,6 @@ pub struct CandleTokenizer;
 impl CandleTokenizer {
     /// Load tokenizer from model directory with Llama 3.2 compatibility
     #[cfg(any(
-        feature = "candle-cpu",
-        feature = "candle-cuda",
-        feature = "candle-metal"
     ))]
     pub async fn load_from_path(model_path: &str) -> Result<Tokenizer, InferenceError> {
         let model_path = std::path::Path::new(model_path);
@@ -103,9 +97,6 @@ impl CandleTokenizer {
 
     /// Create a Llama 3.2 compatible tokenizer from tokenizer files
     #[cfg(any(
-        feature = "candle-cpu",
-        feature = "candle-cuda",
-        feature = "candle-metal"
     ))]
     #[allow(clippy::too_many_lines)]
     async fn create_llama32_compatible_tokenizer(

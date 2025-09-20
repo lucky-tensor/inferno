@@ -11,30 +11,30 @@ use crate::config::InfernoConfig;
 use crate::error::{InfernoError, InfernoResult};
 use std::path::PathBuf;
 
-#[cfg(feature = "burn-cpu")]
+
 use std::path::Path;
 use std::sync::Mutex;
 use std::time::Instant;
 use tracing::{debug, info, warn};
 
 // Real Burn framework imports for Llama inference
-#[cfg(feature = "burn-cpu")]
+
 use burn::{backend::ndarray::NdArray, tensor::Device};
 
-#[cfg(feature = "burn-cpu")]
+
 use llama_burn::llama::{Llama, LlamaConfig};
 
-#[cfg(feature = "burn-cpu")]
+
 use llama_burn::tokenizer::SentiencePieceTokenizer;
 
-#[cfg(feature = "burn-cpu")]
+
 use llama_burn::sampling::{Sampler, TopP};
 
-#[cfg(feature = "burn-cpu")]
+
 use hf_hub::api::tokio::Api;
 
 // Type alias for our backend
-#[cfg(feature = "burn-cpu")]
+
 type Backend = NdArray<f32>;
 
 /// Burn framework-based real inference engine
@@ -46,7 +46,7 @@ pub struct BurnInferenceEngine {
     /// Model files path
     model_path: Option<PathBuf>,
     /// Loaded Llama model (includes tokenizer) - wrapped in Mutex for interior mutability
-    #[cfg(feature = "burn-cpu")]
+    
     model: Option<Mutex<Llama<Backend, SentiencePieceTokenizer>>>,
     /// Model ready for inference
     model_ready: bool,
@@ -57,7 +57,7 @@ pub struct BurnInferenceEngine {
     /// Burn backend type (CPU/CUDA/ROCm)
     backend_type: BurnBackendType,
     /// Device for tensor operations
-    #[cfg(feature = "burn-cpu")]
+    
     device: Device<Backend>,
 }
 
@@ -70,12 +70,12 @@ pub enum BurnBackendType {
 
 impl BurnInferenceEngine {
     /// Initialize device based on backend type
-    #[cfg(feature = "burn-cpu")]
+    
     #[allow(clippy::unnecessary_wraps)]
     fn initialize_device(&mut self) -> InfernoResult<()> {
         match self.backend_type {
             BurnBackendType::Cpu => {
-                #[cfg(feature = "burn-cpu")]
+                
                 {
                     self.device = Device::<Backend>::default();
                 }
@@ -90,13 +90,13 @@ impl BurnInferenceEngine {
             initialized: false,
             config: None,
             model_path: None,
-            #[cfg(feature = "burn-cpu")]
+            
             model: None,
             model_ready: false,
             request_count: Mutex::new(0),
             total_inference_time: Mutex::new(0.0),
             backend_type: BurnBackendType::Cpu,
-            #[cfg(feature = "burn-cpu")]
+            
             device: Device::<Backend>::default(),
         }
     }
@@ -107,19 +107,19 @@ impl BurnInferenceEngine {
             initialized: false,
             config: None,
             model_path: None,
-            #[cfg(feature = "burn-cpu")]
+            
             model: None,
             model_ready: false,
             request_count: Mutex::new(0),
             total_inference_time: Mutex::new(0.0),
             backend_type,
-            #[cfg(feature = "burn-cpu")]
+            
             device: Device::<Backend>::default(),
         }
     }
 
     /// Check if required model files exist locally
-    #[cfg(feature = "burn-cpu")]
+    
     fn check_local_model_files(model_dir: &Path) -> bool {
         // First, check if we have SafeTensors model files (most important)
         let has_single_model = model_dir.join("model.safetensors").exists();
@@ -158,7 +158,7 @@ impl BurnInferenceEngine {
     }
 
     /// Load model from specified path or discover available models
-    #[cfg(feature = "burn-cpu")]
+    
     async fn load_or_discover_model(
         models_dir: &str,
         model_name: Option<&str>,
@@ -201,7 +201,7 @@ impl BurnInferenceEngine {
     }
 
     /// Discover any available model in the models directory
-    #[cfg(feature = "burn-cpu")]
+    
     fn discover_available_models(models_path: &Path) -> InfernoResult<PathBuf> {
         // First, check if the provided directory itself contains model files
         if Self::check_local_model_files(models_path) {
@@ -229,7 +229,7 @@ impl BurnInferenceEngine {
     }
 
     /// Download a default model as fallback (only used when no model name specified)
-    #[cfg(feature = "burn-cpu")]
+    
     async fn download_default_model(models_path: &Path) -> InfernoResult<PathBuf> {
         let model_cache_dir = models_path.join("tinyllama-1.1b");
 
@@ -288,11 +288,11 @@ impl BurnInferenceEngine {
         self.config = Some(config.clone());
 
         // Initialize device based on backend type
-        #[cfg(feature = "burn-cpu")]
+        
         self.initialize_device()?;
 
         // Download and load real model
-        #[cfg(feature = "burn-cpu")]
+        
         {
             let models_dir = if config.model_path.is_empty() {
                 // Use shared default models directory (~/.models)
@@ -390,7 +390,7 @@ impl BurnInferenceEngine {
         debug!("Processing inference request: {}", request.prompt);
 
         // Real inference with Llama model - ACTUAL NEURAL NETWORK INFERENCE
-        #[cfg(feature = "burn-cpu")]
+        
         let response_text = {
             if let Some(ref model_mutex) = self.model {
                 // Get mutable access to the model through the Mutex
@@ -423,7 +423,7 @@ impl BurnInferenceEngine {
             }
         };
 
-        #[cfg(not(feature = "burn-cpu"))]
+        #[cfg(not(feature = "llama-burn"))]
         let response_text = format!("No Burn backend enabled. Request: {}", request.prompt);
 
         let inference_time = start_time.elapsed().as_secs_f64();
@@ -474,7 +474,7 @@ impl BurnInferenceEngine {
         self.initialized = false;
         self.model_ready = false;
 
-        #[cfg(feature = "burn-cpu")]
+        
         {
             self.model = None;
         }
@@ -483,7 +483,7 @@ impl BurnInferenceEngine {
     }
 
     /// Perform REAL neural network text generation using the loaded `TinyLlama` model
-    #[cfg(feature = "burn-cpu")]
+    
     fn generate_real_text(
         model: &mut Llama<Backend, SentiencePieceTokenizer>,
         prompt: &str,
@@ -556,7 +556,7 @@ impl BurnInferenceEngine {
     }
 
     /// Generate intelligent text completion that demonstrates real language understanding
-    #[cfg(feature = "burn-cpu")]
+    
     fn generate_intelligent_completion(prompt: &str, max_tokens: usize) -> String {
         let prompt_lower = prompt.to_lowercase();
 
@@ -647,7 +647,7 @@ impl Default for BurnInferenceEngine {
 }
 
 // Implement the InferenceEngine trait for BurnInferenceEngine
-#[cfg(feature = "burn-cpu")]
+
 #[async_trait::async_trait]
 impl InferenceEngine for BurnInferenceEngine {
     type Error = InferenceError;

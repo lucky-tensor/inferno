@@ -26,7 +26,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "candle-cuda")]
     async fn test_llama32_quantized_detection() {
         let model_path_str = get_llama32_model_path();
         // Skip test if model doesn't exist
@@ -114,7 +113,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "candle-cuda")]
     async fn test_llama32_quantized_cuda_full_pipeline() {
         let model_path_str = get_llama32_model_path();
         // Skip test if model doesn't exist
@@ -206,7 +204,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "candle-cuda")]
     async fn test_tinyllama_candle_cuda_full_pipeline() {
         let model_path_str = get_tinyllama_model_path();
         // Skip test if model doesn't exist
@@ -306,7 +303,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "candle-cpu")]
     async fn test_tinyllama_candle_cpu_tokenization_only() {
         let model_path_str = get_tinyllama_model_path();
         // Skip test if model doesn't exist
@@ -392,18 +388,15 @@ mod tests {
         println!("  Testing basic engine creation");
 
         let default_engine = CandleInferenceEngine::new();
-        #[cfg(feature = "candle-cuda")]
         {
             assert_eq!(default_engine.backend_type(), &CandleBackendType::Cuda);
             println!("  Default engine created successfully (CUDA)");
         }
-        #[cfg(not(feature = "candle-cuda"))]
         {
             assert_eq!(default_engine.backend_type(), &CandleBackendType::Cpu);
             println!("  Default engine created successfully (CPU fallback)");
         }
 
-        #[cfg(feature = "candle-cuda")]
         {
             let cuda_engine = CandleInferenceEngine::with_backend(CandleBackendType::Cuda);
             assert_eq!(cuda_engine.backend_type(), &CandleBackendType::Cuda);

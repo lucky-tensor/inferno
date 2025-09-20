@@ -104,7 +104,7 @@ mod model_loading_tests {
             let tokenizer_path = temp_dir.path().join("tokenizer.json");
             fs::write(&tokenizer_path, r#"{"version": "1.0"}"#).unwrap();
 
-            #[cfg(feature = "burn-cpu")]
+            
             {
                 use llama_burn::llama::LlamaConfig;
 
@@ -174,7 +174,7 @@ mod model_loading_tests {
             fs::write(&config_path, config_json).unwrap();
             fs::write(&tokenizer_path, r#"{"version": "1.0"}"#).unwrap();
 
-            #[cfg(feature = "burn-cpu")]
+            
             {
                 // Test that our config loading function works
                 use crate::models::llama_loader::*;
@@ -226,7 +226,7 @@ mod model_loading_tests {
         #[test]
         fn test_real_tinyllama_model_loading() {
             // Test loading the actual TinyLlama model
-            #[cfg(all(feature = "burn-cpu", feature = "pretrained"))]
+            #[cfg(all(feature = "llama-burn", feature = "pretrained"))]
             {
                 use crate::models::llama_loader::load_llama_weights;
                 use burn::{backend::ndarray::NdArray, tensor::Device};
@@ -461,7 +461,7 @@ mod model_loading_tests {
 
         #[test]
         fn test_device_initialization() {
-            #[cfg(feature = "burn-cpu")]
+            
             {
                 use burn::{backend::ndarray::NdArray, tensor::Device};
                 type Backend = NdArray<f32>;
@@ -500,7 +500,7 @@ mod model_loading_tests {
         #[allow(clippy::too_many_lines)]
         fn test_real_tinyllama_safetensors_loading() {
             // Test loading actual SafeTensors files using burn framework
-            #[cfg(all(feature = "burn-cpu", feature = "pretrained"))]
+            #[cfg(all(feature = "llama-burn", feature = "pretrained"))]
             {
                 use std::path::PathBuf;
 
@@ -650,7 +650,7 @@ mod model_loading_tests {
             }
         }
 
-        #[cfg(all(feature = "burn-cpu", feature = "pretrained"))]
+        #[cfg(all(feature = "llama-burn", feature = "pretrained"))]
         fn test_raw_safetensors_parsing(model_path: &std::path::Path) {
             use safetensors::SafeTensors;
 
@@ -709,7 +709,7 @@ mod model_loading_tests {
             }
         }
 
-        #[cfg(all(feature = "burn-cpu", feature = "pretrained"))]
+        #[cfg(all(feature = "llama-burn", feature = "pretrained"))]
         fn test_burn_safetensors_loading(model_path: &std::path::Path) {
             use burn_import::safetensors::LoadArgs;
 
@@ -809,6 +809,7 @@ mod model_loading_tests {
 #[cfg(test)]
 mod inference_tests {
     use crate::config::InfernoConfig;
+    
     use crate::inference::burn_engine::*;
     use crate::inference::{InferenceRequest, InferenceResponse};
     use tempfile::TempDir;

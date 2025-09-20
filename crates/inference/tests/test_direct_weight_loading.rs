@@ -3,7 +3,7 @@
 use std::env;
 use std::path::PathBuf;
 
-#[cfg(feature = "burn-cpu")]
+
 #[tokio::test]
 async fn test_direct_weight_loading() -> Result<(), Box<dyn std::error::Error>> {
     println!("Testing direct TinyLlama weight loading");

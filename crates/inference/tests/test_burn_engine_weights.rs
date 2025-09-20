@@ -5,7 +5,7 @@ use inferno_inference::{
     inference::{BurnInferenceEngine, InferenceRequest},
 };
 
-#[cfg(feature = "burn-cpu")]
+
 #[tokio::test]
 async fn test_burn_engine_real_weights() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Testing BurnInferenceEngine with real TinyLlama pre-trained weights");

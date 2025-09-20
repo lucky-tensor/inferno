@@ -13,27 +13,9 @@ use inferno_proxy::ProxyCliOptions;
 use crate::doctor;
 use crate::model_downloader;
 
-/// Determine the best default inference engine based on compiled features
-#[allow(unreachable_code)]
+/// Engine is always llama-burn
 fn default_engine() -> String {
-    // Priority order: GPU engines first (faster), then CPU engines
-    #[cfg(feature = "candle-cuda")]
-    {
-        return "candle-cuda".to_string();
-    }
-
-    #[cfg(feature = "candle-metal")]
-    {
-        return "candle-metal".to_string();
-    }
-
-    #[cfg(feature = "candle-cpu")]
-    {
-        return "candle-cpu".to_string();
-    }
-
-    // Fallback to burn-cpu (always available)
-    "burn-cpu".to_string()
+    "llama-burn".to_string()
 }
 
 /// CLI options for play mode
@@ -68,7 +50,7 @@ pub struct PlayCliOptions {
     #[arg(short = 'p', long = "prompt")]
     pub prompt: Option<String>,
 
-    /// Internal: Inference engine (automatically selected based on compiled features)
+    /// Internal: Inference engine (always llama-burn)
     #[arg(skip = default_engine())]
     pub engine: String,
 }

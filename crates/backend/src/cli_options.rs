@@ -13,7 +13,7 @@ use hyper::{body::Incoming, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
 use inferno_inference::{
     config::InfernoConfig,
-    inference::{create_engine, EngineType, InferenceEngine, InferenceRequest},
+    inference::{create_engine, InferenceEngine, InferenceRequest},
 };
 use inferno_shared::{
     HealthCheckOptions, InfernoError, LoggingOptions, MetricsCollector, MetricsOptions, Result,
@@ -26,27 +26,9 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tracing::{info, warn};
 
-/// Determine the best default inference engine based on compiled features
-#[allow(unreachable_code)]
+/// Engine is always llama-burn
 fn default_engine() -> String {
-    // Priority order: GPU engines first (faster), then CPU engines
-    #[cfg(feature = "candle-cuda")]
-    {
-        return "candle-cuda".to_string();
-    }
-
-    #[cfg(feature = "candle-metal")]
-    {
-        return "candle-metal".to_string();
-    }
-
-    #[cfg(feature = "candle-cpu")]
-    {
-        return "candle-cpu".to_string();
-    }
-
-    // Fallback to burn-cpu (always available)
-    "burn-cpu".to_string()
+    "llama-burn".to_string()
 }
 
 /// Inferno Backend - AI inference backend server
@@ -75,8 +57,8 @@ pub struct BackendCliOptions {
     #[arg(long, default_value = "auto", env = "INFERNO_MODEL_TYPE")]
     pub model_type: String,
 
-    /// Inference engine to use (burn-cpu, candle-cpu, candle-cuda, candle-metal)
-    #[arg(long, default_value_t = default_engine(), env = "INFERNO_ENGINE")]
+    /// Inference engine (always llama-burn)
+    #[arg(skip = default_engine())]
     pub engine: String,
 
     /// Maximum batch size for inference
@@ -174,27 +156,10 @@ impl BackendCliOptions {
             ..Default::default()
         };
 
-        // Parse engine type from string
-        let engine_type = match self.engine.as_str() {
-            "burn-cpu" => EngineType::BurnCpu,
-            "candle-cpu" => EngineType::CandleCpu,
-            #[cfg(feature = "candle-cuda")]
-            "candle-cuda" => EngineType::CandleCuda,
-            #[cfg(feature = "candle-metal")]
-            "candle-metal" => EngineType::CandleMetal,
-            _ => {
-                warn!(
-                    "Unknown engine type '{}', falling back to burn-cpu",
-                    self.engine
-                );
-                EngineType::BurnCpu
-            }
-        };
-
-        info!("Using inference engine: {}", engine_type);
+        info!("Using llama-burn inference engine");
 
         // Create and initialize the inference engine
-        let mut engine = create_engine(engine_type);
+        let mut engine = create_engine();
 
         if let Err(e) = engine.initialize(inference_config).await {
             warn!("Failed to initialize inference engine: {}", e);
