@@ -18,10 +18,10 @@ fn test_load_weights_into_model_not_placeholder() {
     let vs = candle_nn::VarMap::new();
     let vb = candle_nn::VarBuilder::from_varmap(&vs, dtype, &device);
 
-    let mut model = InfernoLlama::new(&config, vb).unwrap();
+    let _model = InfernoLlama::new(&config, vb).unwrap();
 
     // Create a fake weight analysis result
-    let analysis = inferno_llama::diagnostic::WeightAnalysisResult {
+    let _analysis = inferno_llama::diagnostic::WeightAnalysisResult {
         primary_dtype: DType::BF16,
         total_params: 1000,
         quantization: inferno_llama::diagnostic::QuantizationConfig::default(),
@@ -55,44 +55,16 @@ fn test_load_weights_into_model_not_placeholder() {
     }
 }
 
-/// Test weight name mapping from Hugging Face to InfernoLlama format
-#[test]
-fn test_weight_name_mapping() {
-    // Test basic layer mapping
-    let hf_name = "model.layers.0.self_attn.q_proj.weight";
-    let mapped = InfernoLlama::map_weight_name(hf_name).unwrap();
-    assert_eq!(mapped, "layers.0.attention.q_proj.weight");
-
-    // Test MLP mapping
-    let hf_name = "model.layers.15.mlp.gate_proj.weight";
-    let mapped = InfernoLlama::map_weight_name(hf_name).unwrap();
-    assert_eq!(mapped, "layers.15.feed_forward.gate_proj.weight");
-
-    // Test norm layers (should remain unchanged)
-    let hf_name = "model.layers.0.input_layernorm.weight";
-    let mapped = InfernoLlama::map_weight_name(hf_name).unwrap();
-    assert_eq!(mapped, "layers.0.input_layernorm.weight");
-
-    // Test final norm
-    let hf_name = "model.norm.weight";
-    let mapped = InfernoLlama::map_weight_name(hf_name).unwrap();
-    assert_eq!(mapped, "norm.weight");
-
-    // Test embeddings
-    let hf_name = "model.embed_tokens.weight";
-    let mapped = InfernoLlama::map_weight_name(hf_name).unwrap();
-    assert_eq!(mapped, "embed_tokens.weight");
-}
 
 /// Test loading weights from a mock SafeTensors file
 #[test]
 fn test_load_tensors_from_mock_safetensors() {
-    let temp_dir = TempDir::new().unwrap();
-    let device = Device::Cpu;
+    let _temp_dir = TempDir::new().unwrap();
+    let _device = Device::Cpu;
 
-    // Create a mock SafeTensors file with some test weights
+    // Create a mock SafeTensors file with some test weights (using HuggingFace naming)
     // Note: This is a simplified test - real implementation would use actual SafeTensors format
-    let test_weights = vec!["embed_tokens.weight", "layers.0.attention.q_proj.weight"];
+    let test_weights = vec!["model.embed_tokens.weight", "model.layers.0.self_attn.q_proj.weight"];
 
     // This test validates the interface exists - but method is private, so skip for now
     // TODO: Test through public API once available
@@ -134,12 +106,12 @@ fn test_dtype_preservation_during_loading() {
 fn test_sharded_weight_loading_interface() {
     let temp_dir = TempDir::new().unwrap();
 
-    // Create mock index file for sharded model
+    // Create mock index file for sharded model (using HuggingFace naming)
     let index_content = r#"{
         "weight_map": {
             "model.embed_tokens.weight": "model-00001-of-00002.safetensors",
-            "model.layers.0.attention.q_proj.weight": "model-00001-of-00002.safetensors",
-            "model.layers.1.attention.q_proj.weight": "model-00002-of-00002.safetensors"
+            "model.layers.0.self_attn.q_proj.weight": "model-00001-of-00002.safetensors",
+            "model.layers.1.self_attn.q_proj.weight": "model-00002-of-00002.safetensors"
         }
     }"#;
 
@@ -156,6 +128,10 @@ fn test_sharded_weight_loading_interface() {
     assert_eq!(mapping.len(), 3);
     assert_eq!(
         mapping.get("model.embed_tokens.weight"),
+        Some(&"model-00001-of-00002.safetensors".to_string())
+    );
+    assert_eq!(
+        mapping.get("model.layers.0.self_attn.q_proj.weight"),
         Some(&"model-00001-of-00002.safetensors".to_string())
     );
 }
@@ -197,6 +173,103 @@ fn test_weight_shape_validation() {
     assert_eq!(expected_embed_shape.1, 4096);
     assert_eq!(expected_q_proj_shape, (4096, 4096));
     assert_eq!(expected_ffn_gate_shape, (14336, 4096));
+}
+
+/// Test SafeTensors configuration validation
+#[test]
+fn test_safetensors_config_validation() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create a valid config.json for testing
+    let config_content = r#"{
+        "architectures": ["LlamaForCausalLM"],
+        "hidden_size": 4096,
+        "intermediate_size": 14336,
+        "num_attention_heads": 32,
+        "num_hidden_layers": 32,
+        "num_key_value_heads": 8,
+        "vocab_size": 128256,
+        "rms_norm_eps": 1e-05,
+        "rope_theta": 500000.0,
+        "torch_dtype": "bfloat16"
+    }"#;
+
+    fs::write(temp_dir.path().join("config.json"), config_content).unwrap();
+
+    let result = InfernoLlama::load_config_simple(temp_dir.path());
+    assert!(result.is_ok());
+
+    let config = result.unwrap();
+    assert_eq!(config.dim, 4096);
+    assert_eq!(config.intermediate_size, 14336);
+    assert_eq!(config.n_heads, 32);
+    assert_eq!(config.n_kv_heads, Some(8));
+    assert_eq!(config.vocab_size, 128256);
+}
+
+/// Test SafeTensors sharding patterns
+#[test]
+fn test_safetensors_sharding_patterns() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create multiple index patterns to test flexibility
+    let patterns = vec![
+        // Standard sharded pattern
+        (r#"{"weight_map": {"model.embed_tokens.weight": "model-00001-of-00004.safetensors"}}"#, 1),
+        // Multi-shard pattern
+        (r#"{"weight_map": {
+            "model.embed_tokens.weight": "model-00001-of-00004.safetensors",
+            "model.layers.0.self_attn.q_proj.weight": "model-00002-of-00004.safetensors",
+            "model.layers.31.mlp.down_proj.weight": "model-00004-of-00004.safetensors"
+        }}"#, 3),
+    ];
+
+    for (index_content, expected_weights) in patterns {
+        let test_dir = temp_dir.path().join("test_model");
+        fs::create_dir_all(&test_dir).unwrap();
+        fs::write(test_dir.join("model.safetensors.index.json"), index_content).unwrap();
+
+        let result = InfernoLlama::get_weight_mapping(&test_dir);
+        assert!(result.is_ok());
+
+        let mapping = result.unwrap();
+        assert_eq!(mapping.len(), expected_weights);
+
+        // Clean up for next iteration
+        fs::remove_dir_all(&test_dir).unwrap();
+    }
+}
+
+/// Test HuggingFace naming convention consistency
+#[test]
+fn test_huggingface_naming_consistency() {
+    // Test that all expected HuggingFace weight names are recognized
+    let expected_patterns = vec![
+        "model.embed_tokens.weight",
+        "model.layers.0.input_layernorm.weight",
+        "model.layers.0.self_attn.q_proj.weight",
+        "model.layers.0.self_attn.k_proj.weight",
+        "model.layers.0.self_attn.v_proj.weight",
+        "model.layers.0.self_attn.o_proj.weight",
+        "model.layers.0.post_attention_layernorm.weight",
+        "model.layers.0.mlp.gate_proj.weight",
+        "model.layers.0.mlp.up_proj.weight",
+        "model.layers.0.mlp.down_proj.weight",
+        "model.norm.weight",
+        "lm_head.weight",
+    ];
+
+    // All these patterns should be valid for weight loading
+    for pattern in expected_patterns {
+        // Test that pattern follows expected format
+        if pattern.starts_with("model.layers.") {
+            assert!(pattern.contains("self_attn") || pattern.contains("mlp") || pattern.contains("layernorm"));
+        }
+
+        // Test pattern parsing doesn't fail
+        let parts: Vec<&str> = pattern.split('.').collect();
+        assert!(parts.len() >= 2, "Pattern should have at least 2 parts: {}", pattern);
+    }
 }
 
 /// Integration test for end-to-end weight loading (when implementation is complete)

@@ -112,11 +112,11 @@ impl TransformerBlock {
             ));
         }
 
-        // Create variable builders for each component
-        let attention_vb = vb.pp(format!("attention_{}", layer_idx));
-        let ffn_vb = vb.pp(format!("ffn_{}", layer_idx));
-        let attention_norm_vb = vb.pp(format!("attention_norm_{}", layer_idx));
-        let ffn_norm_vb = vb.pp(format!("ffn_norm_{}", layer_idx));
+        // Create variable builders for each component (using HuggingFace naming convention)
+        let attention_vb = vb.pp("self_attn");
+        let ffn_vb = vb.pp("mlp");
+        let attention_norm_vb = vb.pp("input_layernorm");
+        let ffn_norm_vb = vb.pp("post_attention_layernorm");
 
         // Initialize components
         let attention = MultiHeadAttention::new(config, attention_vb).map_err(|e| {

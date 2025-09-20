@@ -9,7 +9,7 @@ description = "AI inference backend component of Inferno distributed systems"
 
 [dependencies]
 inferno-shared = { path = "../shared" }
-inferno-inference = { path = "../inference", optional = true }
+inferno-inference = { path = "../inference" }
 
 # Core dependencies
 tokio = { workspace = true }
@@ -19,24 +19,15 @@ clap = { workspace = true }
 reqwest = { workspace = true }
 serde_json = { workspace = true }
 hyper = { version = "1.0", features = ["full"] }
-hyper-util = { version = "0.1", features = ["full"] }
-http-body-util = "0.1"
-bytes = "1.0"
+hyper-util = { workspace = true }
+http-body-util = { workspace = true }
+bytes = { workspace = true }
 
 [dev-dependencies]
 tokio-test = { workspace = true }
 proptest = { workspace = true }
 serial_test = { workspace = true }
 
-[features]
-default = ["candle-cuda", "pretrained"]
-
-# Inference engine features
-burn-cpu = ["dep:inferno-inference", "inferno-inference/burn-cpu"]
-candle-cpu = ["dep:inferno-inference", "inferno-inference/candle-cpu"]
-candle-cuda = ["dep:inferno-inference", "inferno-inference/candle-cuda"]
-candle-metal = ["dep:inferno-inference", "inferno-inference/candle-metal"]
-pretrained = ["dep:inferno-inference", "inferno-inference/pretrained"]
 
 [[bin]]
 name = "inferno-backend"

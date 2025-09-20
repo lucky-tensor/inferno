@@ -31,7 +31,7 @@ wiremock = { workspace = true }
 serial_test = { workspace = true }
 reqwest = { workspace = true }
 serde_json = { workspace = true }
-libc = "0.2"
+libc = { workspace = true }
 
 [[bin]]
 name = "inferno-proxy"

@@ -108,10 +108,9 @@ impl InfernoLlama {
             // Load tensors from this file
             let file_tensors = Self::load_tensors_from_file(&file_path, &weight_names, &device)?;
 
-            // Map weight names and add to collection
+            // Use HuggingFace weight names directly (no mapping needed)
             for (hf_name, tensor) in file_tensors {
-                let mapped_name = Self::map_weight_name(&hf_name)?;
-                all_tensors.insert(mapped_name, tensor);
+                all_tensors.insert(hf_name, tensor);
             }
         }
 
@@ -291,82 +290,6 @@ impl InfernoLlama {
         Ok(tensor)
     }
 
-    /// Maps Hugging Face weight names to InfernoLlama weight names.
-    pub fn map_weight_name(hf_name: &str) -> Result<String> {
-        // Validate input
-        if hf_name.is_empty() {
-            return Err(LlamaError::config_error(
-                "weight_mapping",
-                "Weight name cannot be empty".to_string(),
-            ));
-        }
-
-        // Remove "model." prefix if present
-        let name = if let Some(stripped) = hf_name.strip_prefix("model.") {
-            stripped
-        } else {
-            hf_name
-        };
-
-        // Additional validation after prefix removal
-        if name.is_empty() {
-            return Err(LlamaError::config_error(
-                "weight_mapping",
-                format!("Invalid weight name after prefix removal: {}", hf_name),
-            ));
-        }
-
-        // Map specific component names
-        let mapped_name = if name.starts_with("layers.") {
-            // Extract layer number and component
-            let parts: Vec<&str> = name.split('.').collect();
-            if parts.len() < 3 {
-                return Err(LlamaError::config_error(
-                    "weight_mapping",
-                    format!("Invalid layer weight name: {}", hf_name),
-                ));
-            }
-
-            let layer_idx = parts[1];
-            let component = parts[2];
-
-            // Validate layer index is numeric
-            if layer_idx.parse::<u32>().is_err() {
-                return Err(LlamaError::config_error(
-                    "weight_mapping",
-                    format!("Invalid layer index '{}' in weight name: {}", layer_idx, hf_name),
-                ));
-            }
-
-            match component {
-                "self_attn" => {
-                    // Map self_attn to attention
-                    let rest = &parts[3..].join(".");
-                    format!("layers.{}.attention.{}", layer_idx, rest)
-                }
-                "mlp" => {
-                    // Map mlp to feed_forward
-                    let rest = &parts[3..].join(".");
-                    format!("layers.{}.feed_forward.{}", layer_idx, rest)
-                }
-                _ => {
-                    // Keep other components as-is (input_layernorm, post_attention_layernorm)
-                    name.to_string()
-                }
-            }
-        } else if name == "layers" {
-            // Handle incomplete layer names
-            return Err(LlamaError::config_error(
-                "weight_mapping",
-                format!("Incomplete layer weight name: {}", hf_name),
-            ));
-        } else {
-            // Non-layer weights, keep as-is
-            name.to_string()
-        };
-
-        Ok(mapped_name)
-    }
 
     /// Simple method to generate text (placeholder for now)
     pub fn generate(&self, prompt: &str, max_tokens: usize) -> Result<String> {

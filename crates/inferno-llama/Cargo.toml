@@ -9,9 +9,9 @@ description = "Native BF16/F16 Llama implementation for high-performance distrib
 
 [dependencies]
 # Core candle dependencies for tensor operations
-candle-core = { version = "0.9.1" }
-candle-nn = { version = "0.9.1" }
-candle-transformers = { version = "0.9.1" }
+candle-core = { workspace = true }
+candle-nn = { workspace = true }
+candle-transformers = { workspace = true }
 
 # Workspace dependencies
 thiserror = { workspace = true }
@@ -20,8 +20,8 @@ serde_json = { workspace = true }
 
 # Math and precision support
 half = { workspace = true }
-bytemuck = { version = "1.0" }
-regex = { version = "1.0" }
+bytemuck = { workspace = true }
+regex = { workspace = true }
 
 # For configuration loading
 hf-hub = { workspace = true }
@@ -40,10 +40,6 @@ tokio = { workspace = true }
 rstest = { workspace = true }
 tempfile = { workspace = true }
 
-[features]
-default = ["cuda"]
-cuda = ["candle-core/cuda", "candle-nn/cuda"]
-metal = ["candle-core/metal", "candle-nn/metal"]
 
 [package.metadata.cargo-machete]
 ignored = ["bytemuck", "candle-nn", "half", "hf-hub", "safetensors", "regex"]

@@ -2,9 +2,8 @@
 //!
 //! These tests specifically focus on SafeTensors weight loading capabilities:
 //! 1. Loading and parsing SafeTensors files from real Llama 3.1 8B model
-//! 2. Weight name mapping from HuggingFace format to InfernoLlama format
-//! 3. Maintaining BF16 precision during weight loading
-//! 4. Validating tensor shapes and content
+//! 2. Maintaining BF16 precision during weight loading
+//! 3. Validating tensor shapes and content
 
 use inferno_llama::InfernoLlama;
 use std::path::Path;
@@ -35,12 +34,12 @@ fn test_safetensors_weight_loading() {
         tensors.len()
     );
 
-    // Verify key tensor shapes and types
-    let embed_tensor = &tensors["embed_tokens.weight"];
+    // Verify key tensor shapes and types (using HuggingFace naming)
+    let embed_tensor = &tensors["model.embed_tokens.weight"];
     assert_eq!(embed_tensor.dims(), &[128256, 4096]);
     assert_eq!(embed_tensor.dtype(), candle_core::DType::BF16);
 
-    let q_proj = &tensors["layers.0.attention.q_proj.weight"];
+    let q_proj = &tensors["model.layers.0.self_attn.q_proj.weight"];
     assert_eq!(q_proj.dims(), &[4096, 4096]);
     assert_eq!(q_proj.dtype(), candle_core::DType::BF16);
 
@@ -50,34 +49,6 @@ fn test_safetensors_weight_loading() {
     );
 }
 
-#[test]
-fn test_weight_name_mapping() {
-    // Test HuggingFace to InfernoLlama weight name mapping
-    let test_cases = vec![
-        ("model.embed_tokens.weight", "embed_tokens.weight"),
-        (
-            "model.layers.0.self_attn.q_proj.weight",
-            "layers.0.attention.q_proj.weight",
-        ),
-        (
-            "model.layers.15.mlp.gate_proj.weight",
-            "layers.15.feed_forward.gate_proj.weight",
-        ),
-        ("model.norm.weight", "norm.weight"),
-        ("lm_head.weight", "lm_head.weight"),
-    ];
-
-    for (hf_name, expected_inferno_name) in test_cases {
-        let mapped_name = InfernoLlama::map_weight_name(hf_name).unwrap();
-        assert_eq!(
-            mapped_name, expected_inferno_name,
-            "Mapping failed for {}: expected {}, got {}",
-            hf_name, expected_inferno_name, mapped_name
-        );
-    }
-
-    println!("✅ Weight name mapping: HF format → InfernoLlama format");
-}
 
 #[test]
 fn test_weight_index_parsing() {

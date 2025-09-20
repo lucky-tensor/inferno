@@ -25,7 +25,7 @@
 //! - Optimized for batch processing and variable sequence lengths
 
 use candle_core::{DType, Device, Result, Tensor};
-use candle_nn::{linear, Linear, Module, VarBuilder};
+use candle_nn::{Linear, Module, VarBuilder};
 
 use crate::{config::LlamaConfig, error::LlamaError, rope::apply_rotary_emb};
 
@@ -150,11 +150,11 @@ impl MultiHeadAttention {
         let device = vb.device().clone();
         let dtype = vb.dtype();
 
-        // Initialize linear layers with proper dimensions
-        let wq = linear(config.dim, config.n_heads * head_dim, vb.pp("wq"))?;
-        let wk = linear(config.dim, n_kv_heads * head_dim, vb.pp("wk"))?;
-        let wv = linear(config.dim, n_kv_heads * head_dim, vb.pp("wv"))?;
-        let wo = linear(config.n_heads * head_dim, config.dim, vb.pp("wo"))?;
+        // Initialize linear layers with proper dimensions (using HuggingFace naming, no bias)
+        let wq = candle_nn::linear_no_bias(config.dim, config.n_heads * head_dim, vb.pp("q_proj"))?;
+        let wk = candle_nn::linear_no_bias(config.dim, n_kv_heads * head_dim, vb.pp("k_proj"))?;
+        let wv = candle_nn::linear_no_bias(config.dim, n_kv_heads * head_dim, vb.pp("v_proj"))?;
+        let wo = candle_nn::linear_no_bias(config.n_heads * head_dim, config.dim, vb.pp("o_proj"))?;
 
         Ok(Self {
             n_heads: config.n_heads,

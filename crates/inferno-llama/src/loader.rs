@@ -4,7 +4,6 @@
 //! with a focus on SafeTensors sharded models. It handles:
 //!
 //! - Loading sharded SafeTensors files (model-00001-of-00004.safetensors, etc.)
-//! - Mapping weight names from Hugging Face format to InfernoLlama component names
 //! - Preserving native BF16 precision during loading
 //! - Validating loaded weight dimensions against model configuration
 //!
@@ -12,7 +11,6 @@
 //!
 //! - **Sharded Loading**: Efficiently loads models split across multiple files
 //! - **Precision Preservation**: Maintains BF16/F16 precision without conversion
-//! - **Weight Mapping**: Maps from HF naming convention to InfernoLlama structure
 //! - **Validation**: Ensures loaded weights match expected dimensions
 //!
 //! ## Performance
@@ -45,8 +43,7 @@ use crate::model::InfernoLlama;
 /// 1. Parse model configuration from config.json
 /// 2. Load weight mapping from model.safetensors.index.json
 /// 3. Load tensor data from sharded .safetensors files
-/// 4. Map weight names from HF format to InfernoLlama format
-/// 5. Initialize model with loaded weights
+/// 4. Initialize model with loaded weights using HuggingFace naming
 ///
 /// ## Memory Efficiency
 ///
@@ -453,62 +450,6 @@ impl ModelLoader {
         Ok(candle_dtype)
     }
 
-    /// Maps Hugging Face weight names to InfernoLlama weight names.
-    ///
-    /// This function handles the naming convention differences between
-    /// Hugging Face models and our internal structure.
-    ///
-    /// # Examples
-    ///
-    /// - `model.embed_tokens.weight` -> `embed_tokens.weight`
-    /// - `model.layers.0.self_attn.q_proj.weight` -> `layers.0.attention.q_proj.weight`
-    /// - `lm_head.weight` -> `lm_head.weight`
-    #[allow(dead_code)]
-    fn map_weight_name(&self, hf_name: &str) -> Result<String> {
-        // Remove "model." prefix if present
-        let name = if let Some(stripped) = hf_name.strip_prefix("model.") {
-            stripped
-        } else {
-            hf_name
-        };
-
-        // Map specific component names
-        let mapped_name = if name.starts_with("layers.") {
-            // Extract layer number and component
-            let parts: Vec<&str> = name.split('.').collect();
-            if parts.len() < 3 {
-                return Err(LlamaError::config_error(
-                    "weight_mapping",
-                    format!("Invalid layer weight name: {}", hf_name),
-                ));
-            }
-
-            let layer_idx = parts[1];
-            let component = parts[2];
-
-            match component {
-                "self_attn" => {
-                    // Map self_attn to attention
-                    let rest = &parts[3..].join(".");
-                    format!("layers.{}.attention.{}", layer_idx, rest)
-                }
-                "mlp" => {
-                    // Map mlp to feed_forward
-                    let rest = &parts[3..].join(".");
-                    format!("layers.{}.feed_forward.{}", layer_idx, rest)
-                }
-                _ => {
-                    // Keep other components as-is (input_layernorm, post_attention_layernorm)
-                    name.to_string()
-                }
-            }
-        } else {
-            // Non-layer weights, keep as-is
-            name.to_string()
-        };
-
-        Ok(mapped_name)
-    }
 }
 
 // The load_from_path method is now implemented in simple_loader.rs
@@ -516,52 +457,6 @@ impl ModelLoader {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn test_weight_name_mapping() {
-        let loader = ModelLoader {
-            model_path: PathBuf::new(),
-            config: LlamaConfig::llama_3_1_8b().unwrap(),
-            weight_map: HashMap::new(),
-            device: Device::Cpu,
-            dtype: DType::BF16,
-        };
-
-        // Test embedding weight mapping
-        assert_eq!(
-            loader.map_weight_name("model.embed_tokens.weight").unwrap(),
-            "embed_tokens.weight"
-        );
-
-        // Test attention weight mapping
-        assert_eq!(
-            loader
-                .map_weight_name("model.layers.0.self_attn.q_proj.weight")
-                .unwrap(),
-            "layers.0.attention.q_proj.weight"
-        );
-
-        // Test MLP weight mapping
-        assert_eq!(
-            loader
-                .map_weight_name("model.layers.5.mlp.gate_proj.weight")
-                .unwrap(),
-            "layers.5.feed_forward.gate_proj.weight"
-        );
-
-        // Test normalization weights (should remain unchanged)
-        assert_eq!(
-            loader
-                .map_weight_name("model.layers.0.input_layernorm.weight")
-                .unwrap(),
-            "layers.0.input_layernorm.weight"
-        );
-
-        // Test output head mapping
-        assert_eq!(
-            loader.map_weight_name("lm_head.weight").unwrap(),
-            "lm_head.weight"
-        );
-    }
 
     #[test]
     fn test_config_parsing() {

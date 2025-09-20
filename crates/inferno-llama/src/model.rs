@@ -133,9 +133,9 @@ impl InfernoLlama {
         let device = vb.device();
         let dtype = vb.dtype();
 
-        // Initialize token embeddings
+        // Initialize token embeddings (using HuggingFace naming convention)
         let embed_tokens =
-            candle_nn::embedding(config.vocab_size, config.dim, vb.pp("embed_tokens")).map_err(
+            candle_nn::embedding(config.vocab_size, config.dim, vb.pp("model").pp("embed_tokens")).map_err(
                 |e| {
                     LlamaError::tensor_error(
                         format!("Failed to create token embeddings: {}", e),
@@ -144,20 +144,20 @@ impl InfernoLlama {
                 },
             )?;
 
-        // Initialize transformer blocks
+        // Initialize transformer blocks (using HuggingFace naming convention)
         let mut layers = Vec::with_capacity(config.n_layers);
         for layer_idx in 0..config.n_layers {
             let layer =
-                TransformerBlock::new(layer_idx, config, vb.pp(format!("layers.{}", layer_idx)))?;
+                TransformerBlock::new(layer_idx, config, vb.pp("model").pp(format!("layers.{}", layer_idx)))?;
             layers.push(layer);
         }
 
-        // Initialize final layer normalization
-        let norm = RMSNorm::from_config(config, vb.pp("norm"))?;
+        // Initialize final layer normalization (using HuggingFace naming convention)
+        let norm = RMSNorm::from_config(config, vb.pp("model").pp("norm"))?;
 
-        // Initialize output projection (language modeling head)
+        // Initialize output projection (language modeling head, no bias)
         let lm_head =
-            candle_nn::linear(config.dim, config.vocab_size, vb.pp("lm_head")).map_err(|e| {
+            candle_nn::linear_no_bias(config.dim, config.vocab_size, vb.pp("lm_head")).map_err(|e| {
                 LlamaError::tensor_error(
                     format!("Failed to create output projection: {}", e),
                     "model_init",

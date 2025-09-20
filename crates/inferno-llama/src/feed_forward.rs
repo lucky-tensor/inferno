@@ -27,7 +27,7 @@
 //! - Space Complexity: O(batch_size * seq_len * ffn_dim) for intermediate activations
 
 use candle_core::{DType, Device, Result, Tensor};
-use candle_nn::{linear, Linear, Module, VarBuilder};
+use candle_nn::{Linear, Module, VarBuilder};
 
 use crate::{config::LlamaConfig, error::LlamaError};
 
@@ -127,10 +127,10 @@ impl FeedForward {
             return Err(LlamaError::config_error("ffn_dim", "must be greater than 0").into());
         }
 
-        // Initialize linear layers
-        let w1 = linear(config.dim, ffn_dim, vb.pp("w1"))?; // Gate projection
-        let w3 = linear(config.dim, ffn_dim, vb.pp("w3"))?; // Up projection
-        let w2 = linear(ffn_dim, config.dim, vb.pp("w2"))?; // Down projection
+        // Initialize linear layers (using HuggingFace naming, no bias)
+        let w1 = candle_nn::linear_no_bias(config.dim, ffn_dim, vb.pp("gate_proj"))?; // Gate projection
+        let w3 = candle_nn::linear_no_bias(config.dim, ffn_dim, vb.pp("up_proj"))?; // Up projection
+        let w2 = candle_nn::linear_no_bias(ffn_dim, config.dim, vb.pp("down_proj"))?; // Down projection
 
         Ok(Self {
             w1,

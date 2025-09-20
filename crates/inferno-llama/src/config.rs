@@ -134,19 +134,23 @@ impl LlamaConfig {
         self.n_kv_heads.unwrap_or(self.n_heads)
     }
 
-    /// Calculate the feed-forward network hidden dimension
-    ///
-    /// Uses Meta's formula: multiple_of * round((ffn_dim_multiplier * dim) / multiple_of)
-    /// If ffn_dim_multiplier is None, uses 2/3 * dim as the base
+    /// Returns the feed-forward network hidden dimension.
+    /// Uses the configured intermediate_size directly from the model config.
     pub fn ffn_hidden_dim(&self) -> usize {
-        let base_dim = if let Some(multiplier) = self.ffn_dim_multiplier {
-            (multiplier * self.dim as f32) as usize
+        // For HuggingFace models, use intermediate_size directly
+        if self.intermediate_size > 0 {
+            self.intermediate_size
         } else {
-            (2 * self.dim) / 3
-        };
+            // Fallback to computed dimension if intermediate_size not set
+            let base_dim = if let Some(multiplier) = self.ffn_dim_multiplier {
+                (multiplier * self.dim as f32) as usize
+            } else {
+                (2 * self.dim) / 3
+            };
 
-        // Round to multiple_of
-        base_dim.div_ceil(self.multiple_of) * self.multiple_of
+            // Round to multiple_of
+            base_dim.div_ceil(self.multiple_of) * self.multiple_of
+        }
     }
 
     /// Calculate head dimension
