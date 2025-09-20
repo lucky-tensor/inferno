@@ -1,0 +1,60 @@
+# Inferno-Llama Final Phase Implementation TODO
+
+## Priority 1: Critical Path - Weight Loading
+
+- [ ] Write failing test for loading actual SafeTensors tensor data into model components
+- [ ] Implement weight tensor loading from SafeTensors files into candle Tensors
+- [ ] Map Hugging Face weight names to InfernoLlama component parameters
+- [ ] Handle sharded loading across multiple .safetensors files
+- [ ] Verify weight dimensions match expected model architecture
+- [ ] Preserve BF16 precision throughout weight loading process
+
+## Priority 2: Forward Pass Implementation
+
+- [ ] Write failing test for complete forward pass (input_ids → logits)
+- [ ] Implement InfernoLlama.forward() method using loaded weights
+- [ ] Integrate: embeddings → transformer_blocks → norm → lm_head
+- [ ] Add proper tensor flow and dimension management
+- [ ] Test forward pass produces correct logits shape and valid values
+- [ ] Validate BF16 precision is maintained throughout
+
+## Priority 3: Tokenizer Integration
+
+- [ ] Write failing test for text tokenization and detokenization
+- [ ] Integrate with existing tokenizer system from inference crate
+- [ ] Handle text → token_ids conversion for model input
+- [ ] Handle token_ids → text conversion for model output
+- [ ] Support Llama tokenizer format and special tokens
+- [ ] Test tokenization roundtrip accuracy
+
+## Priority 4: Text Generation Pipeline
+
+- [ ] Write failing test for autoregressive text generation
+- [ ] Implement generation loop: prompt → tokens → forward → sample → repeat
+- [ ] Add sampling strategies (greedy decoding for deterministic output)
+- [ ] Implement EOS token detection and stopping criteria
+- [ ] Add KV cache management for efficient generation
+- [ ] Test generation produces coherent English text
+
+## Priority 5: Success Validation
+
+- [ ] Create definitive test: "The capital of France is" → generate English completion
+- [ ] Load actual meta-llama_Llama-3.1-8B-Instruct model weights
+- [ ] Run inference and validate output is coherent English (contains "Paris" or similar)
+- [ ] Measure memory usage to ensure BF16 efficiency (target: ~15GB for 8B model)
+- [ ] Validate no RoPE dtype errors occur during inference
+
+## Success Criteria
+
+The test must demonstrate:
+1. Real weights loaded from SafeTensors (not mock data)
+2. English output that is coherent and better than random
+3. BF16 memory efficiency maintained (15GB target for 8B model)
+4. No RoPE dtype errors
+5. Production-quality distributed systems performance standards
+
+## Key Files
+
+- `/home/jeef/inferno/crates/inferno-llama/src/`
+- `/home/jeef/inferno/crates/inferno-llama/tests/`
+- Model path: `/home/jeef/models/meta-llama_Llama-3.1-8B-Instruct/`

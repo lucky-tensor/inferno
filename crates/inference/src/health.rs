@@ -1,7 +1,7 @@
-//! Health monitoring for VLLM backend
+//! Health monitoring for Inferno backend
 
 use crate::config::HealthConfig;
-use crate::error::VLLMResult;
+use crate::error::InfernoResult;
 use crate::memory::{CudaMemoryPool, GpuAllocator, MemoryTracker};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
@@ -19,28 +19,28 @@ pub enum HealthStatus {
     Unhealthy(String),
 }
 
-/// Simple health checker trait for VLLM backend
+/// Simple health checker trait for Inferno backend
 #[async_trait]
 pub trait HealthChecker: Send + Sync {
     /// Health status type returned by this checker
     type Status;
 
     /// Perform a health check
-    async fn check_health(&self) -> VLLMResult<Self::Status>;
+    async fn check_health(&self) -> InfernoResult<Self::Status>;
 
     /// Get the name of this health checker
     fn name(&self) -> &'static str;
 }
 
-/// VLLM-specific health checker
-pub struct VLLMHealthChecker {
+/// Inferno-specific health checker
+pub struct InfernoHealthChecker {
     config: HealthConfig,
     memory_pool: Option<Arc<CudaMemoryPool>>,
     memory_tracker: Option<Arc<MemoryTracker>>,
     last_check: std::sync::Mutex<Option<Instant>>,
 }
 
-impl VLLMHealthChecker {
+impl InfernoHealthChecker {
     /// Create a new health checker
     #[must_use]
     pub fn new() -> Self {
@@ -78,17 +78,17 @@ impl VLLMHealthChecker {
     }
 }
 
-impl Default for VLLMHealthChecker {
+impl Default for InfernoHealthChecker {
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[async_trait]
-impl HealthChecker for VLLMHealthChecker {
+impl HealthChecker for InfernoHealthChecker {
     type Status = HealthStatus;
 
-    async fn check_health(&self) -> VLLMResult<Self::Status> {
+    async fn check_health(&self) -> InfernoResult<Self::Status> {
         if !self.config.enabled {
             return Ok(HealthStatus::Healthy);
         }
@@ -163,11 +163,11 @@ impl HealthChecker for VLLMHealthChecker {
     }
 
     fn name(&self) -> &'static str {
-        "vllm-backend"
+        "inferno-backend"
     }
 }
 
-impl VLLMHealthChecker {
+impl InfernoHealthChecker {
     /// Get the last health check timestamp
     pub fn last_check_time(&self) -> Option<Instant> {
         self.last_check.lock().ok().and_then(|guard| *guard)
@@ -210,10 +210,10 @@ pub struct HealthMetrics {
     pub gpu_available: bool,
 }
 
-impl VLLMHealthChecker {
+impl InfernoHealthChecker {
     /// Perform detailed health check with metrics
     #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
-    pub async fn check_health_detailed(&self) -> VLLMResult<HealthCheckResult> {
+    pub async fn check_health_detailed(&self) -> InfernoResult<HealthCheckResult> {
         let start_time = Instant::now();
         let status = self.check_health().await?;
         let duration = start_time.elapsed();
@@ -245,8 +245,8 @@ mod tests {
 
     #[test]
     fn test_health_checker_creation() {
-        let checker = VLLMHealthChecker::new();
-        assert_eq!(checker.name(), "vllm-backend");
+        let checker = InfernoHealthChecker::new();
+        assert_eq!(checker.name(), "inferno-backend");
         assert!(checker.is_enabled()); // Default should be enabled
     }
 
@@ -257,13 +257,13 @@ mod tests {
             ..Default::default()
         };
 
-        let checker = VLLMHealthChecker::with_config(config);
+        let checker = InfernoHealthChecker::with_config(config);
         assert!(!checker.is_enabled());
     }
 
     #[tokio::test]
     async fn test_basic_health_check() {
-        let checker = VLLMHealthChecker::new();
+        let checker = InfernoHealthChecker::new();
         let result = checker.check_health().await;
         assert!(result.is_ok());
 
@@ -280,7 +280,7 @@ mod tests {
             ..Default::default()
         };
 
-        let checker = VLLMHealthChecker::with_config(config);
+        let checker = InfernoHealthChecker::with_config(config);
         let result = checker.check_health().await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), HealthStatus::Healthy); // Should return healthy when disabled
@@ -291,7 +291,7 @@ mod tests {
         let memory_pool = Arc::new(CudaMemoryPool::new(-1).unwrap());
         let memory_tracker = Arc::new(MemoryTracker::new(-1));
 
-        let checker = VLLMHealthChecker::new()
+        let checker = InfernoHealthChecker::new()
             .with_memory_pool(memory_pool)
             .with_memory_tracker(memory_tracker);
 
@@ -303,7 +303,7 @@ mod tests {
     async fn test_detailed_health_check() {
         let memory_tracker = Arc::new(MemoryTracker::new(-1));
 
-        let checker = VLLMHealthChecker::new().with_memory_tracker(memory_tracker);
+        let checker = InfernoHealthChecker::new().with_memory_tracker(memory_tracker);
 
         let result = checker.check_health_detailed().await;
         assert!(result.is_ok());
@@ -334,7 +334,7 @@ mod tests {
             ..Default::default()
         };
 
-        let checker = VLLMHealthChecker::with_config(config).with_memory_tracker(memory_tracker);
+        let checker = InfernoHealthChecker::with_config(config).with_memory_tracker(memory_tracker);
 
         let result = checker.check_health().await;
         assert!(result.is_ok());

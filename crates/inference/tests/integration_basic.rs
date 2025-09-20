@@ -1,21 +1,23 @@
-//! Basic integration tests for VLLM backend
+//! Basic integration tests for Inferno backend
 //!
 //! These tests verify core functionality without requiring CUDA.
 
-use inferno_inference::{VLLMBackend, VLLMConfig, VLLMConfigBuilder, VLLMEngine, VLLMServer};
+use inferno_inference::{
+    InfernoBackend, InfernoConfig, InfernoConfigBuilder, InfernoEngine, InfernoServer,
+};
 use std::env;
 
 #[test]
 fn test_config_creation_and_validation() {
     // Test default configuration fails validation (no model path)
-    let config = VLLMConfig::default();
+    let config = InfernoConfig::default();
     assert!(
         config.validate().is_err(),
         "Default config should fail validation"
     );
 
     // Test builder pattern with validation
-    let result = VLLMConfigBuilder::new()
+    let result = InfernoConfigBuilder::new()
         .model_path("/tmp/test_model")
         .model_name("test-model")
         .device_id(-1) // Use CPU-only mode
@@ -29,7 +31,7 @@ fn test_config_creation_and_validation() {
     );
 
     // Test server address generation
-    let mut config = VLLMConfig::default();
+    let mut config = InfernoConfig::default();
     config.server.host = "localhost".to_string();
     config.server.port = 9000;
     assert_eq!(config.server_address(), "localhost:9000");
@@ -38,34 +40,34 @@ fn test_config_creation_and_validation() {
 #[test]
 fn test_config_from_env() {
     // Set some environment variables
-    env::set_var("VLLM_MODEL_NAME", "test-env-model");
-    env::set_var("VLLM_DEVICE_ID", "-1");
-    env::set_var("VLLM_MAX_BATCH_SIZE", "16");
-    env::set_var("VLLM_PORT", "8090");
-    env::set_var("VLLM_HOST", "0.0.0.0");
+    env::set_var("INFERNO_MODEL_NAME", "test-env-model");
+    env::set_var("INFERNO_DEVICE_ID", "-1");
+    env::set_var("INFERNO_MAX_BATCH_SIZE", "16");
+    env::set_var("INFERNO_PORT", "8090");
+    env::set_var("INFERNO_HOST", "0.0.0.0");
 
-    let result = VLLMConfig::from_env();
+    let result = InfernoConfig::from_env();
     // Will fail due to missing model path, but should have loaded other values
     assert!(result.is_err(), "Should fail due to missing model path");
 
     // Clean up
-    env::remove_var("VLLM_MODEL_NAME");
-    env::remove_var("VLLM_DEVICE_ID");
-    env::remove_var("VLLM_MAX_BATCH_SIZE");
-    env::remove_var("VLLM_PORT");
-    env::remove_var("VLLM_HOST");
+    env::remove_var("INFERNO_MODEL_NAME");
+    env::remove_var("INFERNO_DEVICE_ID");
+    env::remove_var("INFERNO_MAX_BATCH_SIZE");
+    env::remove_var("INFERNO_PORT");
+    env::remove_var("INFERNO_HOST");
 }
 
 #[tokio::test]
 async fn test_engine_lifecycle() {
-    let config = VLLMConfig {
+    let config = InfernoConfig {
         model_path: "/tmp/fake_model".to_string(), // Non-existent is OK for this test
         device_id: -1,                             // CPU-only mode
         ..Default::default()
     };
 
     // Test engine creation
-    let engine = VLLMEngine::new(&config);
+    let engine = InfernoEngine::new(&config);
     assert!(engine.is_ok(), "Engine creation should succeed");
 
     let engine = engine.unwrap();
@@ -95,14 +97,14 @@ async fn test_engine_lifecycle() {
 
 #[tokio::test]
 async fn test_backend_integration() {
-    let config = VLLMConfig {
+    let config = InfernoConfig {
         model_path: "/tmp/fake_model".to_string(),
         device_id: -1, // CPU-only mode
         ..Default::default()
     };
 
     // Test backend creation
-    let backend = VLLMBackend::new(config);
+    let backend = InfernoBackend::new(config);
     assert!(backend.is_ok(), "Backend creation should succeed");
 
     let backend = backend.unwrap();
@@ -117,13 +119,13 @@ async fn test_backend_integration() {
 
 #[test]
 fn test_server_configuration() {
-    let mut config = VLLMConfig::default();
+    let mut config = InfernoConfig::default();
     config.server.host = "localhost".to_string();
     config.server.port = 8080;
     config.server.enable_cors = true;
     config.server.enable_metrics = true;
 
-    let server = VLLMServer::new(config.clone());
+    let server = InfernoServer::new(config.clone());
     assert_eq!(server.config().host, "localhost");
     assert_eq!(server.config().port, 8080);
     assert!(server.config().enable_cors);
@@ -149,7 +151,7 @@ fn test_memory_allocator_interface() {
 
 #[test]
 fn test_configuration_serialization() {
-    let config = VLLMConfig {
+    let config = InfernoConfig {
         model_path: "/tmp/test".to_string(),
         model_name: "test-model".to_string(),
         ..Default::default()
@@ -159,13 +161,13 @@ fn test_configuration_serialization() {
     let json_str = serde_json::to_string(&config);
     assert!(json_str.is_ok(), "JSON serialization should work");
 
-    let deserialized: Result<VLLMConfig, _> = serde_json::from_str(&json_str.unwrap());
+    let deserialized: Result<InfernoConfig, _> = serde_json::from_str(&json_str.unwrap());
     assert!(deserialized.is_ok(), "JSON deserialization should work");
 
     // Test TOML serialization
     let toml_str = toml::to_string(&config);
     assert!(toml_str.is_ok(), "TOML serialization should work");
 
-    let deserialized: Result<VLLMConfig, _> = toml::from_str(&toml_str.unwrap());
+    let deserialized: Result<InfernoConfig, _> = toml::from_str(&toml_str.unwrap());
     assert!(deserialized.is_ok(), "TOML deserialization should work");
 }

@@ -46,9 +46,9 @@ fn test_compatibility_status_display() {
     let warning = CompatibilityStatus::Warning("Test warning".to_string());
     let incompatible = CompatibilityStatus::Incompatible("Test error".to_string());
 
-    assert_eq!(format!("{}", compatible), "✅");
-    assert_eq!(format!("{}", warning), "⚠️");
-    assert_eq!(format!("{}", incompatible), "❌");
+    assert_eq!(format!("{}", compatible), " ");
+    assert_eq!(format!("{}", warning), " ");
+    assert_eq!(format!("{}", incompatible), " ");
 }
 
 /// Test GPU information structure creation

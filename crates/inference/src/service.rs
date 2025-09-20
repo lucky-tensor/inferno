@@ -1,17 +1,17 @@
 //! Service discovery integration
 
-use crate::config::{ServiceDiscoveryConfig, VLLMConfig};
-use crate::error::{ServiceRegistrationError, VLLMResult};
-use crate::health::{HealthChecker, VLLMHealthChecker};
+use crate::config::{InfernoConfig, ServiceDiscoveryConfig};
+use crate::error::{InfernoResult, ServiceRegistrationError};
+use crate::health::{HealthChecker, InfernoHealthChecker};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
-/// Service registration for VLLM backend
-pub struct VLLMServiceRegistration {
+/// Service registration for Inferno backend
+pub struct InfernoServiceRegistration {
     config: ServiceDiscoveryConfig,
-    health_checker: Option<Arc<VLLMHealthChecker>>,
+    health_checker: Option<Arc<InfernoHealthChecker>>,
     registration_status: Arc<RwLock<RegistrationStatus>>,
     last_heartbeat: Arc<RwLock<Option<Instant>>>,
 }
@@ -31,10 +31,10 @@ pub enum RegistrationStatus {
     Unregistering,
 }
 
-impl VLLMServiceRegistration {
+impl InfernoServiceRegistration {
     /// Create a new service registration
     #[must_use]
-    pub fn new(config: VLLMConfig) -> Self {
+    pub fn new(config: InfernoConfig) -> Self {
         Self {
             config: config.service_discovery,
             health_checker: None,
@@ -45,14 +45,14 @@ impl VLLMServiceRegistration {
 
     /// Set health checker for service registration
     #[must_use]
-    pub fn with_health_checker(mut self, health_checker: Arc<VLLMHealthChecker>) -> Self {
+    pub fn with_health_checker(mut self, health_checker: Arc<InfernoHealthChecker>) -> Self {
         self.health_checker = Some(health_checker);
         self
     }
 
     /// Register the service
     #[allow(clippy::cognitive_complexity)]
-    pub async fn register(&self) -> VLLMResult<()> {
+    pub async fn register(&self) -> InfernoResult<()> {
         if !self.config.enabled {
             tracing::debug!("Service discovery disabled, skipping registration");
             return Ok(());
@@ -113,7 +113,7 @@ impl VLLMServiceRegistration {
 
     /// Unregister the service
     #[allow(clippy::cognitive_complexity)]
-    pub async fn unregister(&self) -> VLLMResult<()> {
+    pub async fn unregister(&self) -> InfernoResult<()> {
         if !self.config.enabled {
             return Ok(());
         }
@@ -150,7 +150,7 @@ impl VLLMServiceRegistration {
 
     /// Send heartbeat
     #[allow(clippy::cognitive_complexity)]
-    pub async fn heartbeat(&self) -> VLLMResult<()> {
+    pub async fn heartbeat(&self) -> InfernoResult<()> {
         if !self.config.enabled {
             return Ok(());
         }
@@ -218,7 +218,7 @@ impl VLLMServiceRegistration {
     }
 
     /// Start periodic heartbeat task
-    pub fn start_heartbeat_task(self: Arc<Self>) -> VLLMResult<tokio::task::JoinHandle<()>> {
+    pub fn start_heartbeat_task(self: Arc<Self>) -> InfernoResult<tokio::task::JoinHandle<()>> {
         if !self.config.enabled {
             return Err(ServiceRegistrationError::DiscoveryUnavailable.into());
         }
@@ -246,19 +246,19 @@ impl VLLMServiceRegistration {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::health::VLLMHealthChecker;
+    use crate::health::InfernoHealthChecker;
 
     #[test]
     fn test_service_registration_creation() {
-        let config = VLLMConfig::default();
-        let registration = VLLMServiceRegistration::new(config);
-        assert_eq!(registration.config().service_name, "vllm-backend");
+        let config = InfernoConfig::default();
+        let registration = InfernoServiceRegistration::new(config);
+        assert_eq!(registration.config().service_name, "inferno-backend");
     }
 
     #[tokio::test]
     async fn test_registration_status() {
-        let config = VLLMConfig::default();
-        let registration = VLLMServiceRegistration::new(config);
+        let config = InfernoConfig::default();
+        let registration = InfernoServiceRegistration::new(config);
 
         let status = registration.get_registration_status().await;
         assert_eq!(status, RegistrationStatus::NotRegistered);
@@ -269,8 +269,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_registration_lifecycle() {
-        let config = VLLMConfig::default();
-        let registration = VLLMServiceRegistration::new(config);
+        let config = InfernoConfig::default();
+        let registration = InfernoServiceRegistration::new(config);
 
         // Test registration
         let result = registration.register().await;
@@ -300,10 +300,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_disabled_service_discovery() {
-        let mut config = VLLMConfig::default();
+        let mut config = InfernoConfig::default();
         config.service_discovery.enabled = false;
 
-        let registration = VLLMServiceRegistration::new(config);
+        let registration = InfernoServiceRegistration::new(config);
 
         // All operations should succeed but do nothing
         assert!(registration.register().await.is_ok());
@@ -313,8 +313,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_heartbeat_without_registration() {
-        let config = VLLMConfig::default();
-        let registration = VLLMServiceRegistration::new(config);
+        let config = InfernoConfig::default();
+        let registration = InfernoServiceRegistration::new(config);
 
         // Heartbeat should fail if not registered
         let result = registration.heartbeat().await;
@@ -323,10 +323,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_service_with_health_checker() {
-        let config = VLLMConfig::default();
-        let health_checker = Arc::new(VLLMHealthChecker::new());
+        let config = InfernoConfig::default();
+        let health_checker = Arc::new(InfernoHealthChecker::new());
 
-        let registration = VLLMServiceRegistration::new(config).with_health_checker(health_checker);
+        let registration =
+            InfernoServiceRegistration::new(config).with_health_checker(health_checker);
 
         // Registration should include health check
         let result = registration.register().await;

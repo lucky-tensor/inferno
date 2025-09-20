@@ -6,14 +6,48 @@
 use crate::health::HealthService;
 use crate::BackendConfig;
 use clap::Parser;
+use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
+use hyper::server::conn::http1;
+use hyper::service::service_fn;
+use hyper::{body::Incoming, Request, Response, StatusCode};
+use hyper_util::rt::TokioIo;
+use inferno_inference::{
+    config::InfernoConfig,
+    inference::{create_engine, EngineType, InferenceEngine, InferenceRequest},
+};
 use inferno_shared::{
     HealthCheckOptions, InfernoError, LoggingOptions, MetricsCollector, MetricsOptions, Result,
     ServiceDiscoveryOptions,
 };
+use serde_json;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::net::TcpListener;
 use tracing::{info, warn};
+
+/// Determine the best default inference engine based on compiled features
+#[allow(unreachable_code)]
+fn default_engine() -> String {
+    // Priority order: GPU engines first (faster), then CPU engines
+    #[cfg(feature = "candle-cuda")]
+    {
+        return "candle-cuda".to_string();
+    }
+
+    #[cfg(feature = "candle-metal")]
+    {
+        return "candle-metal".to_string();
+    }
+
+    #[cfg(feature = "candle-cpu")]
+    {
+        return "candle-cpu".to_string();
+    }
+
+    // Fallback to burn-cpu (always available)
+    "burn-cpu".to_string()
+}
 
 /// Inferno Backend - AI inference backend server
 #[derive(Parser, Debug, Clone)]
@@ -28,13 +62,22 @@ pub struct BackendCliOptions {
     )]
     pub listen_addr: SocketAddr,
 
-    /// Path to the AI model file
-    #[arg(short, long, default_value = "model.bin", env = "INFERNO_MODEL_PATH")]
+    /// Path to the AI model file or directory
+    #[arg(
+        short,
+        long,
+        default_value = "",  // Will be handled in Default impl
+        env = "INFERNO_MODEL_PATH"
+    )]
     pub model_path: PathBuf,
 
     /// Model type/format (e.g., llama, gguf, onnx)
     #[arg(long, default_value = "auto", env = "INFERNO_MODEL_TYPE")]
     pub model_type: String,
+
+    /// Inference engine to use (burn-cpu, candle-cpu, candle-cuda, candle-metal)
+    #[arg(long, default_value_t = default_engine(), env = "INFERNO_ENGINE")]
+    pub engine: String,
 
     /// Maximum batch size for inference
     #[arg(long, default_value_t = 32, env = "INFERNO_MAX_BATCH_SIZE")]
@@ -79,8 +122,13 @@ pub struct BackendCliOptions {
 
 impl BackendCliOptions {
     /// Run the backend server with the configured options
-    pub async fn run(self) -> Result<()> {
+    pub async fn run(mut self) -> Result<()> {
         info!("Starting Inferno Backend");
+
+        // Set default model path if empty
+        if self.model_path.as_os_str().is_empty() {
+            self.model_path = inferno_shared::default_models_dir();
+        }
 
         // Convert CLI options to BackendConfig
         let config = self.to_config()?;
@@ -93,13 +141,82 @@ impl BackendCliOptions {
             "Backend server starting"
         );
 
-        // TODO: Implement actual backend server functionality
-        // This would typically:
-        // 1. Load the AI model
-        // 2. Initialize the inference engine
-        // 3. Start the HTTP server
-        // 4. Register with service discovery
-        // 5. Begin serving inference requests
+        // Initialize the inference engine with the model
+        info!("Initializing inference engine...");
+
+        // Convert backend config to inference config format
+        // If model_path is a file, use its parent directory as models dir
+        let (models_dir, model_name) = if config.model_path.is_file() {
+            let parent = config
+                .model_path
+                .parent()
+                .ok_or_else(|| InfernoError::Configuration {
+                    message: "Model file has no parent directory".to_string(),
+                    source: None,
+                })?;
+            // For specific SafeTensors files, we want to use the directory containing the file
+            // and let the inference engine auto-discover, rather than treating the filename as a model name
+            (parent.to_string_lossy().to_string(), String::new())
+        } else {
+            // Assume it's a directory and auto-discover
+            (
+                config.model_path.to_string_lossy().to_string(),
+                String::new(),
+            )
+        };
+
+        let inference_config = InfernoConfig {
+            model_path: models_dir,
+            model_name,
+            device_id: config.gpu_device_id,
+            max_batch_size: config.max_batch_size,
+            max_sequence_length: config.max_context_length,
+            ..Default::default()
+        };
+
+        // Parse engine type from string
+        let engine_type = match self.engine.as_str() {
+            "burn-cpu" => EngineType::BurnCpu,
+            "candle-cpu" => EngineType::CandleCpu,
+            #[cfg(feature = "candle-cuda")]
+            "candle-cuda" => EngineType::CandleCuda,
+            #[cfg(feature = "candle-metal")]
+            "candle-metal" => EngineType::CandleMetal,
+            _ => {
+                warn!(
+                    "Unknown engine type '{}', falling back to burn-cpu",
+                    self.engine
+                );
+                EngineType::BurnCpu
+            }
+        };
+
+        info!("Using inference engine: {}", engine_type);
+
+        // Create and initialize the inference engine
+        let mut engine = create_engine(engine_type);
+
+        if let Err(e) = engine.initialize(inference_config).await {
+            warn!("Failed to initialize inference engine: {}", e);
+            return Err(InfernoError::Configuration {
+                message: format!("Inference engine initialization failed: {}", e),
+                source: None,
+            });
+        }
+
+        info!("  Inference engine ready to receive requests!");
+
+        // Start HTTP inference server
+        let inference_server_task = {
+            let listen_addr = config.listen_addr;
+            let engine = Arc::new(tokio::sync::Mutex::new(engine));
+
+            tokio::spawn(async move {
+                if let Err(e) = start_inference_server(listen_addr, engine).await {
+                    warn!("HTTP inference server failed: {}", e);
+                }
+            })
+        };
 
         info!("Backend server is running");
 
@@ -174,6 +291,10 @@ impl BackendCliOptions {
             let _ = task.await;
         }
 
+        // Clean up the inference server task
+        inference_server_task.abort();
+        let _ = inference_server_task.await;
+
         Ok(())
     }
 
@@ -193,7 +314,7 @@ impl BackendCliOptions {
 
         Ok(BackendConfig {
             listen_addr: self.listen_addr,
-            model_path: self.model_path.clone(),
+            model_path: inferno_shared::resolve_models_path(&self.model_path),
             model_type: self.model_type.clone(),
             max_batch_size: self.max_batch_size,
             gpu_device_id: self.gpu_device_id,
@@ -211,4 +332,161 @@ impl BackendCliOptions {
             service_discovery_shared_secret: None,
         })
     }
+}
+
+/// Start the HTTP inference server
+async fn start_inference_server(
+    addr: SocketAddr,
+    engine: Arc<
+        tokio::sync::Mutex<
+            Box<dyn InferenceEngine<Error = inferno_inference::inference::InferenceError>>,
+        >,
+    >,
+) -> Result<()> {
+    let listener = TcpListener::bind(addr).await.map_err(|e| {
+        InfernoError::internal(
+            format!("Failed to bind inference server to {}: {}", addr, e),
+            None,
+        )
+    })?;
+
+    info!("🌐 HTTP inference server listening on {}", addr);
+
+    loop {
+        // This will be automatically cancelled when the task is aborted
+        let (stream, _) = match listener.accept().await {
+            Ok(connection) => connection,
+            Err(e) => {
+                // If we get an error during shutdown, it's likely because the listener was closed
+                warn!("Accept error (possibly during shutdown): {}", e);
+                break;
+            }
+        };
+
+        let io = TokioIo::new(stream);
+        let engine_clone = Arc::clone(&engine);
+
+        tokio::task::spawn(async move {
+            if let Err(err) = http1::Builder::new()
+                .serve_connection(
+                    io,
+                    service_fn(move |req| handle_inference_request(req, Arc::clone(&engine_clone))),
+                )
+                .await
+            {
+                warn!("Error serving connection: {:?}", err);
+            }
+        });
+    }
+
+    Ok(())
+}
+
+/// Handle individual HTTP inference requests
+async fn handle_inference_request(
+    req: Request<Incoming>,
+    engine: Arc<
+        tokio::sync::Mutex<
+            Box<dyn InferenceEngine<Error = inferno_inference::inference::InferenceError>>,
+        >,
+    >,
+) -> std::result::Result<Response<BoxBody<bytes::Bytes, hyper::Error>>, hyper::Error> {
+    let response = match (req.method(), req.uri().path()) {
+        (&hyper::Method::POST, "/v1/completions") | (&hyper::Method::POST, "/inference") => {
+            // Read request body
+            let body_bytes = match req.into_body().collect().await {
+                Ok(collected) => collected.to_bytes(),
+                Err(e) => {
+                    warn!("Failed to read request body: {}", e);
+                    return Ok(Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .body(
+                            Full::new("Failed to read request body".into())
+                                .map_err(|never| match never {})
+                                .boxed(),
+                        )
+                        .unwrap());
+                }
+            };
+
+            // Parse JSON request
+            let inference_req: InferenceRequest = match serde_json::from_slice(&body_bytes) {
+                Ok(req) => req,
+                Err(e) => {
+                    warn!("Failed to parse inference request: {}", e);
+                    return Ok(Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .body(
+                            Full::new(format!("Invalid JSON: {}", e).into())
+                                .map_err(|never| match never {})
+                                .boxed(),
+                        )
+                        .unwrap());
+                }
+            };
+
+            // Process inference
+            let inference_response = {
+                let engine_guard = engine.lock().await;
+                match engine_guard.process(inference_req).await {
+                    Ok(response) => response,
+                    Err(e) => {
+                        warn!("Inference failed: {}", e);
+                        return Ok(Response::builder()
+                            .status(StatusCode::INTERNAL_SERVER_ERROR)
+                            .body(
+                                Full::new(format!("Inference error: {}", e).into())
+                                    .map_err(|never| match never {})
+                                    .boxed(),
+                            )
+                            .unwrap());
+                    }
+                }
+            };
+
+            // Return JSON response
+            let json_response = match serde_json::to_string(&inference_response) {
+                Ok(json) => json,
+                Err(e) => {
+                    warn!("Failed to serialize response: {}", e);
+                    return Ok(Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(
+                            Full::new("Serialization error".into())
+                                .map_err(|never| match never {})
+                                .boxed(),
+                        )
+                        .unwrap());
+                }
+            };
+
+            Response::builder()
+                .status(StatusCode::OK)
+                .header("content-type", "application/json")
+                .body(
+                    Full::new(json_response.into())
+                        .map_err(|never| match never {})
+                        .boxed(),
+                )
+                .unwrap()
+        }
+        (&hyper::Method::GET, "/health") => Response::builder()
+            .status(StatusCode::OK)
+            .body(
+                Full::new("OK".into())
+                    .map_err(|never| match never {})
+                    .boxed(),
+            )
+            .unwrap(),
+        _ => Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(
+                Empty::<bytes::Bytes>::new()
+                    .map_err(|never| match never {})
+                    .boxed(),
+            )
+            .unwrap(),
+    };
+
+    Ok(response)
 }

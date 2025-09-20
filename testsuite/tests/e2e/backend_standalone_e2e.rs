@@ -30,6 +30,7 @@ async fn test_backend_standalone_startup() {
         listen_addr: format!("127.0.0.1:{}", backend_port).parse().unwrap(),
         model_path: "test_model.bin".into(),
         model_type: "test".to_string(),
+        engine: "burn-cpu".to_string(),
         max_batch_size: 16,
         gpu_device_id: -1,
         max_context_length: 1024,
@@ -54,7 +55,7 @@ async fn test_backend_standalone_startup() {
         },
     };
 
-    println!("🚀 Starting backend standalone test...");
+    println!("Starting backend standalone test...");
     println!("   - Backend will listen on port: {}", backend_port);
     println!("   - Metrics will be served on port: {}", metrics_port);
     println!("   - No service discovery configured (standalone mode)");
@@ -74,17 +75,17 @@ async fn test_backend_standalone_startup() {
 
     // Test 1: Verify backend metrics endpoint is accessible
     let metrics_url = format!("http://127.0.0.1:{}/metrics", metrics_port);
-    println!("🔍 Testing metrics endpoint at {}", metrics_url);
+    println!("Testing metrics endpoint at {}", metrics_url);
 
     match client.get(&metrics_url).send().await {
         Ok(response) if response.status().is_success() => {
-            println!("✅ Backend metrics endpoint accessible");
+            println!("Backend metrics endpoint accessible");
 
             // Verify the response contains expected NodeVitals fields
             match response.text().await {
                 Ok(metrics_text) => {
                     println!(
-                        "📊 Metrics response preview: {}",
+                        "Metrics response preview: {}",
                         &metrics_text.chars().take(200).collect::<String>()
                     );
 
@@ -94,65 +95,65 @@ async fn test_backend_standalone_startup() {
                         && metrics_text.contains("version")
                         && metrics_text.contains("uptime_seconds")
                     {
-                        println!("✅ Metrics contain expected NodeVitals fields");
+                        println!("Metrics contain expected NodeVitals fields");
                     } else {
-                        println!("⚠️  Metrics missing some expected NodeVitals fields");
+                        println!("WARNING: Metrics missing some expected NodeVitals fields");
                     }
 
                     // Try to parse as JSON to verify format
                     match serde_json::from_str::<serde_json::Value>(&metrics_text) {
                         Ok(json_value) => {
-                            println!("✅ Metrics response is valid JSON");
+                            println!("Metrics response is valid JSON");
 
                             // Check specific NodeVitals fields
                             if let Some(ready) = json_value.get("ready") {
-                                println!("📋 Backend ready status: {}", ready);
+                                println!("Backend ready status: {}", ready);
                             }
                             if let Some(connected_peers) = json_value.get("connected_peers") {
-                                println!("📋 Connected peers: {}", connected_peers);
+                                println!("Connected peers: {}", connected_peers);
                             }
                             if let Some(requests_in_progress) =
                                 json_value.get("requests_in_progress")
                             {
-                                println!("📋 Requests in progress: {}", requests_in_progress);
+                                println!("Requests in progress: {}", requests_in_progress);
                             }
                         }
-                        Err(e) => println!("❌ Metrics response is not valid JSON: {}", e),
+                        Err(e) => println!("Metrics response is not valid JSON: {}", e),
                     }
                 }
-                Err(e) => println!("❌ Failed to read metrics response: {}", e),
+                Err(e) => println!("Failed to read metrics response: {}", e),
             }
         }
         Ok(response) => {
             println!(
-                "❌ Backend metrics endpoint returned error: {}",
+                "Backend metrics endpoint returned error: {}",
                 response.status()
             );
         }
         Err(e) => {
-            println!("❌ Failed to connect to backend metrics: {}", e);
+            println!("Failed to connect to backend metrics: {}", e);
         }
     }
 
     // Test 2: Verify backend health endpoint on metrics server
     let health_url = format!("http://127.0.0.1:{}/health", metrics_port);
-    println!("🔍 Testing health endpoint at {}", health_url);
+    println!("Testing health endpoint at {}", health_url);
 
     match client.get(&health_url).send().await {
         Ok(response) if response.status().is_success() => {
-            println!("✅ Backend health endpoint accessible");
+            println!("Backend health endpoint accessible");
             if let Ok(health_text) = response.text().await {
-                println!("🏥 Health response: {}", health_text);
+                println!("Health response: {}", health_text);
             }
         }
         Ok(response) => {
             println!(
-                "❌ Backend health endpoint returned error: {}",
+                "Backend health endpoint returned error: {}",
                 response.status()
             );
         }
         Err(e) => {
-            println!("❌ Failed to connect to backend health endpoint: {}", e);
+            println!("Failed to connect to backend health endpoint: {}", e);
         }
     }
 
@@ -162,26 +163,26 @@ async fn test_backend_standalone_startup() {
     // Test the backend health endpoint (should be on main service port)
     let backend_health_url = format!("{}/health", backend_base_url);
     println!(
-        "🔍 Testing backend main service health at {}",
+        "Testing backend main service health at {}",
         backend_health_url
     );
 
     match client.get(&backend_health_url).send().await {
         Ok(response) if response.status().is_success() => {
-            println!("✅ Backend main service health endpoint accessible");
+            println!("Backend main service health endpoint accessible");
             if let Ok(health_text) = response.text().await {
-                println!("🏥 Backend service health: {}", health_text);
+                println!("Backend service health: {}", health_text);
             }
         }
         Ok(response) => {
             println!(
-                "⚠️  Backend main service health returned: {} (may be expected)",
+                "WARNING: Backend main service health returned: {} (may be expected)",
                 response.status()
             );
         }
         Err(e) => {
             println!(
-                "⚠️  Failed to connect to backend main service health: {} (may be expected)",
+                "WARNING: Failed to connect to backend main service health: {} (may be expected)",
                 e
             );
         }
@@ -189,7 +190,7 @@ async fn test_backend_standalone_startup() {
 
     // Test 4: Test a potential inference endpoint (this would be implementation-specific)
     let inference_url = format!("{}/inference", backend_base_url);
-    println!("🔍 Testing inference endpoint at {}", inference_url);
+    println!("Testing inference endpoint at {}", inference_url);
 
     let mock_inference_request = serde_json::json!({
         "prompt": "Hello, world!",
@@ -204,36 +205,36 @@ async fn test_backend_standalone_startup() {
         .await
     {
         Ok(response) if response.status().is_success() => {
-            println!("✅ Inference endpoint accessible and working");
+            println!("Inference endpoint accessible and working");
             if let Ok(response_text) = response.text().await {
                 println!(
-                    "🤖 Inference response preview: {}",
+                    "Inference response preview: {}",
                     &response_text.chars().take(100).collect::<String>()
                 );
             }
         }
         Ok(response) => {
             println!(
-                "⚠️  Inference endpoint returned: {} (may not be implemented yet)",
+                "WARNING: Inference endpoint returned: {} (may not be implemented yet)",
                 response.status()
             );
         }
         Err(e) => {
             println!(
-                "⚠️  Failed to connect to inference endpoint: {} (may not be implemented yet)",
+                "WARNING: Failed to connect to inference endpoint: {} (may not be implemented yet)",
                 e
             );
         }
     }
 
-    println!("\n📊 Backend Standalone Test Summary:");
-    println!("✅ Test completed - backend started successfully");
-    println!("✅ Metrics endpoint is accessible and serves NodeVitals JSON");
-    println!("✅ Health endpoint is accessible on metrics server");
+    println!("\nBackend Standalone Test Summary:");
+    println!("Test completed - backend started successfully");
+    println!("Metrics endpoint is accessible and serves NodeVitals JSON");
+    println!("Health endpoint is accessible on metrics server");
     println!(
-        "⚠️  Main backend service endpoints tested (results may vary based on implementation)"
+        "WARNING: Main backend service endpoints tested (results may vary based on implementation)"
     );
-    println!("📝 Backend is ready for service discovery integration");
+    println!("Backend is ready for service discovery integration");
 
     // Clean up: abort the background task
     backend_task.abort();
@@ -248,7 +249,7 @@ async fn test_backend_startup_configurations() {
     // Initialize logging for the test
     let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
-    println!("🚀 Testing backend with minimal configuration...");
+    println!("Testing backend with minimal configuration...");
 
     let backend_port = get_random_port();
 
@@ -257,6 +258,7 @@ async fn test_backend_startup_configurations() {
         listen_addr: format!("127.0.0.1:{}", backend_port).parse().unwrap(),
         model_path: "minimal_test_model.bin".into(),
         model_type: "test".to_string(),
+        engine: "burn-cpu".to_string(),
         max_batch_size: 1,
         gpu_device_id: -1,
         max_context_length: 512,
@@ -292,7 +294,7 @@ async fn test_backend_startup_configurations() {
     // Give backend time to start up
     sleep(Duration::from_millis(1000)).await;
 
-    println!("✅ Backend with minimal configuration started successfully");
+    println!("Backend with minimal configuration started successfully");
 
     // Since metrics are disabled, we should not be able to connect to metrics endpoints
     let client = Client::new();
@@ -301,12 +303,12 @@ async fn test_backend_startup_configurations() {
     match client.get(&metrics_url).send().await {
         Ok(response) => {
             println!(
-                "⚠️  Unexpected: metrics endpoint responded when disabled: {}",
+                "WARNING: Unexpected: metrics endpoint responded when disabled: {}",
                 response.status()
             );
         }
         Err(_) => {
-            println!("✅ Correctly: metrics endpoint not accessible when disabled");
+            println!("Correctly: metrics endpoint not accessible when disabled");
         }
     }
 
@@ -321,7 +323,7 @@ async fn test_backend_with_service_discovery_config() {
     // Initialize logging for the test
     let _ = tracing_subscriber::fmt().with_test_writer().try_init();
 
-    println!("🚀 Testing backend with service discovery configuration...");
+    println!("Testing backend with service discovery configuration...");
 
     let backend_port = get_random_port();
     let metrics_port = get_random_port();
@@ -332,6 +334,7 @@ async fn test_backend_with_service_discovery_config() {
         listen_addr: format!("127.0.0.1:{}", backend_port).parse().unwrap(),
         model_path: "sd_test_model.bin".into(),
         model_type: "test".to_string(),
+        engine: "burn-cpu".to_string(),
         max_batch_size: 8,
         gpu_device_id: -1,
         max_context_length: 2048,
@@ -379,14 +382,14 @@ async fn test_backend_with_service_discovery_config() {
     let metrics_url = format!("http://127.0.0.1:{}/metrics", metrics_port);
     match client.get(&metrics_url).send().await {
         Ok(response) if response.status().is_success() => {
-            println!("✅ Backend metrics accessible even with failed registration");
+            println!("Backend metrics accessible even with failed registration");
 
             if let Ok(metrics_text) = response.text().await {
                 if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&metrics_text) {
                     // connected_peers should be 0 since registration failed
                     if let Some(connected_peers) = json_value.get("connected_peers") {
                         println!(
-                            "📋 Connected peers after failed registration: {}",
+                            "Connected peers after failed registration: {}",
                             connected_peers
                         );
                     }
@@ -394,15 +397,15 @@ async fn test_backend_with_service_discovery_config() {
             }
         }
         Ok(response) => {
-            println!("❌ Backend metrics endpoint error: {}", response.status());
+            println!("Backend metrics endpoint error: {}", response.status());
         }
         Err(e) => {
-            println!("❌ Failed to connect to backend metrics: {}", e);
+            println!("Failed to connect to backend metrics: {}", e);
         }
     }
 
-    println!("✅ Backend handled service discovery configuration gracefully");
-    println!("✅ Backend continued to operate despite registration failures");
+    println!("Backend handled service discovery configuration gracefully");
+    println!("Backend continued to operate despite registration failures");
 
     // Clean up
     backend_task.abort();

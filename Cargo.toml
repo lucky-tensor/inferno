@@ -6,10 +6,12 @@ members = [
     "crates/governator",
     "crates/cli",
     "crates/inference",
+    "crates/inferno-llama",
     "benchmarking",
     "testsuite",
 ]
 resolver = "2"
+default-members = ["crates/cli"]
 
 [workspace.package]
 version = "0.1.0"

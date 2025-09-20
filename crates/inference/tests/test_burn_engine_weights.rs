@@ -1,17 +1,18 @@
 //! Test BurnInferenceEngine with real pre-trained weights
 
+#[cfg(feature = "burn-cpu")]
 use inferno_inference::{
-    config::VLLMConfig,
+    config::InfernoConfig,
     inference::{BurnInferenceEngine, InferenceRequest},
 };
 
 #[cfg(feature = "burn-cpu")]
 #[tokio::test]
 async fn test_burn_engine_real_weights() -> Result<(), Box<dyn std::error::Error>> {
-    println!("🚀 Testing BurnInferenceEngine with real TinyLlama pre-trained weights");
+    println!("  Testing BurnInferenceEngine with real TinyLlama pre-trained weights");
 
-    // Create a basic VLLM config
-    let config = VLLMConfig {
+    // Create a basic Inferno config
+    let config = InfernoConfig {
         model_name: "TinyLlama-1.1B-Chat-v1.0".to_string(),
         model_path: "../../models".to_string(),
         ..Default::default()
@@ -19,13 +20,13 @@ async fn test_burn_engine_real_weights() -> Result<(), Box<dyn std::error::Error
 
     // Create engine
     let mut engine = BurnInferenceEngine::new();
-    println!("✅ Created BurnInferenceEngine");
+    println!("  Created BurnInferenceEngine");
 
     // Initialize with config (this should load real weights)
     match engine.initialize(config).await {
-        Ok(()) => println!("✅ Engine initialized successfully - real weights should be loaded!"),
+        Ok(()) => println!("  Engine initialized successfully - real weights should be loaded!"),
         Err(e) => {
-            println!("⚠️ Engine initialization failed: {}", e);
+            println!("  Engine initialization failed: {}", e);
             println!(
                 "This might be expected if burn-llama doesn't have tiny_llama_pretrained function"
             );
@@ -44,10 +45,10 @@ async fn test_burn_engine_real_weights() -> Result<(), Box<dyn std::error::Error
     };
 
     // Try inference
-    match engine.process(request) {
+    match engine.process_sync(request) {
         Ok(response) => {
-            println!("🎯 Inference successful!");
-            println!("📝 Response: {}", response.generated_text);
+            println!("  Inference successful!");
+            println!("  Response: {}", response.generated_text);
             println!("⚡ Tokens generated: {}", response.generated_tokens);
 
             // With real weights, we should get meaningful output
@@ -58,11 +59,11 @@ async fn test_burn_engine_real_weights() -> Result<(), Box<dyn std::error::Error
             assert!(response.generated_tokens > 0, "Should generate some tokens");
         }
         Err(e) => {
-            println!("⚠️ Inference failed: {}", e);
+            println!("  Inference failed: {}", e);
             // This might be expected if the model isn't properly loaded
         }
     }
 
-    println!("✅ Test completed - check output to see if real weights were loaded!");
+    println!("  Test completed - check output to see if real weights were loaded!");
     Ok(())
 }

@@ -20,6 +20,7 @@ async fn test_xet_download_with_public_model() {
         output_path.to_str().unwrap(),
         None, // No token needed for public model
         &cache_dir,
+        None, // Download all files
     )
     .await;
 
@@ -63,6 +64,7 @@ async fn test_xet_download_with_invalid_model() {
         output_path.to_str().unwrap(),
         None,
         &cache_dir,
+        None, // Download all files
     )
     .await;
 
@@ -98,6 +100,7 @@ async fn test_xet_download_with_authentication() {
         output_path.to_str().unwrap(),
         Some("invalid_token_for_testing"),
         &cache_dir,
+        None, // Download all files
     )
     .await;
 
