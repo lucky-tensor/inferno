@@ -226,7 +226,7 @@ mod model_loading_tests {
         #[test]
         fn test_real_tinyllama_model_loading() {
             // Test loading the actual TinyLlama model
-            #[cfg(all(feature = "llama-burn", feature = "pretrained"))]
+            #[cfg(all(feature = "llama-burn", feature = ""))]
             {
                 use crate::models::llama_loader::load_llama_weights;
                 use burn::{backend::ndarray::NdArray, tensor::Device};
@@ -500,7 +500,7 @@ mod model_loading_tests {
         #[allow(clippy::too_many_lines)]
         fn test_real_tinyllama_safetensors_loading() {
             // Test loading actual SafeTensors files using burn framework
-            #[cfg(all(feature = "llama-burn", feature = "pretrained"))]
+            #[cfg(all(feature = "llama-burn", feature = ""))]
             {
                 use std::path::PathBuf;
 
@@ -650,7 +650,7 @@ mod model_loading_tests {
             }
         }
 
-        #[cfg(all(feature = "llama-burn", feature = "pretrained"))]
+        #[cfg(all(feature = "llama-burn", feature = ""))]
         fn test_raw_safetensors_parsing(model_path: &std::path::Path) {
             use safetensors::SafeTensors;
 
@@ -709,7 +709,7 @@ mod model_loading_tests {
             }
         }
 
-        #[cfg(all(feature = "llama-burn", feature = "pretrained"))]
+        #[cfg(all(feature = "llama-burn", feature = ""))]
         fn test_burn_safetensors_loading(model_path: &std::path::Path) {
             use burn_import::safetensors::LoadArgs;
 

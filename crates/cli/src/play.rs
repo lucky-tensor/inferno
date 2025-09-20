@@ -285,17 +285,10 @@ impl PlayContext {
             backend_port, metrics_port
         );
 
-        // Determine GPU device ID based on engine type
-        let gpu_device_id = match options.engine.as_str() {
-            "candle-cuda" => 0,  // Use GPU 0 for CUDA
-            "candle-metal" => 0, // Use GPU 0 for Metal
-            _ => -1,             // Use CPU for all other engines
-        };
+        // Always use GPU device 0 for llama-burn
+        let gpu_device_id = 0;
 
-        info!(
-            "Using engine: {} with device ID: {}",
-            options.engine, gpu_device_id
-        );
+        info!("Using llama-burn engine with GPU device ID: {}", gpu_device_id);
 
         // Create backend CLI options
         let backend_opts = BackendCliOptions {
@@ -790,7 +783,7 @@ mod tests {
             top_p: 0.9,
             seed: Some(42),
             prompt: None,
-            engine: "burn-cpu".to_string(),
+            engine: "llama-burn".to_string(),
         };
 
         // Since new() is now async and starts a backend, we can't easily test it

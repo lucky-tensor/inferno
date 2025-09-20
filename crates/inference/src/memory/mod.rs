@@ -18,19 +18,19 @@ pub trait GpuAllocator: Send + Sync {
     async fn get_stats(&self) -> InfernoResult<MemoryStats>;
 }
 
-/// CUDA memory pool implementation
+/// GPU memory pool implementation (GPU-only)
 pub struct CudaMemoryPool {
     device_id: i32,
     allocation_counter: AtomicU64,
 }
 
 impl CudaMemoryPool {
-    /// Create a new CUDA memory pool
+    /// Create a new GPU memory pool
     pub fn new(device_id: i32) -> InfernoResult<Self> {
-        // Validate device ID
-        if device_id < -1 {
-            return Err(crate::error::AllocationError::DeviceMemory(format!(
-                "Invalid device ID: {device_id}"
+        // Only accept GPU device IDs
+        if device_id < 0 {
+            return Err(crate::error::AllocationError::UnsupportedDevice(format!(
+                "CPU not supported - GPU device required, got device_id: {device_id}"
             ))
             .into());
         }
@@ -41,22 +41,22 @@ impl CudaMemoryPool {
         })
     }
 
-    /// Get the device ID
+    /// Get the GPU device ID
     pub const fn device_id(&self) -> i32 {
         self.device_id
     }
 
-    /// Check if CUDA is available for this pool
+    /// Always true since we only support GPU
     pub const fn is_cuda_available(&self) -> bool {
-        self.device_id >= 0
+        true
     }
 
     /// Get pool configuration info
     pub fn info(&self) -> MemoryPoolInfo {
         MemoryPoolInfo {
             device_id: self.device_id,
-            pool_type: if self.device_id >= 0 { "cuda" } else { "cpu" }.to_string(),
-            is_available: self.is_cuda_available(),
+            pool_type: "cuda".to_string(),
+            is_available: true,
         }
     }
 }
@@ -271,21 +271,22 @@ mod tests {
 
     #[test]
     fn test_memory_pool_creation() {
+        // CPU device ID should fail (GPU-only)
         let pool = CudaMemoryPool::new(-1);
-        assert!(pool.is_ok());
-        let pool = pool.unwrap();
-        assert_eq!(pool.device_id(), -1);
-        assert!(!pool.is_cuda_available());
+        assert!(pool.is_err());
 
+        // GPU device IDs should work
         let pool = CudaMemoryPool::new(0);
         assert!(pool.is_ok());
         let pool = pool.unwrap();
         assert_eq!(pool.device_id(), 0);
         assert!(pool.is_cuda_available());
 
-        // Invalid device ID
-        let pool = CudaMemoryPool::new(-2);
-        assert!(pool.is_err());
+        let pool = CudaMemoryPool::new(1);
+        assert!(pool.is_ok());
+        let pool = pool.unwrap();
+        assert_eq!(pool.device_id(), 1);
+        assert!(pool.is_cuda_available());
     }
 
     #[test]
