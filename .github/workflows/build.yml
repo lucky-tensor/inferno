@@ -54,12 +54,6 @@ jobs:
         method: 'network'
         sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust"]'
 
-    - name: Setup cuDNN
-      run: |
-        # Install cuDNN using apt (compatible with CUDA 13.0)
-        sudo apt-get update
-        sudo apt-get -y install libcudnn9-dev
-
     - name: Verify CUDA Installation
       run: |
         echo "CUDA Installation Verification:"
