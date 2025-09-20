@@ -288,7 +288,10 @@ impl PlayContext {
         // Always use GPU device 0 for llama-burn
         let gpu_device_id = 0;
 
-        info!("Using llama-burn engine with GPU device ID: {}", gpu_device_id);
+        info!(
+            "Using llama-burn engine with GPU device ID: {}",
+            gpu_device_id
+        );
 
         // Create backend CLI options
         let backend_opts = BackendCliOptions {

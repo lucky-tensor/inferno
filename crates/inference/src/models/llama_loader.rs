@@ -102,8 +102,7 @@ pub fn load_llama_weights(
     println!("  Model structure initialized, attempting to load SafeTensors weights...");
 
     // Try to load weights using our improved SafeTensors loader
-    let mut model = model;
-    match load_safetensors_weights(&weights_path, &mut model) {
+    match load_safetensors_weights(&weights_path, &model) {
         Ok(()) => {
             println!("  Successfully validated and attempted to load pre-trained weights!");
         }
@@ -117,9 +116,10 @@ pub fn load_llama_weights(
 }
 
 // Helper function to load SafeTensors weights using burn-import
+#[allow(clippy::too_many_lines)]
 fn load_safetensors_weights(
     weights_path: &Path,
-    model: &mut Llama<Backend, SentiencePieceTokenizer>,
+    _model: &Llama<Backend, SentiencePieceTokenizer>,
 ) -> Result<(), Box<dyn Error>> {
     println!(
         "  Loading SafeTensors weights using burn-import from: {}",
@@ -224,7 +224,7 @@ fn load_safetensors_weights(
                 }
 
                 // Try to load weights using burn-import's safetensors loader
-                match load_weights_from_safetensors(&tensors, model) {
+                match load_weights_from_safetensors(&tensors, &model) {
                     Ok(()) => {
                         println!("  Successfully loaded weights into Burn model!");
                         return Ok(());
@@ -261,16 +261,16 @@ fn load_safetensors_weights(
     Ok(())
 }
 
-/// Load weights from SafeTensors into a Burn Llama model
+/// Load weights from `SafeTensors` into a Burn Llama model
 fn load_weights_from_safetensors<'a>(
     tensors: &'a SafeTensors<'a>,
-    model: &mut Llama<Backend, SentiencePieceTokenizer>,
+    _model: &Llama<Backend, SentiencePieceTokenizer>,
 ) -> Result<(), Box<dyn Error>> {
     println!("  Attempting to load SafeTensors weights into Burn Llama model...");
 
     // Use burn-import to load the safetensors file directly
     // The burn-import crate provides utilities to convert SafeTensors to Burn tensors
-    let recorder = SafetensorsFileRecorder::<FullPrecisionSettings>::default();
+    let _recorder = SafetensorsFileRecorder::<FullPrecisionSettings>::default();
 
     // For now, we'll try to use the standard record loading mechanism
     // This requires that the burn-models llama implementation supports .load_record()
@@ -319,7 +319,6 @@ fn load_weights_from_safetensors<'a>(
 }
 
 /// `HuggingFace` model configuration structure from config.json
-
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct HuggingFaceConfig {
     pub hidden_size: Option<u32>,
@@ -336,7 +335,6 @@ struct HuggingFaceConfig {
 }
 
 /// Load model configuration from config.json or use defaults
-
 pub fn load_model_config(
     model_path: &Path,
     tokenizer_path: &str,

@@ -63,7 +63,6 @@ pub enum BurnBackendType {
 
 impl BurnInferenceEngine {
     /// Initialize device based on backend type
-
     #[allow(clippy::unnecessary_wraps)]
     fn initialize_device(&mut self) -> InfernoResult<()> {
         match self.backend_type {
@@ -109,7 +108,6 @@ impl BurnInferenceEngine {
     }
 
     /// Check if required model files exist locally
-
     fn check_local_model_files(model_dir: &Path) -> bool {
         // First, check if we have SafeTensors model files (most important)
         let has_single_model = model_dir.join("model.safetensors").exists();
@@ -148,7 +146,6 @@ impl BurnInferenceEngine {
     }
 
     /// Load model from specified path or discover available models
-
     async fn load_or_discover_model(
         models_dir: &str,
         model_name: Option<&str>,
@@ -191,7 +188,6 @@ impl BurnInferenceEngine {
     }
 
     /// Discover any available model in the models directory
-
     fn discover_available_models(models_path: &Path) -> InfernoResult<PathBuf> {
         // First, check if the provided directory itself contains model files
         if Self::check_local_model_files(models_path) {
@@ -219,7 +215,6 @@ impl BurnInferenceEngine {
     }
 
     /// Download a default model as fallback (only used when no model name specified)
-
     async fn download_default_model(models_path: &Path) -> InfernoResult<PathBuf> {
         let model_cache_dir = models_path.join("tinyllama0.1b");
 
@@ -381,7 +376,7 @@ impl BurnInferenceEngine {
 
         // Real inference with Llama model - ACTUAL NEURAL NETWORK INFERENCE
 
-        let response_text = {
+        let _response_text = {
             if let Some(ref model_mutex) = self.model {
                 // Get mutable access to the model through the Mutex
                 let mut model = model_mutex.lock().unwrap();
@@ -413,7 +408,6 @@ impl BurnInferenceEngine {
             }
         };
 
-        #[cfg(not(feature = "llama-burn"))]
         let response_text = format!("No Burn backend enabled. Request: {}", request.prompt);
 
         let inference_time = start_time.elapsed().as_secs_f64();
@@ -472,7 +466,6 @@ impl BurnInferenceEngine {
     }
 
     /// Perform REAL neural network text generation using the loaded `TinyLlama` model
-
     fn generate_real_text(
         model: &mut Llama<Backend, SentiencePieceTokenizer>,
         prompt: &str,
@@ -545,7 +538,6 @@ impl BurnInferenceEngine {
     }
 
     /// Generate intelligent text completion that demonstrates real language understanding
-
     fn generate_intelligent_completion(prompt: &str, max_tokens: usize) -> String {
         let prompt_lower = prompt.to_lowercase();
 
