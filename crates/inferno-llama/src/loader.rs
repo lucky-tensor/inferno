@@ -131,18 +131,57 @@ impl ModelLoader {
 
     /// Loads the complete model with weights from disk.
     ///
-    /// This method is currently a placeholder and will be implemented
-    /// when the weight loading mechanism is fully developed.
+    /// This method loads SafeTensors files and creates the model with real weights.
     pub fn load_model(self) -> Result<InfernoLlama> {
-        // Create VarMap for weight storage
-        let varmap = VarMap::new();
-        let vb = VarBuilder::from_varmap(&varmap, self.dtype, &self.device);
+        // For single-file models, use direct SafeTensors loading
+        let single_file = self.model_path.join("model.safetensors");
+        if single_file.exists() {
+            // Load directly from single SafeTensors file
+            let vb = unsafe {
+                VarBuilder::from_mmaped_safetensors(&[single_file.clone()], self.dtype, &self.device)
+                    .map_err(|e| {
+                        LlamaError::io_error(
+                            format!("Failed to create VarBuilder from SafeTensors file {:?}: {}", single_file, e),
+                            "load_model_single_file",
+                        )
+                    })?
+            };
 
-        // Load weights into the VarMap
-        self.load_weights_into_varmap(&varmap)?;
+            // Create the model with loaded weights
+            InfernoLlama::new(&self.config, vb)
+        } else {
+            // For sharded models, collect all SafeTensors files
+            let mut safetensor_files = Vec::new();
+            let mut file_set = std::collections::HashSet::new();
 
-        // Create the model with loaded weights
-        InfernoLlama::new(&self.config, vb)
+            for filename in self.weight_map.values() {
+                if file_set.insert(filename.clone()) {
+                    let file_path = self.model_path.join(filename);
+                    safetensor_files.push(file_path);
+                }
+            }
+
+            if safetensor_files.is_empty() {
+                return Err(LlamaError::io_error(
+                    "No SafeTensors files found".to_string(),
+                    "load_model_no_files",
+                ));
+            }
+
+            // Load from multiple SafeTensors files
+            let vb = unsafe {
+                VarBuilder::from_mmaped_safetensors(&safetensor_files, self.dtype, &self.device)
+                    .map_err(|e| {
+                        LlamaError::io_error(
+                            format!("Failed to create VarBuilder from SafeTensors files: {}", e),
+                            "load_model_sharded_files",
+                        )
+                    })?
+            };
+
+            // Create the model with loaded weights
+            InfernoLlama::new(&self.config, vb)
+        }
     }
 
     /// Loads model configuration from config.json.
@@ -229,7 +268,7 @@ impl ModelLoader {
             n_kv_heads,
             vocab_size,
             ffn_dim_multiplier: None, // We calculate from intermediate_size
-            intermediate_size: intermediate_size, // Use extracted value
+            intermediate_size,        // Use extracted value
             multiple_of: 256,         // Standard value
             norm_eps: rms_norm_eps,
             rope_theta,
@@ -243,63 +282,80 @@ impl ModelLoader {
     /// This file maps weight names to their corresponding SafeTensors files
     /// in sharded models.
     fn load_weight_map(model_path: &Path) -> Result<HashMap<String, String>> {
+        // First try to load from index file (sharded models)
         let index_path = model_path.join("model.safetensors.index.json");
-        let index_content = fs::read_to_string(&index_path).map_err(|e| {
-            LlamaError::io_error(
-                format!("Failed to read weight index from {:?}: {}", index_path, e),
-                "load_weight_map",
-            )
-        })?;
-
-        let index_value: Value = serde_json::from_str(&index_content).map_err(|e| {
-            LlamaError::config_error(
-                "model.safetensors.index.json",
-                format!("Failed to parse weight index: {}", e),
-            )
-        })?;
-
-        let weight_map = index_value
-            .get("weight_map")
-            .ok_or_else(|| {
-                LlamaError::config_error(
-                    "weight_map",
-                    "Missing weight_map field in index file".to_string(),
-                )
-            })?
-            .as_object()
-            .ok_or_else(|| {
-                LlamaError::config_error("weight_map", "weight_map must be an object".to_string())
-            })?;
-
-        let mut result = HashMap::new();
-        for (weight_name, file_name) in weight_map {
-            let file_name_str = file_name.as_str().ok_or_else(|| {
-                LlamaError::config_error(
-                    "weight_map",
-                    format!("File name must be string for weight: {}", weight_name),
+        if index_path.exists() {
+            let index_content = fs::read_to_string(&index_path).map_err(|e| {
+                LlamaError::io_error(
+                    format!("Failed to read weight index from {:?}: {}", index_path, e),
+                    "load_weight_map",
                 )
             })?;
-            result.insert(weight_name.clone(), file_name_str.to_string());
+
+            let index_value: Value = serde_json::from_str(&index_content).map_err(|e| {
+                LlamaError::config_error(
+                    "model.safetensors.index.json",
+                    format!("Failed to parse weight index: {}", e),
+                )
+            })?;
+
+            let weight_map = index_value
+                .get("weight_map")
+                .ok_or_else(|| {
+                    LlamaError::config_error(
+                        "weight_map",
+                        "Missing weight_map field in index file".to_string(),
+                    )
+                })?
+                .as_object()
+                .ok_or_else(|| {
+                    LlamaError::config_error("weight_map", "weight_map must be an object".to_string())
+                })?;
+
+            let mut result = HashMap::new();
+            for (weight_name, file_name) in weight_map {
+                let file_name_str = file_name.as_str().ok_or_else(|| {
+                    LlamaError::config_error(
+                        "weight_map",
+                        format!("File name must be string for weight: {}", weight_name),
+                    )
+                })?;
+                result.insert(weight_name.clone(), file_name_str.to_string());
+            }
+            Ok(result)
+        } else {
+            // Fallback: Check for single model.safetensors file
+            let single_file = model_path.join("model.safetensors");
+            if single_file.exists() {
+                // Read the single safetensors file to get all weight names
+                let buffer = fs::read(&single_file).map_err(|e| {
+                    LlamaError::io_error(
+                        format!("Failed to read single SafeTensors file {:?}: {}", single_file, e),
+                        "load_single_safetensors",
+                    )
+                })?;
+
+                let safetensors = safetensors::SafeTensors::deserialize(&buffer).map_err(|e| {
+                    LlamaError::config_error(
+                        "safetensors_format",
+                        format!("Failed to parse SafeTensors file: {}", e),
+                    )
+                })?;
+
+                let mut mapping = HashMap::new();
+                for tensor_name in safetensors.names() {
+                    mapping.insert(tensor_name.to_string(), "model.safetensors".to_string());
+                }
+                Ok(mapping)
+            } else {
+                Err(LlamaError::io_error(
+                    "No model.safetensors.index.json or model.safetensors file found".to_string(),
+                    "find_safetensors_files",
+                ))
+            }
         }
-
-        Ok(result)
     }
 
-    /// Loads all weights from SafeTensors files into the VarMap.
-    ///
-    /// This function iterates through all required weights, loads them from
-    /// their corresponding SafeTensors files, and inserts them into the VarMap
-    /// with the correct names for InfernoLlama.
-    fn load_weights_into_varmap(&self, _var_map: &VarMap) -> Result<()> {
-        // Simple implementation that just creates some placeholder tensors for now
-        // This will allow the factory tests to pass while we implement the full weight loading
-
-        // For now, just return Ok to avoid the "not implemented" error
-        // This allows the unified factory test to progress further
-
-        println!("Warning: Weight loading is using placeholder implementation");
-        Ok(())
-    }
 
     /// Loads specific weights from a single SafeTensors file.
     ///
@@ -325,14 +381,53 @@ impl ModelLoader {
     #[allow(dead_code)]
     fn safetensors_to_candle_tensor(
         &self,
-        _tensor_view: safetensors::tensor::TensorView,
-        _weight_name: &str,
+        tensor_view: safetensors::tensor::TensorView,
+        weight_name: &str,
     ) -> Result<Tensor> {
-        // TODO: Implement tensor conversion
-        Err(LlamaError::tensor_error(
-            "Tensor conversion not yet implemented",
-            "safetensors_to_candle_tensor",
-        ))
+        // Get tensor properties
+        let shape = tensor_view.shape();
+        let dtype = self.safetensors_dtype_to_candle(tensor_view.dtype())?;
+        let data = tensor_view.data();
+
+        // Create Candle tensor from raw data
+        let tensor = match dtype {
+            DType::F32 => {
+                let f32_data = bytemuck::cast_slice::<u8, f32>(data);
+                Tensor::from_slice(f32_data, shape, &self.device)
+            }
+            DType::F16 => {
+                let f16_data = bytemuck::cast_slice::<u8, half::f16>(data);
+                Tensor::from_slice(f16_data, shape, &self.device)
+            }
+            DType::BF16 => {
+                let bf16_data = bytemuck::cast_slice::<u8, half::bf16>(data);
+                Tensor::from_slice(bf16_data, shape, &self.device)
+            }
+            DType::U8 => {
+                Tensor::from_slice(data, shape, &self.device)
+            }
+            DType::I64 => {
+                let i64_data = bytemuck::cast_slice::<u8, i64>(data);
+                Tensor::from_slice(i64_data, shape, &self.device)
+            }
+            DType::U32 => {
+                let u32_data = bytemuck::cast_slice::<u8, u32>(data);
+                Tensor::from_slice(u32_data, shape, &self.device)
+            }
+            _ => {
+                return Err(LlamaError::tensor_error(
+                    &format!("Unsupported tensor dtype {:?} for weight '{}'", dtype, weight_name),
+                    "safetensors_to_candle_tensor",
+                ));
+            }
+        };
+
+        tensor.map_err(|e| {
+            LlamaError::tensor_error(
+                &format!("Failed to create Candle tensor for weight '{}': {}", weight_name, e),
+                "safetensors_to_candle_tensor",
+            )
+        })
     }
 
     /// Maps SafeTensors dtype to Candle DType.

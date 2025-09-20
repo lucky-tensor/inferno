@@ -79,8 +79,8 @@ impl InfernoLlama {
     ) -> Result<HashMap<String, Tensor>> {
         let model_path = model_path.as_ref();
 
-        // Load weight mapping from index file
-        let weight_mapping = Self::get_weight_mapping(model_path)?;
+        // Load weight mapping from index file or single file
+        let weight_mapping = Self::get_weight_mapping_flexible(model_path)?;
 
         let mut all_tensors = HashMap::new();
         let device = Device::Cpu;
@@ -167,6 +167,50 @@ impl InfernoLlama {
         Ok(result)
     }
 
+    /// Gets weight mapping, handling both sharded and single-file models.
+    ///
+    /// This method first tries to load from model.safetensors.index.json (for sharded models),
+    /// and if that fails, falls back to reading directly from model.safetensors (for single-file models).
+    pub fn get_weight_mapping_flexible<P: AsRef<Path>>(model_path: P) -> Result<HashMap<String, String>> {
+        let model_path = model_path.as_ref();
+
+        // First try to get sharded mapping
+        match Self::get_weight_mapping(model_path) {
+            Ok(mapping) => Ok(mapping),
+            Err(_) => {
+                // If no index file, check for single model.safetensors file
+                let single_file = model_path.join("model.safetensors");
+                if single_file.exists() {
+                    // Read the single safetensors file to get all weight names
+                    let buffer = fs::read(&single_file).map_err(|e| {
+                        LlamaError::io_error(
+                            format!("Failed to read single SafeTensors file {:?}: {}", single_file, e),
+                            "load_single_safetensors",
+                        )
+                    })?;
+
+                    let safetensors = safetensors::SafeTensors::deserialize(&buffer).map_err(|e| {
+                        LlamaError::config_error(
+                            "safetensors_format",
+                            format!("Failed to parse SafeTensors file: {}", e),
+                        )
+                    })?;
+
+                    let mut mapping = HashMap::new();
+                    for tensor_name in safetensors.names() {
+                        mapping.insert(tensor_name.to_string(), "model.safetensors".to_string());
+                    }
+                    Ok(mapping)
+                } else {
+                    Err(LlamaError::io_error(
+                        "No model.safetensors.index.json or model.safetensors file found".to_string(),
+                        "find_safetensors_files",
+                    ))
+                }
+            }
+        }
+    }
+
     /// Loads specific tensors from a SafeTensors file.
     fn load_tensors_from_file(
         file_path: &Path,
@@ -249,12 +293,28 @@ impl InfernoLlama {
 
     /// Maps Hugging Face weight names to InfernoLlama weight names.
     pub fn map_weight_name(hf_name: &str) -> Result<String> {
+        // Validate input
+        if hf_name.is_empty() {
+            return Err(LlamaError::config_error(
+                "weight_mapping",
+                "Weight name cannot be empty".to_string(),
+            ));
+        }
+
         // Remove "model." prefix if present
         let name = if let Some(stripped) = hf_name.strip_prefix("model.") {
             stripped
         } else {
             hf_name
         };
+
+        // Additional validation after prefix removal
+        if name.is_empty() {
+            return Err(LlamaError::config_error(
+                "weight_mapping",
+                format!("Invalid weight name after prefix removal: {}", hf_name),
+            ));
+        }
 
         // Map specific component names
         let mapped_name = if name.starts_with("layers.") {
@@ -269,6 +329,14 @@ impl InfernoLlama {
 
             let layer_idx = parts[1];
             let component = parts[2];
+
+            // Validate layer index is numeric
+            if layer_idx.parse::<u32>().is_err() {
+                return Err(LlamaError::config_error(
+                    "weight_mapping",
+                    format!("Invalid layer index '{}' in weight name: {}", layer_idx, hf_name),
+                ));
+            }
 
             match component {
                 "self_attn" => {
@@ -373,7 +441,7 @@ impl InfernoLlama {
             n_kv_heads,
             vocab_size,
             ffn_dim_multiplier: None, // We calculate from intermediate_size
-            intermediate_size: intermediate_size, // Use extracted value
+            intermediate_size,        // Use extracted value
             multiple_of: 256,         // Standard value
             norm_eps: rms_norm_eps,
             rope_theta,

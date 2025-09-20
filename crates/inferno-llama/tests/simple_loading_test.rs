@@ -82,8 +82,10 @@ fn test_empty_model_creation() {
         panic!("Model directory not found at {}", MODEL_PATH);
     }
 
-    // Test creating empty model structure (no weights loaded)
-    let result = InfernoLlama::load_from_path(MODEL_PATH);
+    // Test creating empty model structure (no weights loaded) - async function needs await
+    let result = tokio_test::block_on(async {
+        InfernoLlama::load_from_path(MODEL_PATH).await
+    });
     assert!(
         result.is_ok(),
         "Empty model creation should succeed: {:?}",

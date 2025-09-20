@@ -399,12 +399,14 @@ impl InfernoLlama {
         }
 
         // Step 1: Analyze the model weights to determine dtype and structure
-        let analysis = WeightAnalyzer::analyze_weights(model_path).await.map_err(|e| {
-            LlamaError::config_error(
-                "weight_analysis",
-                format!("Failed to analyze model weights: {}", e),
-            )
-        })?;
+        let analysis = WeightAnalyzer::analyze_weights(model_path)
+            .await
+            .map_err(|e| {
+                LlamaError::config_error(
+                    "weight_analysis",
+                    format!("Failed to analyze model weights: {}", e),
+                )
+            })?;
 
         // Step 2: Hardware compatibility checking
         let device = Device::Cpu; // Start with CPU, can be extended for GPU support
@@ -433,7 +435,7 @@ impl InfernoLlama {
         // Validate that analyzed parameter count roughly matches config
         let expected_params = Self::estimate_parameter_count_from_config(&config);
         let param_ratio = analysis.total_params as f64 / expected_params as f64;
-        if param_ratio < 0.8 || param_ratio > 1.2 {
+        if !(0.8..=1.2).contains(&param_ratio) {
             eprintln!(
                 "⚠️  Warning: Parameter count mismatch - expected ~{}, analyzed {}",
                 expected_params, analysis.total_params
@@ -496,12 +498,13 @@ impl InfernoLlama {
         })?;
 
         // Parse JSON configuration
-        let config_json: serde_json::Value = serde_json::from_str(&config_content).map_err(|e| {
-            LlamaError::config_error(
-                "config_parsing",
-                format!("Failed to parse config JSON: {}", e),
-            )
-        })?;
+        let config_json: serde_json::Value =
+            serde_json::from_str(&config_content).map_err(|e| {
+                LlamaError::config_error(
+                    "config_parsing",
+                    format!("Failed to parse config JSON: {}", e),
+                )
+            })?;
 
         // Convert to LlamaConfig - this is a simplified version
         // In a real implementation, we'd handle all the various Llama config formats
@@ -512,15 +515,17 @@ impl InfernoLlama {
     fn estimate_parameter_count_from_config(config: &LlamaConfig) -> usize {
         // Rough estimation for validation
         let embedding_params = config.vocab_size * config.dim;
-        let layer_params = config.n_layers * (
-            // Attention parameters (rough)
-            3 * config.dim * config.dim + // q, k, v projections
+        let layer_params = config.n_layers
+            * (
+                // Attention parameters (rough)
+                3 * config.dim * config.dim + // q, k, v projections
             config.dim * config.dim + // output projection
             // FFN parameters
             config.dim * config.intermediate_size + // up projection
             config.intermediate_size * config.dim + // down projection
-            config.dim * config.intermediate_size // gate projection (for SwiGLU)
-        );
+            config.dim * config.intermediate_size
+                // gate projection (for SwiGLU)
+            );
         let norm_params = config.dim * (config.n_layers + 1); // layer norms + final norm
         let output_params = config.vocab_size * config.dim;
 

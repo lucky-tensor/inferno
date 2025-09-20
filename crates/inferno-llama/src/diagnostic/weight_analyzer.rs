@@ -80,12 +80,23 @@ impl WeightAnalyzer {
             }
         }
 
-        // Determine primary dtype (most common)
-        let primary_dtype = dtype_counts
-            .iter()
-            .max_by_key(|(_, &count)| count)
-            .map(|(&dtype, _)| dtype)
-            .unwrap_or(DType::F32);
+        // Determine primary dtype with priority for quantized dtypes
+        let primary_dtype = if quantization.scheme != QuantizationScheme::None {
+            // For quantized models, prioritize quantized dtypes (U8, I8) over others
+            dtype_counts
+                .iter()
+                .find(|(&dtype, _)| matches!(dtype, DType::U8))
+                .or_else(|| dtype_counts.iter().max_by_key(|(_, &count)| count))
+                .map(|(&dtype, _)| dtype)
+                .unwrap_or(DType::F32)
+        } else {
+            // For non-quantized models, use most common dtype
+            dtype_counts
+                .iter()
+                .max_by_key(|(_, &count)| count)
+                .map(|(&dtype, _)| dtype)
+                .unwrap_or(DType::F32)
+        };
 
         Ok(WeightAnalysisResult {
             primary_dtype,

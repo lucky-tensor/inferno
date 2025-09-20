@@ -12,10 +12,8 @@
 //! - NO defaults/fallbacks - either support or fail gracefully
 //! - Strict TDD - tests written before implementation
 
-use inferno_llama::{
-    InfernoLlama, WeightAnalyzer, TokenizedInfernoLlama
-};
-use candle_core::{Device, DType};
+use candle_core::{DType, Device};
+use inferno_llama::{InfernoLlama, TokenizedInfernoLlama, WeightAnalyzer};
 use std::path::Path;
 
 /// Real model paths for testing
@@ -32,7 +30,10 @@ fn model_exists(path: &str) -> bool {
 
 /// Test helper to get first available model
 fn get_first_available_model() -> Option<&'static str> {
-    REAL_MODEL_PATHS.iter().find(|&&path| model_exists(path)).copied()
+    REAL_MODEL_PATHS
+        .iter()
+        .find(|&&path| model_exists(path))
+        .copied()
 }
 
 #[tokio::test]
@@ -112,7 +113,10 @@ async fn test_weight_analysis_with_real_fp16_model() {
 
     // Should detect F16 or BF16 dtype
     assert!(
-        matches!(analysis.primary_dtype, DType::F16 | DType::BF16 | DType::F32),
+        matches!(
+            analysis.primary_dtype,
+            DType::F16 | DType::BF16 | DType::F32
+        ),
         "Standard model should use F16/BF16/F32, got: {:?}",
         analysis.primary_dtype
     );
@@ -159,7 +163,10 @@ async fn test_weight_analysis_with_sharded_model() {
 
     // Should detect appropriate dtype
     assert!(
-        matches!(analysis.primary_dtype, DType::F16 | DType::BF16 | DType::F32),
+        matches!(
+            analysis.primary_dtype,
+            DType::F16 | DType::BF16 | DType::F32
+        ),
         "8B model should use standard precision, got: {:?}",
         analysis.primary_dtype
     );
@@ -237,8 +244,15 @@ async fn test_dtype_preservation_requirements() {
     let analysis = WeightAnalyzer::analyze_weights(model_path).await.unwrap();
 
     println!("Detected dtype: {:?}", analysis.primary_dtype);
-    println!("Model params: {} ({:.1}B)", analysis.total_params, analysis.total_params as f64 / 1e9);
-    println!("Estimated memory: {:.1} GB", analysis.estimated_memory_bytes as f64 / 1e9);
+    println!(
+        "Model params: {} ({:.1}B)",
+        analysis.total_params,
+        analysis.total_params as f64 / 1e9
+    );
+    println!(
+        "Estimated memory: {:.1} GB",
+        analysis.estimated_memory_bytes as f64 / 1e9
+    );
 
     // The key requirement: we must NOT cast dtypes
     // When we implement loading, it must preserve the original dtype

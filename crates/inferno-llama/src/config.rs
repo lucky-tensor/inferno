@@ -451,8 +451,6 @@ impl LlamaConfig {
     /// # Ok::<(), inferno_llama::LlamaError>(())
     /// ```
     pub fn from_json_value(json: serde_json::Value) -> Result<Self> {
-        use serde_json::Value;
-
         let obj = json.as_object().ok_or_else(|| {
             LlamaError::config_error(
                 "config_format",
@@ -520,7 +518,8 @@ impl LlamaConfig {
         }
         Err(LlamaError::config_error(
             "missing_layers",
-            "Could not find num_layers field (num_hidden_layers, n_layers, or num_layers)".to_string(),
+            "Could not find num_layers field (num_hidden_layers, n_layers, or num_layers)"
+                .to_string(),
         ))
     }
 
@@ -536,7 +535,8 @@ impl LlamaConfig {
         }
         Err(LlamaError::config_error(
             "missing_heads",
-            "Could not find num_heads field (num_attention_heads, n_heads, or num_heads)".to_string(),
+            "Could not find num_heads field (num_attention_heads, n_heads, or num_heads)"
+                .to_string(),
         ))
     }
 
@@ -598,7 +598,11 @@ impl LlamaConfig {
 
     /// Extract maximum sequence length (optional)
     fn extract_max_seq_len(obj: &serde_json::Map<String, serde_json::Value>) -> usize {
-        let fields = ["max_position_embeddings", "max_seq_len", "max_sequence_length"];
+        let fields = [
+            "max_position_embeddings",
+            "max_seq_len",
+            "max_sequence_length",
+        ];
         for field in &fields {
             if let Some(value) = obj.get(*field) {
                 if let Some(max_len) = value.as_u64() {

@@ -42,7 +42,9 @@ impl std::fmt::Display for QuantizationScheme {
             QuantizationScheme::None => write!(f, "None"),
             QuantizationScheme::W8A8 => write!(f, "W8A8"),
             QuantizationScheme::W4A16 => write!(f, "W4A16"),
-            QuantizationScheme::CompressedTensors(scheme) => write!(f, "CompressedTensors({})", scheme),
+            QuantizationScheme::CompressedTensors(scheme) => {
+                write!(f, "CompressedTensors({})", scheme)
+            }
             QuantizationScheme::Custom(scheme) => write!(f, "Custom({})", scheme),
         }
     }
