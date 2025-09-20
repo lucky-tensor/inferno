@@ -116,10 +116,10 @@ pub fn load_llama_weights(
 }
 
 // Helper function to load SafeTensors weights using burn-import
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, unused_variables)]
 fn load_safetensors_weights(
     weights_path: &Path,
-    _model: &Llama<Backend, SentiencePieceTokenizer>,
+    model: &Llama<Backend, SentiencePieceTokenizer>,
 ) -> Result<(), Box<dyn Error>> {
     println!(
         "  Loading SafeTensors weights using burn-import from: {}",
@@ -224,7 +224,7 @@ fn load_safetensors_weights(
                 }
 
                 // Try to load weights using burn-import's safetensors loader
-                match load_weights_from_safetensors(&tensors, &model) {
+                match load_weights_from_safetensors(&tensors, model) {
                     Ok(()) => {
                         println!("  Successfully loaded weights into Burn model!");
                         return Ok(());
@@ -262,9 +262,10 @@ fn load_safetensors_weights(
 }
 
 /// Load weights from `SafeTensors` into a Burn Llama model
+#[allow(unused_variables)]
 fn load_weights_from_safetensors<'a>(
     tensors: &'a SafeTensors<'a>,
-    _model: &Llama<Backend, SentiencePieceTokenizer>,
+    model: &Llama<Backend, SentiencePieceTokenizer>,
 ) -> Result<(), Box<dyn Error>> {
     println!("  Attempting to load SafeTensors weights into Burn Llama model...");
 
