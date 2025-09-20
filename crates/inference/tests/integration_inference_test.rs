@@ -1,11 +1,16 @@
 //! Integration test to demonstrate burn-cpu neural network inference working
 //! This test shows real model inference with quality output
 
+#[cfg(feature = "burn-cpu")]
 use inferno_inference::config::InfernoConfig;
+#[cfg(feature = "burn-cpu")]
 use inferno_inference::inference::{BurnInferenceEngine, InferenceRequest};
+#[cfg(feature = "burn-cpu")]
 use std::env;
+#[cfg(feature = "burn-cpu")]
 use std::time::Instant;
 
+#[cfg(feature = "burn-cpu")]
 #[tokio::test]
 async fn test_burn_cpu_inference_quality() {
     println!("\n  Testing Burn CPU Neural Network Inference");
@@ -144,6 +149,7 @@ async fn test_burn_cpu_inference_quality() {
     println!("\n  Burn CPU inference test PASSED! Neural network is working!");
 }
 
+#[cfg(feature = "burn-cpu")]
 #[tokio::test]
 async fn test_multiple_inference_requests() {
     println!("\n  Testing Multiple Neural Network Inference Calls");

@@ -11,9 +11,11 @@ use crate::config::InfernoConfig;
 use crate::inference::{
     InferenceEngine, InferenceError, InferenceRequest, InferenceResponse, InferenceStats,
 };
+use inferno_shared::validate_and_display_model_memory;
 
 use super::{
     backend::CandleBackendType,
+    bf16_llama::BF16CompatibleLlama,
     model_config::CandleModelConfig,
     quantized_model::{CompressedTensorsLoader, QuantizedModelConfig},
     simple_quantized_llama::HybridQuantizedLlama,
@@ -60,6 +62,7 @@ use tokenizers::Tokenizer;
 ))]
 enum CandleModelType {
     Regular(Llama),
+    BF16Compatible(BF16CompatibleLlama),
     Quantized(HybridQuantizedLlama),
 }
 
@@ -176,6 +179,80 @@ impl CandleInferenceEngine {
         feature = "candle-cuda",
         feature = "candle-metal"
     ))]
+    /// Detect the native dtype of the model from `SafeTensors` file
+    fn detect_model_dtype(safetensors_path: &std::path::Path) -> Result<DType, InferenceError> {
+        use std::fs::File;
+        use std::io::Read;
+
+        let mut file = File::open(safetensors_path).map_err(|e| {
+            InferenceError::InitializationError(format!("Failed to open SafeTensors file: {}", e))
+        })?;
+
+        // Read SafeTensors header to detect dtype
+        let mut header_size_bytes = [0u8; 8];
+        file.read_exact(&mut header_size_bytes).map_err(|e| {
+            InferenceError::InitializationError(format!(
+                "Failed to read SafeTensors header size: {}",
+                e
+            ))
+        })?;
+
+        let header_size = u64::from_le_bytes(header_size_bytes);
+        if header_size > 1024 * 1024 {
+            // Sanity check: header shouldn't be > 1MB
+            return Err(InferenceError::InitializationError(
+                "Invalid SafeTensors header size".to_string(),
+            ));
+        }
+
+        let mut header_bytes = vec![0u8; header_size as usize];
+        file.read_exact(&mut header_bytes).map_err(|e| {
+            InferenceError::InitializationError(format!("Failed to read SafeTensors header: {}", e))
+        })?;
+
+        let header_str = String::from_utf8(header_bytes).map_err(|e| {
+            InferenceError::InitializationError(format!("Invalid SafeTensors header UTF-8: {}", e))
+        })?;
+
+        // Parse JSON header to find dtype of first tensor
+        let header: serde_json::Value = serde_json::from_str(&header_str).map_err(|e| {
+            InferenceError::InitializationError(format!(
+                "Failed to parse SafeTensors header JSON: {}",
+                e
+            ))
+        })?;
+
+        // Find first tensor and its dtype
+        if let Some(obj) = header.as_object() {
+            for (key, value) in obj {
+                if key != "__metadata__" {
+                    if let Some(dtype_str) = value.get("dtype").and_then(|d| d.as_str()) {
+                        let dtype = match dtype_str {
+                            "F32" => DType::F32,
+                            "F16" => DType::F16,
+                            "BF16" => DType::BF16,
+                            _ => {
+                                info!("  Unknown dtype '{}', defaulting to F16", dtype_str);
+                                DType::F16
+                            }
+                        };
+                        info!("  Detected model dtype: {:?} from tensor '{}'", dtype, key);
+                        return Ok(dtype);
+                    }
+                }
+            }
+        }
+
+        Err(InferenceError::InitializationError(
+            "No tensors found in SafeTensors header".to_string(),
+        ))
+    }
+
+    #[cfg(any(
+        feature = "candle-cpu",
+        feature = "candle-cuda",
+        feature = "candle-metal"
+    ))]
     fn create_remapping_var_builder(base_builder: VarBuilder<'_>) -> VarBuilder<'_> {
         // For Llama 3.2 models with weight tying, we need to handle the case where
         // lm_head.weight should be the same as model.embed_tokens.weight
@@ -220,16 +297,47 @@ impl CandleInferenceEngine {
         let mut time_to_first_token_ms = None;
 
         for i in 0..max_tokens {
-            // Run forward pass - TRUE quantized vs regular
+            // Run forward pass with appropriate method for model type
             let logits = match &wrapper.model {
-                CandleModelType::Regular(llama_model) => llama_model
-                    .forward(&current_input, 0, &mut cache)
-                    .map_err(|e| {
-                        InferenceError::ProcessingError(format!(
-                            "Regular model forward pass failed: {}",
-                            e
-                        ))
-                    })?,
+                CandleModelType::Regular(llama_model) => {
+                    // Convert input tensor to F32 for RoPE compatibility if needed
+                    let compatible_input = if current_input.dtype() == DType::BF16
+                        || current_input.dtype() == DType::F16
+                    {
+                        debug!(
+                            "Converting input tensor from {:?} to F32 for RoPE compatibility",
+                            current_input.dtype()
+                        );
+                        current_input.to_dtype(DType::F32).map_err(|e| {
+                            InferenceError::ProcessingError(format!(
+                                "Failed to convert input tensor to F32: {}",
+                                e
+                            ))
+                        })?
+                    } else {
+                        current_input.clone()
+                    };
+
+                    llama_model
+                        .forward(&compatible_input, 0, &mut cache)
+                        .map_err(|e| {
+                            InferenceError::ProcessingError(format!(
+                                "Regular model forward pass failed: {}",
+                                e
+                            ))
+                        })?
+                }
+                CandleModelType::BF16Compatible(bf16_model) => {
+                    debug!("Running BF16-compatible forward pass with intelligent RoPE handling");
+                    bf16_model
+                        .forward_with_cache(&current_input, 0, &mut cache)
+                        .map_err(|e| {
+                            InferenceError::ProcessingError(format!(
+                                "BF16-compatible model forward pass failed: {}",
+                                e
+                            ))
+                        })?
+                }
                 CandleModelType::Quantized(quantized_llama) => {
                     debug!("  Running TRUE quantized inference with INT8 weights!");
 
@@ -422,6 +530,34 @@ impl InferenceEngine for CandleInferenceEngine {
             config.model_name
         );
 
+        // Validate model memory requirements before loading
+        info!("Validating model memory requirements...");
+        match validate_and_display_model_memory(
+            u32::try_from(config.device_id).map_err(|_| {
+                InferenceError::InitializationError("Device ID must be non-negative".to_string())
+            })?,
+            &config.model_path,
+            &config.model_name,
+        )
+        .await
+        {
+            Ok(will_fit) => {
+                if !will_fit {
+                    return Err(InferenceError::InitializationError(
+                        "Model validation indicates insufficient GPU memory. Loading would likely fail.".to_string()
+                    ));
+                }
+                info!("Memory validation passed - proceeding with model loading");
+            }
+            Err(e) => {
+                // Don't fail initialization if validation fails - just warn
+                info!(
+                    "Memory validation failed: {}. Proceeding with caution...",
+                    e
+                );
+            }
+        }
+
         #[cfg(not(any(
             feature = "candle-cpu",
             feature = "candle-cuda",
@@ -569,7 +705,26 @@ impl InferenceEngine for CandleInferenceEngine {
             } else {
                 // Use standard SafeTensors loading for non-quantized models
                 info!("  Loading standard model using SafeTensors");
-                let dtype = DType::F32; // Use F32 for CPU inference
+                // Use model's native precision from SafeTensors - don't cast to different precision
+                let detected_dtype =
+                    Self::detect_model_dtype(&model_files[0]).unwrap_or_else(|e| {
+                        info!(
+                            "  Could not detect model dtype, defaulting based on device: {}",
+                            e
+                        );
+                        if device.is_cuda() || device.is_metal() {
+                            DType::F16 // Most GPU models use F16
+                        } else {
+                            DType::F32 // CPU typically uses F32
+                        }
+                    });
+
+                // Use model's native precision - we'll implement custom RoPE support if needed
+                let dtype = detected_dtype;
+                info!(
+                    "  Using {:?} precision (model's native format - no memory overhead)",
+                    dtype
+                );
 
                 // Convert PathBuf to &Path for VarBuilder
                 let model_file_refs: Vec<&std::path::Path> = model_files
@@ -643,7 +798,42 @@ impl InferenceEngine for CandleInferenceEngine {
                 CandleModelType::Quantized(quantized_llama)
             } else {
                 // Create regular model
-                let dtype = DType::F32;
+                // Use model's native precision from SafeTensors - don't cast to different precision
+                let detected_dtype =
+                    Self::detect_model_dtype(&model_files[0]).unwrap_or_else(|e| {
+                        info!(
+                            "Could not detect model dtype, defaulting based on device: {}",
+                            e
+                        );
+                        if device.is_cuda() || device.is_metal() {
+                            DType::F16 // Most GPU models use F16
+                        } else {
+                            DType::F32 // CPU typically uses F32
+                        }
+                    });
+
+                // CRITICAL LIMITATION: candle-transformers v0.9.1 doesn't support BF16/F16 RoPE operations
+                //
+                // We implemented a complete custom RoPE solution (see bf16_llama.rs and rope.rs) but cannot
+                // integrate it due to candle-transformers using private fields (ln_f, lm_head, layers()).
+                //
+                // Current options:
+                // 1. F32 workaround (2x memory usage) ✅ WORKS ❌ VIOLATES USER REQUIREMENTS
+                // 2. Native precision (memory efficient) ✅ PREFERRED ❌ BLOCKED BY CANDLE-TRANSFORMERS
+                // 3. Alternative framework (vLLM, tgi-rs) - future consideration
+                //
+                let dtype = if detected_dtype == DType::BF16 || detected_dtype == DType::F16 {
+                    info!("WARNING: Detected model dtype {:?} but candle-transformers doesn't support BF16/F16 RoPE", detected_dtype);
+                    info!("WARNING: Forcing F32 precision - this will use 2x memory until RoPE support is fixed");
+                    info!("RECOMMENDATION: Consider using a framework with native BF16/F16 RoPE support");
+                    DType::F32
+                } else {
+                    detected_dtype
+                };
+                info!(
+                    "Using {:?} precision (temporary workaround for RoPE compatibility)",
+                    dtype
+                );
 
                 // Convert PathBuf to &Path for VarBuilder
                 let model_file_refs: Vec<&std::path::Path> = model_files
@@ -668,6 +858,14 @@ impl InferenceEngine for CandleInferenceEngine {
                         e
                     ))
                 })?;
+
+                // Temporarily use F32 model to avoid RoPE dtype issues
+                // TODO: This is a temporary workaround until candle-transformers supports BF16 RoPE
+                info!("WARNING: Using standard Llama model (temp workaround for RoPE dtype compatibility)");
+                info!(
+                    "Model weights are loaded in {:?} but will be upcast for inference",
+                    dtype
+                );
                 CandleModelType::Regular(llama_model)
             };
 

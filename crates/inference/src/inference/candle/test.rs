@@ -198,8 +198,8 @@ mod tests {
 
         println!("  Quantized inference successful!");
         println!("  Generated: '{}'", response.generated_text);
-        println!("📈 Tokens: {}", response.generated_tokens);
-        println!("⏱️ Time: {:.2}ms", response.inference_time_ms);
+        println!("Tokens: {}", response.generated_tokens);
+        println!("Time: {:.2}ms", response.inference_time_ms);
 
         // Quantized models should be faster and use less memory
         // TODO: Add assertions about performance characteristics
@@ -275,9 +275,9 @@ mod tests {
                 println!("  Inference successful!");
                 println!("  Request ID: {}", response.request_id);
                 println!("  Generated text: '{}'", response.generated_text);
-                println!("📈 Generated tokens: {}", response.generated_tokens);
-                println!("⏱️ Inference time: {:.2}ms", response.inference_time_ms);
-                println!("🏁 Is finished: {}", response.is_finished);
+                println!("Generated tokens: {}", response.generated_tokens);
+                println!("Inference time: {:.2}ms", response.inference_time_ms);
+                println!("Is finished: {}", response.is_finished);
 
                 // For TinyLlama, we might get EOS immediately, so let's just check that inference worked
                 println!("  Generated text: '{}'", response.generated_text);

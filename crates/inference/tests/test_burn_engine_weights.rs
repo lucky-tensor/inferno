@@ -1,5 +1,6 @@
 //! Test BurnInferenceEngine with real pre-trained weights
 
+#[cfg(feature = "burn-cpu")]
 use inferno_inference::{
     config::InfernoConfig,
     inference::{BurnInferenceEngine, InferenceRequest},

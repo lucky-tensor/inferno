@@ -1,10 +1,12 @@
 //! Candle inference engine implementation split into modular components
 
 pub mod backend;
+pub mod bf16_llama;
 pub mod engine;
 pub mod model_config;
 pub mod quantized_llama;
 pub mod quantized_model;
+pub mod rope;
 pub mod simple_quantized_llama;
 pub mod tokenizer;
 

@@ -762,6 +762,7 @@ mod model_loading_tests {
             );
         }
 
+        #[cfg(feature = "burn-cpu")]
         fn create_test_config(temp_dir: &TempDir) -> llama_burn::llama::LlamaConfig {
             let tokenizer_path = temp_dir.path().join("tokenizer.json");
             fs::write(&tokenizer_path, r#"{"version": "1.0"}"#).unwrap();
@@ -806,7 +807,7 @@ mod model_loading_tests {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "burn-cpu"))]
 mod inference_tests {
     use crate::config::InfernoConfig;
     use crate::inference::burn_engine::*;

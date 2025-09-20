@@ -165,13 +165,14 @@ fn find_random_available_port(base_port: u16) -> Result<u16> {
 /// Select and validate model using the shared models module
 async fn select_model(mut options: PlayCliOptions) -> Result<PlayCliOptions> {
     use crate::models::{format_file_size, ModelValidationResult};
+    use inferno_shared::ModelMemoryValidator;
 
     let validation_result = models::validate_and_discover_models(&options.model_path)?;
 
-    match validation_result {
+    let final_model_path = match validation_result {
         ModelValidationResult::SingleModel(model_path) => {
-            options.model_path = model_path;
-            Ok(options)
+            options.model_path = model_path.clone();
+            model_path
         }
         ModelValidationResult::NoModels => {
             eprintln!(
@@ -211,8 +212,122 @@ async fn select_model(mut options: PlayCliOptions) -> Result<PlayCliOptions> {
                 let selected_model =
                     select_model_interactively(models_list, &options.model_path).await?;
                 options.model_path = selected_model.path.to_string_lossy().to_string();
-                Ok(options)
+                selected_model.path.to_string_lossy().to_string()
             }
+        }
+    };
+
+    // Perform memory validation for GPU engines
+    if options.engine == "candle-cuda" || options.engine == "candle-metal" {
+        let device_id = 0; // Use GPU 0 by default
+
+        info!("Validating GPU memory requirements for selected model...");
+
+        let validator = ModelMemoryValidator::new(device_id);
+        match validator.validate_model_fit(&final_model_path).await {
+            Ok(validation) => {
+                validator.display_validation(&validation);
+
+                if !validation.will_fit {
+                    // Model doesn't fit - ask user if they want to proceed anyway
+                    if options.prompt.is_some() {
+                        // In headless mode, just fail
+                        eprintln!("ERROR: Model validation indicates insufficient GPU memory for headless mode.");
+                        eprintln!("Use interactive mode to override this warning.");
+                        std::process::exit(1);
+                    } else {
+                        // In interactive mode, ask user for confirmation
+                        if !prompt_user_override(&validation).await? {
+                            eprintln!("Model loading cancelled by user.");
+                            std::process::exit(1);
+                        }
+                        println!("Proceeding with model loading at user's own risk...");
+                    }
+                } else if validation.confidence < 0.7 {
+                    // Model might fit but with low confidence - warn user
+                    println!(
+                        "WARNING: Memory validation has low confidence ({:.0}%)",
+                        validation.confidence * 100.0
+                    );
+                    if !validation.recommendations.is_empty() {
+                        println!("Consider the following recommendations:");
+                        for rec in &validation.recommendations {
+                            println!("   {}", rec);
+                        }
+                    }
+
+                    if options.prompt.is_none() {
+                        // In interactive mode, ask for confirmation
+                        if !prompt_user_continue_with_warning().await? {
+                            eprintln!("Model loading cancelled by user.");
+                            std::process::exit(1);
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("WARNING: Could not validate GPU memory requirements: {}", e);
+                eprintln!("Proceeding without memory validation...");
+            }
+        }
+    }
+
+    Ok(options)
+}
+
+/// Prompt user to override memory validation warning
+async fn prompt_user_override(validation: &inferno_shared::MemoryValidation) -> Result<bool> {
+    let mut editor = DefaultEditor::new().map_err(|e| {
+        InfernoError::internal(format!("Failed to initialize readline: {}", e), None)
+    })?;
+
+    println!();
+    println!(
+        "Model requires {:.1} GB but only {:.1} GB available (shortfall: {:.1} GB)",
+        validation.estimated_requirement_gb,
+        validation.available_memory_gb,
+        validation.estimated_requirement_gb - validation.available_memory_gb
+    );
+
+    println!("\nRisks of proceeding:");
+    println!("   - Model loading may fail with CUDA out-of-memory errors");
+    println!("   - GPU may become unresponsive requiring system restart");
+    println!("   - Other GPU processes may be killed by the system");
+
+    loop {
+        let input = editor
+            .readline("Do you want to proceed anyway? (y/N): ")
+            .map_err(|e| {
+                InfernoError::internal(format!("Failed to read user input: {}", e), None)
+            })?;
+
+        let trimmed = input.trim().to_lowercase();
+        match trimmed.as_str() {
+            "y" | "yes" => return Ok(true),
+            "n" | "no" | "" => return Ok(false),
+            _ => println!("Please enter 'y' for yes or 'n' for no."),
+        }
+    }
+}
+
+/// Prompt user to continue despite warning
+async fn prompt_user_continue_with_warning() -> Result<bool> {
+    let mut editor = DefaultEditor::new().map_err(|e| {
+        InfernoError::internal(format!("Failed to initialize readline: {}", e), None)
+    })?;
+
+    loop {
+        let input = editor
+            .readline("Continue with model loading? (Y/n): ")
+            .map_err(|e| {
+                InfernoError::internal(format!("Failed to read user input: {}", e), None)
+            })?;
+
+        let trimmed = input.trim().to_lowercase();
+        match trimmed.as_str() {
+            "y" | "yes" | "" => return Ok(true),
+            "n" | "no" => return Ok(false),
+            _ => println!("Please enter 'y' for yes or 'n' for no."),
         }
     }
 }

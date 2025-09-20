@@ -6,6 +6,7 @@ members = [
     "crates/governator",
     "crates/cli",
     "crates/inference",
+    "crates/inferno-llama",
     "benchmarking",
     "testsuite",
 ]

@@ -58,6 +58,7 @@ rstest = { workspace = true }
 
 [features]
 default = ["candle-cuda", "pretrained"]
+test = ["burn-cpu"]
 pretrained = []
 
 # Burn ML Framework features

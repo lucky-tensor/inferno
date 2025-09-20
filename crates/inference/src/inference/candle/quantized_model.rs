@@ -1130,7 +1130,7 @@ impl CompressedTensorsLoader {
                         }
                         _ => {
                             tracing::debug!(
-                                "⏭️ Skipping tensor {} with unsupported dtype: {:?}",
+                                "Skipping tensor {} with unsupported dtype: {:?}",
                                 tensor_name,
                                 tensor_info.dtype()
                             );
@@ -1219,7 +1219,7 @@ impl CompressedTensorsLoader {
                     }
                     _ => {
                         tracing::debug!(
-                            "⏭️ Skipping non-weight tensor {} with dtype: {:?}",
+                            "Skipping non-weight tensor {} with dtype: {:?}",
                             tensor_name,
                             tensor_info.dtype()
                         );

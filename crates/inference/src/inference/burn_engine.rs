@@ -499,7 +499,7 @@ impl BurnInferenceEngine {
         let temperature = 0.7; // Good balance between creativity and coherence
 
         info!(
-            "⚙️ Using TopP sampling (p=0.9) with temperature={}",
+            "Using TopP sampling (p=0.9) with temperature={}",
             temperature
         );
 
@@ -514,10 +514,7 @@ impl BurnInferenceEngine {
         }));
 
         let elapsed = start_time.elapsed();
-        info!(
-            "⏱️ model.generate() call took {:.2}s",
-            elapsed.as_secs_f64()
-        );
+        info!("model.generate() call took {:.2}s", elapsed.as_secs_f64());
 
         let generation_output = match generation_result {
             Ok(output) => {
