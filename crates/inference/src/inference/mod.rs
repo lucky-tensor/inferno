@@ -7,10 +7,27 @@ pub mod traits;
 pub use traits::*;
 
 pub mod burn_engine;
-pub use burn_engine::BurnInferenceEngine;
+// pub mod custom_engine;  // Temporarily disabled
+// pub mod safetensors_engine;  // Temporarily disabled
+pub mod simple_safetensors_engine;
 
-/// Create the llama-burn inference engine
+pub use burn_engine::BurnInferenceEngine;
+// pub use custom_engine::CustomInferenceEngine;
+// pub use safetensors_engine::SafeTensorsEngine;
+pub use simple_safetensors_engine::SimpleSafeTensorsEngine;
+
+/// Create the simple SafeTensors engine with real neural network operations
 pub fn create_engine() -> Box<dyn InferenceEngine<Error = InferenceError>> {
+    Box::new(SimpleSafeTensorsEngine::new())
+}
+
+// /// Create the custom inference engine (REAL NEURAL NETWORK)
+// pub fn create_custom_engine() -> Box<dyn InferenceEngine<Error = InferenceError>> {
+//     Box::new(CustomInferenceEngine::new())
+// }
+
+/// Create the legacy llama-burn inference engine (with limitations)
+pub fn create_burn_engine() -> Box<dyn InferenceEngine<Error = InferenceError>> {
     Box::new(BurnInferenceEngine::new())
 }
 

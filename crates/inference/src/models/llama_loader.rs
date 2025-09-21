@@ -18,11 +18,8 @@ use llama_burn::llama::{Llama, LlamaConfig};
 
 use llama_burn::tokenizer::SentiencePieceTokenizer;
 
-use burn::record::FullPrecisionSettings;
+// Note: SafeTensors direct loading not yet supported by llama-burn
 
-use burn_import::safetensors::{LoadArgs, SafetensorsFileRecorder};
-
-use safetensors::SafeTensors;
 
 // Backend type aliases
 
@@ -99,225 +96,16 @@ pub fn load_llama_weights(
         .init::<Backend, SentiencePieceTokenizer>(device)
         .map_err(|e| format!("Failed to initialize TinyLlama model: {}", e))?;
 
-    println!("  Model structure initialized, attempting to load SafeTensors weights...");
+    println!("  Model structure initialized with random weights");
+    println!("  Note: llama-burn does not support SafeTensors loading");
+    println!("  The model will attempt inference with initialized weights");
 
-    // Try to load weights using our improved SafeTensors loader
-    match load_safetensors_weights(&weights_path, &model) {
-        Ok(()) => {
-            println!("  Successfully validated and attempted to load pre-trained weights!");
-        }
-        Err(e) => {
-            println!("  Failed to load pre-trained weights: {}", e);
-            println!("  Continuing with initialized model (may have random weights)");
-        }
-    }
-
+    // For real neural network inference, we need the model architecture to be correct
+    // Even with random weights, the model can attempt generation (though output will be poor)
     Ok(model)
 }
 
-// Helper function to load SafeTensors weights using burn-import
-#[allow(clippy::too_many_lines, unused_variables)]
-fn load_safetensors_weights(
-    weights_path: &Path,
-    model: &Llama<Backend, SentiencePieceTokenizer>,
-) -> Result<(), Box<dyn Error>> {
-    println!(
-        "  Loading SafeTensors weights using burn-import from: {}",
-        weights_path.display()
-    );
 
-    // Check if the SafeTensors file exists
-    if !weights_path.exists() {
-        return Err(format!("SafeTensors file not found: {}", weights_path.display()).into());
-    }
-
-    let file_size = std::fs::metadata(weights_path)?.len();
-    #[allow(clippy::cast_precision_loss)]
-    let file_size_mb = file_size as f64 / 1_048_576.0;
-    println!(
-        "  SafeTensors file: {} bytes ({:.1} MB)",
-        file_size, file_size_mb
-    );
-
-    // Load SafeTensors file using burn-import
-    let _recorder = SafetensorsFileRecorder::<FullPrecisionSettings>::default();
-    let _load_args = LoadArgs::new(weights_path.to_path_buf());
-
-    println!("  Attempting to load SafeTensors weights into Burn model...");
-
-    // For now, let's focus on validating SafeTensors file access without complex type inference
-    println!("  Attempting SafeTensors file validation...");
-
-    // Check if file is accessible and readable
-    if std::fs::metadata(weights_path).is_ok() {
-        println!("  SafeTensors file is accessible and readable");
-
-        // Attempt basic SafeTensors parsing with improved error handling
-        println!("  Reading SafeTensors file: {}", weights_path.display());
-        let data = match std::fs::read(weights_path) {
-            Ok(data) => {
-                println!(
-                    "  Successfully read {} bytes from SafeTensors file",
-                    data.len()
-                );
-                data
-            }
-            Err(e) => {
-                println!("  Failed to read SafeTensors file: {}", e);
-                return Err(format!("File read error: {}", e).into());
-            }
-        };
-
-        // Validate file is not empty and has reasonable size
-        if data.is_empty() {
-            return Err("SafeTensors file is empty".to_string().into());
-        }
-
-        if data.len() < 8 {
-            return Err("SafeTensors file too small to contain valid metadata"
-                .to_string()
-                .into());
-        }
-
-        // Debug: Check SafeTensors header format
-        let header_len = u64::from_le_bytes([
-            data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
-        ]);
-        println!("  SafeTensors header length: {} bytes", header_len);
-
-        if header_len > data.len() as u64 {
-            println!(
-                "  Header length ({}) exceeds file size ({})",
-                header_len,
-                data.len()
-            );
-            return Err("Corrupted SafeTensors: header length exceeds file size"
-                .to_string()
-                .into());
-        }
-
-        if header_len == 0 {
-            println!("  Header length is zero");
-            return Err("Corrupted SafeTensors: zero header length"
-                .to_string()
-                .into());
-        }
-
-        // Try SafeTensors deserialization with detailed error information
-        match SafeTensors::deserialize(&data) {
-            Ok(tensors) => {
-                println!("  SafeTensors file parsed successfully!");
-                println!("  Found {} tensors in SafeTensors file:", tensors.len());
-
-                // Show first few tensor names to understand structure
-                let tensor_names: Vec<_> = tensors.names().into_iter().take(10).collect();
-                for name in &tensor_names {
-                    if let Ok(tensor_view) = tensors.tensor(name) {
-                        println!("   • {} : shape {:?}", name, tensor_view.shape());
-                    }
-                }
-                if tensor_names.len() < tensors.len() {
-                    println!(
-                        "   ... and {} more tensors",
-                        tensors.len() - tensor_names.len()
-                    );
-                }
-
-                // Try to load weights using burn-import's safetensors loader
-                match load_weights_from_safetensors(&tensors, model) {
-                    Ok(()) => {
-                        println!("  Successfully loaded weights into Burn model!");
-                        return Ok(());
-                    }
-                    Err(e) => {
-                        println!("  Failed to load weights into model: {}", e);
-                        println!("  SafeTensors parsing succeeded but weight mapping failed");
-                    }
-                }
-            }
-            Err(e) => {
-                println!("  SafeTensors parsing failed: {}", e);
-                return Err(format!("Invalid SafeTensors format: {}", e).into());
-            }
-        }
-    } else {
-        println!("  SafeTensors file is not accessible");
-        return Err("SafeTensors file cannot be accessed".to_string().into());
-    }
-
-    // Summary of current state
-    println!("🚧 Current implementation status:");
-    println!("     SafeTensors file parsing works");
-    println!("     Manual weight mapping to llama-burn model not yet implemented");
-    println!("     Model will use Xavier/He initialized weights for now");
-
-    // TODO: Implement manual weight mapping for HuggingFace -> Burn format conversion
-    // This would involve:
-    // 1. Loading SafeTensors tensors by name
-    // 2. Mapping HF tensor names to Burn module paths
-    // 3. Reshaping/transposing tensors as needed
-    // 4. Applying weights to specific model components
-
-    Ok(())
-}
-
-/// Load weights from `SafeTensors` into a Burn Llama model
-#[allow(unused_variables)]
-fn load_weights_from_safetensors<'a>(
-    tensors: &'a SafeTensors<'a>,
-    model: &Llama<Backend, SentiencePieceTokenizer>,
-) -> Result<(), Box<dyn Error>> {
-    println!("  Attempting to load SafeTensors weights into Burn Llama model...");
-
-    // Use burn-import to load the safetensors file directly
-    // The burn-import crate provides utilities to convert SafeTensors to Burn tensors
-    let _recorder = SafetensorsFileRecorder::<FullPrecisionSettings>::default();
-
-    // For now, we'll try to use the standard record loading mechanism
-    // This requires that the burn-models llama implementation supports .load_record()
-
-    println!("  Note: Direct weight loading from SafeTensors requires mapping tensor names");
-    println!("  from HuggingFace format to burn-models format. This is complex and may");
-    println!("  require model-specific tensor name translation.");
-
-    // List some key tensors we expect to find
-    let expected_tensors = [
-        "model.embed_tokens.weight",
-        "lm_head.weight",
-        "model.norm.weight",
-        "model.layers.0.self_attn.q_proj.weight",
-        "model.layers.0.self_attn.k_proj.weight",
-        "model.layers.0.self_attn.v_proj.weight",
-        "model.layers.0.self_attn.o_proj.weight",
-    ];
-
-    let mut found_count = 0;
-    let tensor_names: Vec<_> = tensors.names().into_iter().collect();
-    for expected in &expected_tensors {
-        if tensor_names.iter().any(|name| *name == expected) {
-            found_count += 1;
-            println!("   ✓ Found expected tensor: {}", expected);
-        } else {
-            println!("   ✗ Missing expected tensor: {}", expected);
-        }
-    }
-
-    if found_count > 0 {
-        println!(
-            "  Found {}/{} expected tensors - SafeTensors appears to be valid Llama format",
-            found_count,
-            expected_tensors.len()
-        );
-    } else {
-        return Err("SafeTensors doesn't contain expected Llama model tensors".into());
-    }
-
-    // TODO: Implement actual tensor loading once burn-models provides the necessary APIs
-    // For now, we successfully validated that the SafeTensors contains the right structure
-
-    println!("  SafeTensors validation successful, but direct weight loading not yet implemented");
-    Ok(())
-}
 
 /// `HuggingFace` model configuration structure from config.json
 #[derive(Debug, Clone, Deserialize, Serialize)]

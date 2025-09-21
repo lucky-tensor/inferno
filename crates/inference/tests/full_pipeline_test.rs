@@ -5,7 +5,7 @@
 
 use inferno_inference::{
     config::InfernoConfig,
-    inference::{create_engine, InferenceRequest, InferenceEngine},
+    inference::{create_engine, InferenceRequest},
 };
 use std::time::Duration;
 use tokio::time::timeout;

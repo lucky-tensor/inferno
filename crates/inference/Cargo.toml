@@ -49,6 +49,7 @@ half = { version = "2.3", optional = true }
 tokenizers = { workspace = true }
 hf-hub = { workspace = true, features = ["tokio"] }
 safetensors = { workspace = true }
+half = "2.4"  # For F16 support
 
 [dev-dependencies]
 tokio-test = { workspace = true }

@@ -376,7 +376,7 @@ impl BurnInferenceEngine {
 
         // Real inference with Llama model - ACTUAL NEURAL NETWORK INFERENCE
 
-        let _response_text = {
+        let response_text = {
             if let Some(ref model_mutex) = self.model {
                 // Get mutable access to the model through the Mutex
                 let mut model = model_mutex.lock().unwrap();
@@ -408,8 +408,6 @@ impl BurnInferenceEngine {
             }
         };
 
-        let response_text = format!("No Burn backend enabled. Request: {}", request.prompt);
-
         let inference_time = start_time.elapsed().as_secs_f64();
 
         // Update statistics with thread-safe access
@@ -431,10 +429,13 @@ impl BurnInferenceEngine {
             inference_time, avg_latency
         );
 
+        // Calculate generated tokens (rough approximation)
+        let generated_tokens = response_text.split_whitespace().count();
+
         Ok(InferenceResponse {
             request_id: request.request_id,
             generated_text: response_text,
-            generated_tokens: 50, // Placeholder
+            generated_tokens: generated_tokens as u32,
             inference_time_ms: inference_time * 1000.0,
             time_to_first_token_ms: None, // TODO: Implement timing for Burn engine
             is_finished: true,
@@ -490,7 +491,17 @@ impl BurnInferenceEngine {
 
         let start_time = std::time::Instant::now();
 
-        // Try to call the real generate method, but with error handling
+        // Try to call the real generate method, but with error handling and timeout
+        info!("  About to call model.generate() - this is the critical step...");
+
+        // REAL neural network inference - attempting generation with initialized model
+        warn!("  ⚠️  CRITICAL LIMITATION: Model has random weights, not pre-trained SafeTensors weights");
+        warn!("  This is a technical limitation of the llama-burn crate, not a design choice");
+        warn!("  Neural network inference will be attempted but may fail or produce poor results");
+
+        info!("  Attempting REAL neural network generation with initialized model...");
+
+        // Attempt real neural network inference
         let generation_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             model.generate(prompt, max_tokens, temperature, &mut sampler)
         }));
@@ -503,11 +514,11 @@ impl BurnInferenceEngine {
 
         let generation_output = match generation_result {
             Ok(output) => {
-                info!("  model.generate() completed successfully");
+                info!("  Generation completed successfully");
                 output
             }
             Err(e) => {
-                warn!("  model.generate() panicked: {:?}", e);
+                warn!("  Generation panicked: {:?}", e);
                 return Err(InfernoError::InvalidArgument(
                     "Model generation panicked - this likely means the model weights are not properly loaded or there's a compatibility issue".to_string()
                 ));
