@@ -61,6 +61,13 @@ fn discover_models_recursive(dir: &Path, models: &mut Vec<ModelInfo>) -> Result<
         let file_path = entry.path();
 
         if file_path.is_dir() {
+            // Skip cache directories to avoid duplicates
+            if let Some(dir_name) = file_path.file_name() {
+                if dir_name == "cache" {
+                    continue;
+                }
+            }
+
             // Check if this directory contains a sharded model
             if is_sharded_model_directory(&file_path) {
                 // Treat the entire sharded model directory as a single model

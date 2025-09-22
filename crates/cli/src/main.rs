@@ -3,8 +3,15 @@
 //! Unified command-line interface for managing Inferno distributed systems components.
 
 use clap::Parser;
-use inferno_cli::Cli;
 use inferno_shared::Result;
+
+mod cli_options;
+mod doctor;
+mod model_downloader;
+mod models;
+mod play;
+
+use cli_options::Cli;
 
 #[tokio::main]
 async fn main() -> Result<()> {

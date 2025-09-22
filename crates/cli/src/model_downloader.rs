@@ -10,10 +10,64 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
+use tracing::{debug, error, info, warn};
+
+#[cfg(unix)]
+use std::os::unix::fs::symlink;
+#[cfg(windows)]
+use std::os::windows::fs::symlink_file;
 
 /// Helper function to format model directory name consistently
 fn format_model_dir_name(model_id: &str) -> String {
     model_id.replace("/", "_")
+}
+
+/// Create a symlink from `target` to `link_path` with cross-platform support
+/// Falls back to copying the file if symlink creation fails
+async fn create_file_symlink(target: &Path, link_path: &Path) -> Result<bool> {
+    // Ensure the target directory exists
+    if let Some(parent) = link_path.parent() {
+        fs::create_dir_all(parent).await?;
+    }
+
+    // Remove existing file/symlink at link_path if it exists
+    if link_path.exists() {
+        fs::remove_file(link_path).await?;
+    }
+
+    // Try to create symlink first
+    let symlink_result = {
+        #[cfg(unix)]
+        {
+            symlink(target, link_path)
+        }
+        #[cfg(windows)]
+        {
+            symlink_file(target, link_path)
+        }
+    };
+
+    match symlink_result {
+        Ok(()) => {
+            debug!("Created symlink: {} -> {}", link_path.display(), target.display());
+            Ok(true) // true indicates symlink was created
+        }
+        Err(e) => {
+            warn!("Failed to create symlink, falling back to copy: {}", e);
+
+            // Fallback: copy the file
+            match fs::copy(target, link_path).await {
+                Ok(_) => {
+                    debug!("Copied file: {} -> {}", target.display(), link_path.display());
+                    Ok(false) // false indicates file was copied instead
+                }
+                Err(copy_err) => {
+                    error!("Failed to copy file: {}", copy_err);
+                    Err(copy_err.into())
+                }
+            }
+        }
+    }
 }
 
 /// Check if essential model files already exist in the output directory
@@ -110,7 +164,7 @@ async fn check_existing_model_files(
 /// use inferno_cli::model_downloader::download_model;
 ///
 /// # tokio_test::block_on(async {
-/// download_model("microsoft/DialoGPT-medium", "./models", None, false, false).await.unwrap();
+/// download_model("microsoft/DialoGPT-medium", "~/.inferno/models", None, false, false).await.unwrap();
 /// # });
 /// ```
 pub async fn download_model(
@@ -120,7 +174,7 @@ pub async fn download_model(
     resume: bool,
     use_xet: bool,
 ) -> Result<()> {
-    println!("Starting model download...");
+    info!("Starting model download...");
 
     // Check if model files already exist
     if let Some((existing_files, missing_files)) =
@@ -168,12 +222,12 @@ pub async fn download_model(
                     let size = metadata.len();
                     total_size += size;
                     let size_mb = size as f64 / (1024.0 * 1024.0);
-                    println!("  {} ({:.1} MB)", filename, size_mb);
+                    println!("  [EXISTS] {} ({:.1} MB)", filename, size_mb);
                 }
             }
 
             for filename in &missing_files {
-                println!("  {} (missing)", filename);
+                println!("  [MISSING] {}", filename);
             }
 
             let total_mb = total_size as f64 / (1024.0 * 1024.0);
@@ -184,8 +238,9 @@ pub async fn download_model(
         }
     }
 
-    // Setup inferno-specific cache directory structure
-    let hf_cache_dir = setup_inferno_cache_directory(output_dir).await?;
+    // Setup Inferno cache directory
+    let hf_cache_dir = get_hf_cache_dir()?;
+    println!("Using Inferno cache directory: {}", hf_cache_dir.display());
 
     // Get HF token from parameter, environment, or prompt user
     let token = get_hf_token(hf_token).await?;
@@ -257,28 +312,28 @@ async fn get_hf_token(provided_token: Option<&String>) -> Result<Option<String>>
     }
 
     // 4. Try to prompt user for token (only for gated models)
-    println!("INFO: No HF token found. This may be needed for gated/private models.");
-    println!("INFO: You can set HF_TOKEN environment variable or use --hf-token parameter");
+    println!("No HF token found. This may be needed for gated/private models.");
+    println!("You can set HF_TOKEN environment variable or use --hf-token parameter");
 
     Ok(None)
 }
 
-/// Setup inferno-specific cache directory structure within the models directory
-async fn setup_inferno_cache_directory(models_dir: &str) -> Result<PathBuf> {
-    let cache_dir = PathBuf::from(models_dir).join("cache");
-    let hf_cache = cache_dir.join("huggingface");
+/// Get the Inferno cache directory for models
+/// Uses ~/.inferno/models/cache instead of the standard HuggingFace cache
+fn get_hf_cache_dir() -> Result<PathBuf> {
+    // Check for explicit HF_HUB_CACHE override first
+    if let Ok(cache_dir) = env::var("HF_HUB_CACHE") {
+        return Ok(PathBuf::from(cache_dir));
+    }
 
-    // Create cache directory structure
-    fs::create_dir_all(&cache_dir).await?;
-    fs::create_dir_all(&hf_cache).await?;
+    // Use Inferno-specific cache directory: ~/.inferno/models/cache
+    if let Ok(home) = env::var("HOME") {
+        let cache_dir = PathBuf::from(home).join(".inferno").join("models").join("cache");
+        return Ok(cache_dir);
+    }
 
-    println!("Using inferno cache directory: {}", cache_dir.display());
-    println!("  HuggingFace cache: {}", hf_cache.display());
-
-    Ok(hf_cache) // Return the HuggingFace cache directory for use in API builders
-}
-
-async fn download_huggingface_model(
+    Err(anyhow!("Could not determine home directory for Inferno cache. Please set HOME environment variable"))
+}async fn download_huggingface_model(
     model_id: &str,
     output_dir: &str,
     hf_token: Option<&str>,
@@ -292,8 +347,8 @@ async fn download_huggingface_model(
             return Ok(());
         }
         Err(e) => {
-            println!(
-                "WARNING: Git2 clone failed: {}, trying alternative method...",
+            error!(
+                "GIT LFS clone failed: {}, trying alternative method...",
                 e
             );
         }
@@ -323,7 +378,7 @@ async fn clone_repo_with_lfs(
         && Path::new(output_dir).exists()
         && Path::new(&format!("{}/.git", output_dir)).exists()
     {
-        println!("  Resuming from existing repository...");
+        debug!("Resuming from existing repository...");
         Repository::open(output_dir)?
     } else {
         // Clone the repository fresh with progress tracking
@@ -338,7 +393,7 @@ async fn clone_repo_with_lfs(
         let mut callbacks = RemoteCallbacks::new();
         callbacks.credentials(|_url, _username_from_url, _allowed_types| {
             if let Some(token) = hf_token {
-                println!("Using HF token for Git authentication");
+                debug!("Using HF token for Git authentication");
                 // Use the token as username and empty password for HuggingFace
                 Cred::userpass_plaintext(token, "")
             } else {
@@ -366,14 +421,14 @@ async fn clone_repo_with_lfs(
         let mut builder = git2::build::RepoBuilder::new();
         builder.fetch_options(fetch_options);
 
-        println!("  Cloning repository from Hugging Face...");
+        debug!("Cloning repository from Hugging Face...");
         let repo = builder.clone(&clone_url, Path::new(output_dir))?;
         progress_bar.finish_with_message("Repository cloned");
         repo
     };
 
     // Now handle LFS files
-    println!("  Downloading LFS files...");
+    println!("Downloading LFS files...");
     download_lfs_files(&repo, output_dir, hf_token).await?;
 
     Ok(())
@@ -435,8 +490,8 @@ async fn download_lfs_files(
                     cached_files.push((file_name.clone(), expected_size));
                     continue;
                 } else {
-                    println!(
-                        "  WARNING: Hash mismatch for {}, re-downloading...",
+                    warn!(
+                        "  Hash mismatch for {}, re-downloading...",
                         file_name
                     );
                 }
@@ -481,12 +536,12 @@ async fn download_lfs_files(
     let mut all_verified = true;
     for lfs_file in &lfs_files {
         let file_name = lfs_file.path.file_name().unwrap().to_string_lossy();
-        print!("  Verifying {}: ", file_name);
+        debug!("Verifying {}", file_name);
 
         if verify_file_hash(&lfs_file.path, &lfs_file.oid).await? {
-            println!("Hash verified");
+            debug!("Hash verified for {}", file_name);
         } else {
-            println!("Hash mismatch!");
+            error!("Hash mismatch for {}!", file_name);
             all_verified = false;
         }
     }
@@ -497,7 +552,7 @@ async fn download_lfs_files(
 
         // Show cache/download summary
         if !cached_files.is_empty() {
-            println!("Restored {} files from Git LFS cache:", cached_files.len());
+            println!("📋 Restored {} files from Git LFS cache:", cached_files.len());
             let mut cached_size = 0u64;
             for (filename, size) in &cached_files {
                 cached_size += size;
@@ -558,7 +613,7 @@ async fn find_lfs_files_with_git(
             if content.starts_with("version https://git-lfs.github.com/spec/v1") {
                 // This is an LFS pointer file, parse it using Git's LFS info
                 if let Ok(lfs_file) = parse_lfs_pointer(&content, &file_path) {
-                    println!(
+                    debug!(
                         "  Found LFS file: {} ({} bytes)",
                         file_path.file_name().unwrap().to_string_lossy(),
                         lfs_file.size
@@ -704,14 +759,14 @@ async fn download_model_files_with_wget(
         let url = format!("{}/{}", base_url, file);
         let output_file = format!("{}/{}", output_dir, file);
 
-        println!("  Trying to download: {}", file);
+        debug!("Trying to download: {}", file);
 
         let mut wget_args = vec![&url, "-O", &output_file, "--timeout=30", "--tries=2", "-q"];
 
         // Add authorization header if token is provided
         let auth_header;
         if let Some(token) = hf_token {
-            println!("Using HF token for wget authentication");
+            debug!("Using HF token for wget authentication");
             auth_header = format!("Authorization: Bearer {}", token);
             wget_args.extend_from_slice(&["--header", &auth_header]);
         }
@@ -720,11 +775,11 @@ async fn download_model_files_with_wget(
 
         match status {
             Ok(status) if status.success() => {
-                println!("  Downloaded: {}", file);
+                info!("Downloaded: {}", file);
                 downloaded_any = true;
             }
             _ => {
-                println!("  Failed to download: {}", file);
+                error!("Failed to download: {}", file);
                 // Remove failed download file if it exists
                 let _ = fs::remove_file(&output_file).await;
             }
@@ -742,7 +797,7 @@ async fn download_model_files_with_wget(
 }
 
 async fn verify_file_hash(file_path: &Path, expected_oid: &str) -> Result<bool> {
-    println!("    Expected: {}", expected_oid);
+    debug!("Expected: {}", expected_oid);
 
     // Read file and compute SHA256 hash
     let mut file = std::fs::File::open(file_path)?;
@@ -758,10 +813,10 @@ async fn verify_file_hash(file_path: &Path, expected_oid: &str) -> Result<bool> 
     }
 
     let computed_hash = hex::encode(hasher.finalize());
-    println!("    Computed: {}", computed_hash);
+    debug!("Computed: {}", computed_hash);
 
     let hash_match = computed_hash == expected_oid;
-    println!("    Match: {}", if hash_match { "YES" } else { "NO" });
+    debug!("Match: {}", if hash_match { "YES" } else { "NO" });
 
     Ok(hash_match)
 }
@@ -771,7 +826,7 @@ pub(crate) async fn download_model_with_xet(
     model_id: &str,
     output_dir: &str,
     hf_token: Option<&str>,
-    _cache_dir: &Path,
+    cache_dir: &Path,
     files_to_download: Option<&Vec<String>>,
 ) -> Result<()> {
     println!("Using HuggingFace Hub's native API with xet backend for optimal performance");
@@ -781,18 +836,18 @@ pub(crate) async fn download_model_with_xet(
         println!("Using HF token for authentication");
         hf_hub::api::tokio::ApiBuilder::new()
             .with_token(Some(token.to_string()))
-            .with_cache_dir(_cache_dir.to_path_buf())
+            .with_cache_dir(cache_dir.to_path_buf())
             .build()
     } else {
         hf_hub::api::tokio::ApiBuilder::new()
-            .with_cache_dir(_cache_dir.to_path_buf())
+            .with_cache_dir(cache_dir.to_path_buf())
             .build()
     };
 
     let api = match api_result {
         Ok(api) => api,
         Err(e) => {
-            println!("ERROR: Failed to initialize HuggingFace Hub API: {}", e);
+            println!("Failed to initialize HuggingFace Hub API: {}", e);
             println!("Falling back to Git LFS...");
             return download_huggingface_model(model_id, output_dir, hf_token, false).await;
         }
@@ -800,7 +855,7 @@ pub(crate) async fn download_model_with_xet(
 
     let repo = api.model(model_id.to_string());
 
-    // Try to get the repository info first to see what files are available
+        // Try to get the repository info first to see what files are available
     println!("Discovering available files...");
 
     // Determine which files to download
@@ -830,6 +885,8 @@ pub(crate) async fn download_model_with_xet(
     let mut downloaded_files = Vec::new();
     let mut cached_files = Vec::new();
     let mut failed_files = Vec::new();
+    let mut symlinked_files = Vec::new();
+    let mut copied_files = Vec::new();
 
     let start_time = std::time::Instant::now();
 
@@ -838,15 +895,27 @@ pub(crate) async fn download_model_with_xet(
         let file_start = std::time::Instant::now();
 
         match repo.get(filename).await {
-            Ok(file_path) => {
+            Ok(cached_file_path) => {
                 let target_path = Path::new(output_dir).join(filename);
                 let file_duration = file_start.elapsed();
 
                 // Quick downloads (< 100ms) are likely cache hits for reasonably sized files
                 let is_cache_hit = file_duration.as_millis() < 100;
 
-                match tokio::fs::copy(&file_path, &target_path).await {
-                    Ok(_) => {
+                // Create symlink from output directory to cache file
+                match create_file_symlink(&cached_file_path, &target_path).await {
+                    Ok(true) => {
+                        // Successfully created symlink
+                        symlinked_files.push(filename.to_string());
+                        if is_cache_hit {
+                            cached_files.push(filename.to_string());
+                        } else {
+                            downloaded_files.push(filename.to_string());
+                        }
+                    }
+                    Ok(false) => {
+                        // File was copied (symlink fallback)
+                        copied_files.push(filename.to_string());
                         if is_cache_hit {
                             cached_files.push(filename.to_string());
                         } else {
@@ -854,7 +923,7 @@ pub(crate) async fn download_model_with_xet(
                         }
                     }
                     Err(e) => {
-                        println!("WARNING: Failed to copy {}: {}", filename, e);
+                        warn!("Failed to symlink/copy {}: {}", filename, e);
                         failed_files.push(filename.to_string());
                     }
                 }
@@ -864,40 +933,40 @@ pub(crate) async fn download_model_with_xet(
 
                 // Handle different types of authentication errors with helpful messages
                 if error_msg.contains("401 Unauthorized") {
-                    println!(
+                    error!(
                         "Authentication failed for {}: No valid token provided",
                         filename
                     );
-                    println!("   Please provide a valid HuggingFace token using --hf-token or HF_TOKEN environment variable");
+                    println!(" Please provide a valid HuggingFace token using --hf-token or HF_TOKEN environment variable");
                 } else if error_msg.contains("403 Forbidden") {
                     println!("Access denied for {}: Token lacks permissions or model requires license acceptance", filename);
                     println!("   This model may require accepting license terms at https://huggingface.co/{}", model_id);
                     println!("   Or your token may not have access to this gated model");
                 } else {
-                    println!("DEBUG: Failed to download {} via hf-hub: {}", filename, e);
+                    debug!("Failed to download {} via hf-hub: {}", filename, e);
                 }
 
                 // Try direct HTTP download as fallback for files that fail with "relative URL" error
                 if error_msg.contains("relative URL without a base") {
-                    println!("DEBUG: Attempting direct HTTP download for {}", filename);
+                    debug!("Attempting direct HTTP download for {}", filename);
                     match download_file_direct_with_auth(model_id, filename, output_dir, hf_token)
                         .await
                     {
                         Ok(true) => {
                             downloaded_files.push(filename.to_string());
-                            println!(
-                                "DEBUG: Successfully downloaded {} via direct HTTP",
+                            debug!(
+                                "Successfully downloaded {} via direct HTTP",
                                 filename
                             );
                         }
                         Ok(false) => {
                             failed_files.push(filename.to_string());
-                            println!("DEBUG: File {} not found on server", filename);
+                            debug!("File {} not found on server", filename);
                         }
                         Err(http_err) => {
                             failed_files.push(filename.to_string());
-                            println!(
-                                "DEBUG: Direct HTTP download failed for {}: {}",
+                            debug!(
+                                "Direct HTTP download failed for {}: {}",
                                 filename, http_err
                             );
                         }
@@ -917,12 +986,19 @@ pub(crate) async fn download_model_with_xet(
             let file_start = std::time::Instant::now();
 
             match repo.get(filename).await {
-                Ok(file_path) => {
+                Ok(cached_file_path) => {
                     let target_path = Path::new(output_dir).join(filename);
                     let file_duration = file_start.elapsed();
                     let is_cache_hit = file_duration.as_millis() < 100;
 
-                    if tokio::fs::copy(&file_path, &target_path).await.is_ok() {
+                    // Create symlink from output directory to cache file
+                    if let Ok(is_symlink) = create_file_symlink(&cached_file_path, &target_path).await {
+                        if is_symlink {
+                            symlinked_files.push(filename.to_string());
+                        } else {
+                            copied_files.push(filename.to_string());
+                        }
+
                         if is_cache_hit {
                             cached_files.push(filename.to_string());
                         } else {
@@ -940,13 +1016,13 @@ pub(crate) async fn download_model_with_xet(
     let all_files = [&downloaded_files[..], &cached_files[..]].concat();
 
     if all_files.is_empty() {
-        println!("ERROR: No model files could be downloaded");
+        println!("No model files could be downloaded");
 
         // Check if this was due to authentication issues
         if !failed_files.is_empty() {
             let has_auth_error = failed_files.iter().any(|_| hf_token.is_some());
             if has_auth_error {
-                println!("  This appears to be a gated model that requires:");
+                println!("This appears to be a gated model that requires:");
                 println!("   1. A valid HuggingFace token with access permissions");
                 println!(
                     "   2. Accepting the model's license terms at https://huggingface.co/{}",
@@ -968,7 +1044,7 @@ pub(crate) async fn download_model_with_xet(
     };
 
     if !model_file_exists {
-        println!("ERROR: Required model.safetensors file not found");
+        println!("Required model.safetensors file not found");
         println!("Falling back to Git LFS...");
         return download_huggingface_model(model_id, output_dir, hf_token, false).await;
     }
@@ -1002,6 +1078,15 @@ pub(crate) async fn download_model_with_xet(
                 println!("  - {} ({:.1} MB)", filename, size_mb);
             }
         }
+    }
+
+    // Show symlink vs copy statistics
+    if !symlinked_files.is_empty() || !copied_files.is_empty() {
+        println!(
+            "Storage: {} symlinked, {} copied",
+            symlinked_files.len(),
+            copied_files.len()
+        );
     }
 
     let total_mb = total_size as f64 / (1024.0 * 1024.0);
