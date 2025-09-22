@@ -48,7 +48,12 @@ You can use the "play" mode to test a model for inference. You can interact with
 # Download TinyLlama, a 2GB model to demo the UX
 # models will be downloaded by default to $HOME/.inferno/models/
 inferno download --model-id TinyLlama/TinyLlama-1.1B-Chat-v1.0
-# wait for that to complete
+# ...wait for that to complete
+
+# play mode will start a backend inference node loaded with the given model
+# And in the same process it will provide a simple chat interface which will submit requests to the running server.
+# optionally: enable detailed logs to see what's happening in the background:
+# export INFERNO_LOG=debug
 inferno play
 ```
 
