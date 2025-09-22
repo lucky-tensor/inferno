@@ -35,7 +35,7 @@ pub use operations_server::OperationsServer;
 // Backward compatibility alias
 pub use operations_server::OperationsServer as MetricsServer;
 pub use paths::{
-    default_cache_dir, default_models_dir, default_models_dir_string, expand_home_dir,
+    default_models_dir, default_models_dir_string, expand_home_dir,
     resolve_models_path,
 };
 pub use service_discovery::{

@@ -111,7 +111,7 @@ async fn check_existing_model_files(
 /// use inferno_cli::model_downloader::download_model;
 ///
 /// # tokio_test::block_on(async {
-/// download_model("microsoft/DialoGPT-medium", "./models", None, false, false).await.unwrap();
+/// download_model("microsoft/DialoGPT-medium", "~/.inferno/models", None, false, false).await.unwrap();
 /// # });
 /// ```
 pub async fn download_model(
