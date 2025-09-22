@@ -20,7 +20,9 @@ Inferno is a self-healing cloud platform for AI inference, designed for high-per
 - 🛡️ **Security-Focused**: Input validation, secure defaults, and security headers
 - 🌊 **SWIM Protocol**: Load balancer propagation for efficient backend discovery (Alice Project)
 
-## Quick Start
+## Quick Start for Linux + Nvidia
+
+Tutorials assume you have a linux machine with an Nvidia card (RTX or up)
 
 ### Build from source
 
