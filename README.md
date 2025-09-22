@@ -22,30 +22,34 @@ Inferno is a self-healing cloud platform for AI inference, designed for high-per
 
 ## Quick Start
 
-### Prerequisites
+### Build from source
 
-- Rust 1.70+ (latest stable recommended)
-- Backend service running (e.g., `python3 -m http.server 3000`)
-
-### Installation
+- Rust 1.80+ (latest stable recommended), follow instructions here: https://rustup.rs/
 
 ```bash
-git clone <repository-url>
-cd pingora-proxy-demo
-cargo build --release
+# get the source
+git clone https://github.com/lucky-tensor/inferno.git
+cd inferno
+# builds the inferno cli
+cargo build --release -p inferno
+# copy the binary into one of your path folders for binaries
+# ~/.cargo/bin recommended since you have rust installed
+cp ./target/release/inferno $HOME/.cargo/bin
+
+# check everything is in place
+inferno version
 ```
 
-### Basic Usage
+### Hello Inference
+
+You can use the "play" mode to test a model for inference. You can interact with a downloaded model with a simple Q&A chat interface.
 
 ```bash
-# Run with default configuration (proxy on :8080, backend on :3000)
-cargo run
-
-# Run with custom configuration
-PINGORA_LISTEN_ADDR=0.0.0.0:8080 \
-PINGORA_BACKEND_ADDR=192.168.1.100:3000 \
-PINGORA_LOG_LEVEL=debug \
-cargo run
+# Download TinyLlama, a 2GB model to demo the UX
+# models will be downloaded by default to $HOME/.inferno/models/
+inferno download --model-id TinyLlama/TinyLlama-1.1B-Chat-v1.0
+# wait for that to complete
+inferno play
 ```
 
 ## Architecture
