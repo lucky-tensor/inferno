@@ -12,9 +12,62 @@ use tokio::fs;
 use tokio::io::AsyncWriteExt;
 use tracing::{debug, error, info, warn};
 
+#[cfg(unix)]
+use std::os::unix::fs::symlink;
+#[cfg(windows)]
+use std::os::windows::fs::symlink_file;
+
 /// Helper function to format model directory name consistently
 fn format_model_dir_name(model_id: &str) -> String {
     model_id.replace("/", "_")
+}
+
+/// Create a symlink from `target` to `link_path` with cross-platform support
+/// Falls back to copying the file if symlink creation fails
+async fn create_file_symlink(target: &Path, link_path: &Path) -> Result<bool> {
+    // Ensure the target directory exists
+    if let Some(parent) = link_path.parent() {
+        fs::create_dir_all(parent).await?;
+    }
+
+    // Remove existing file/symlink at link_path if it exists
+    if link_path.exists() {
+        fs::remove_file(link_path).await?;
+    }
+
+    // Try to create symlink first
+    let symlink_result = {
+        #[cfg(unix)]
+        {
+            symlink(target, link_path)
+        }
+        #[cfg(windows)]
+        {
+            symlink_file(target, link_path)
+        }
+    };
+
+    match symlink_result {
+        Ok(()) => {
+            debug!("Created symlink: {} -> {}", link_path.display(), target.display());
+            Ok(true) // true indicates symlink was created
+        }
+        Err(e) => {
+            warn!("Failed to create symlink, falling back to copy: {}", e);
+            
+            // Fallback: copy the file
+            match fs::copy(target, link_path).await {
+                Ok(_) => {
+                    debug!("Copied file: {} -> {}", target.display(), link_path.display());
+                    Ok(false) // false indicates file was copied instead
+                }
+                Err(copy_err) => {
+                    error!("Failed to copy file: {}", copy_err);
+                    Err(copy_err.into())
+                }
+            }
+        }
+    }
 }
 
 /// Check if essential model files already exist in the output directory
@@ -185,8 +238,9 @@ pub async fn download_model(
         }
     }
 
-    // Setup inferno-specific cache directory structure
-    let hf_cache_dir = setup_inferno_cache_directory(output_dir).await?;
+    // Setup HuggingFace cache directory (use standard cache, not custom inferno cache)
+    let hf_cache_dir = get_hf_cache_dir()?;
+    println!("Using HuggingFace cache directory: {}", hf_cache_dir.display());
 
     // Get HF token from parameter, environment, or prompt user
     let token = get_hf_token(hf_token).await?;
@@ -264,19 +318,26 @@ async fn get_hf_token(provided_token: Option<&String>) -> Result<Option<String>>
     Ok(None)
 }
 
-/// Setup inferno-specific cache directory structure within the models directory
-async fn setup_inferno_cache_directory(models_dir: &str) -> Result<PathBuf> {
-    let cache_dir = PathBuf::from(models_dir).join("cache");
-    let hf_cache = cache_dir.join("huggingface");
-
-    // Create cache directory structure
-    fs::create_dir_all(&cache_dir).await?;
-    fs::create_dir_all(&hf_cache).await?;
-
-    println!("Using inferno cache directory: {}", cache_dir.display());
-    debug!("HuggingFace cache: {}", hf_cache.display());
-
-    Ok(hf_cache) // Return the HuggingFace cache directory for use in API builders
+/// Get the standard HuggingFace Hub cache directory
+/// Respects HF_HOME and HF_HUB_CACHE environment variables
+fn get_hf_cache_dir() -> Result<PathBuf> {
+    // Check for explicit HF_HUB_CACHE first
+    if let Ok(cache_dir) = env::var("HF_HUB_CACHE") {
+        return Ok(PathBuf::from(cache_dir));
+    }
+    
+    // Check for HF_HOME (general HF directory)
+    if let Ok(hf_home) = env::var("HF_HOME") {
+        return Ok(PathBuf::from(hf_home).join("hub"));
+    }
+    
+    // Default to ~/.cache/huggingface/hub
+    if let Ok(home) = env::var("HOME") {
+        let cache_dir = PathBuf::from(home).join(".cache").join("huggingface").join("hub");
+        return Ok(cache_dir);
+    }
+    
+    Err(anyhow!("Could not determine HuggingFace cache directory. Please set HOME, HF_HOME, or HF_HUB_CACHE environment variable"))
 }
 
 async fn download_huggingface_model(
@@ -772,7 +833,7 @@ pub(crate) async fn download_model_with_xet(
     model_id: &str,
     output_dir: &str,
     hf_token: Option<&str>,
-    _cache_dir: &Path,
+    cache_dir: &Path,
     files_to_download: Option<&Vec<String>>,
 ) -> Result<()> {
     println!("Using HuggingFace Hub's native API with xet backend for optimal performance");
@@ -782,11 +843,11 @@ pub(crate) async fn download_model_with_xet(
         println!("Using HF token for authentication");
         hf_hub::api::tokio::ApiBuilder::new()
             .with_token(Some(token.to_string()))
-            .with_cache_dir(_cache_dir.to_path_buf())
+            .with_cache_dir(cache_dir.to_path_buf())
             .build()
     } else {
         hf_hub::api::tokio::ApiBuilder::new()
-            .with_cache_dir(_cache_dir.to_path_buf())
+            .with_cache_dir(cache_dir.to_path_buf())
             .build()
     };
 
@@ -831,6 +892,8 @@ pub(crate) async fn download_model_with_xet(
     let mut downloaded_files = Vec::new();
     let mut cached_files = Vec::new();
     let mut failed_files = Vec::new();
+    let mut symlinked_files = Vec::new();
+    let mut copied_files = Vec::new();
 
     let start_time = std::time::Instant::now();
 
@@ -839,15 +902,27 @@ pub(crate) async fn download_model_with_xet(
         let file_start = std::time::Instant::now();
 
         match repo.get(filename).await {
-            Ok(file_path) => {
+            Ok(cached_file_path) => {
                 let target_path = Path::new(output_dir).join(filename);
                 let file_duration = file_start.elapsed();
 
                 // Quick downloads (< 100ms) are likely cache hits for reasonably sized files
                 let is_cache_hit = file_duration.as_millis() < 100;
 
-                match tokio::fs::copy(&file_path, &target_path).await {
-                    Ok(_) => {
+                // Create symlink from output directory to cache file
+                match create_file_symlink(&cached_file_path, &target_path).await {
+                    Ok(true) => {
+                        // Successfully created symlink
+                        symlinked_files.push(filename.to_string());
+                        if is_cache_hit {
+                            cached_files.push(filename.to_string());
+                        } else {
+                            downloaded_files.push(filename.to_string());
+                        }
+                    }
+                    Ok(false) => {
+                        // File was copied (symlink fallback)
+                        copied_files.push(filename.to_string());
                         if is_cache_hit {
                             cached_files.push(filename.to_string());
                         } else {
@@ -855,7 +930,7 @@ pub(crate) async fn download_model_with_xet(
                         }
                     }
                     Err(e) => {
-                        warn!("Failed to copy {}: {}", filename, e);
+                        warn!("Failed to symlink/copy {}: {}", filename, e);
                         failed_files.push(filename.to_string());
                     }
                 }
@@ -918,12 +993,19 @@ pub(crate) async fn download_model_with_xet(
             let file_start = std::time::Instant::now();
 
             match repo.get(filename).await {
-                Ok(file_path) => {
+                Ok(cached_file_path) => {
                     let target_path = Path::new(output_dir).join(filename);
                     let file_duration = file_start.elapsed();
                     let is_cache_hit = file_duration.as_millis() < 100;
 
-                    if tokio::fs::copy(&file_path, &target_path).await.is_ok() {
+                    // Create symlink from output directory to cache file
+                    if let Ok(is_symlink) = create_file_symlink(&cached_file_path, &target_path).await {
+                        if is_symlink {
+                            symlinked_files.push(filename.to_string());
+                        } else {
+                            copied_files.push(filename.to_string());
+                        }
+                        
                         if is_cache_hit {
                             cached_files.push(filename.to_string());
                         } else {
@@ -1003,6 +1085,15 @@ pub(crate) async fn download_model_with_xet(
                 println!("  - {} ({:.1} MB)", filename, size_mb);
             }
         }
+    }
+
+    // Show symlink vs copy statistics
+    if !symlinked_files.is_empty() || !copied_files.is_empty() {
+        println!(
+            "Storage: {} symlinked, {} copied",
+            symlinked_files.len(),
+            copied_files.len()
+        );
     }
 
     let total_mb = total_size as f64 / (1024.0 * 1024.0);
