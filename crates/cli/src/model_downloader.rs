@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use tokio::fs;
 use tokio::io::AsyncWriteExt;
+use tracing::{debug, error, info, warn};
 
 /// Helper function to format model directory name consistently
 fn format_model_dir_name(model_id: &str) -> String {
@@ -120,7 +121,7 @@ pub async fn download_model(
     resume: bool,
     use_xet: bool,
 ) -> Result<()> {
-    println!("Starting model download...");
+    info!("Starting model download...");
 
     // Check if model files already exist
     if let Some((existing_files, missing_files)) =
@@ -131,7 +132,7 @@ pub async fn download_model(
 
         if missing_files.is_empty() {
             // All files are present, skip download
-            println!(
+            info!(
                 "Model already downloaded! Found {} existing files:",
                 existing_files.len()
             );
@@ -143,19 +144,19 @@ pub async fn download_model(
                     let size = metadata.len();
                     total_size += size;
                     let size_mb = size as f64 / (1024.0 * 1024.0);
-                    println!("  - {} ({:.1} MB)", filename, size_mb);
+                    info!("  - {} ({:.1} MB)", filename, size_mb);
                 } else {
-                    println!("  - {}", filename);
+                    info!("  - {}", filename);
                 }
             }
 
             let total_mb = total_size as f64 / (1024.0 * 1024.0);
-            println!("Total: {:.1} MB already available", total_mb);
-            println!("Skipping download - model is ready to use!");
+            info!("Total: {:.1} MB already available", total_mb);
+            info!("Skipping download - model is ready to use!");
             return Ok(());
         } else {
             // Partial download - some files are missing
-            println!(
+            info!(
                 "Partial download detected! Found {} existing files, {} missing:",
                 existing_files.len(),
                 missing_files.len()
@@ -168,17 +169,17 @@ pub async fn download_model(
                     let size = metadata.len();
                     total_size += size;
                     let size_mb = size as f64 / (1024.0 * 1024.0);
-                    println!("  {} ({:.1} MB)", filename, size_mb);
+                    info!("  {} ({:.1} MB)", filename, size_mb);
                 }
             }
 
             for filename in &missing_files {
-                println!("  {} (missing)", filename);
+                info!("  {} (missing)", filename);
             }
 
             let total_mb = total_size as f64 / (1024.0 * 1024.0);
-            println!("Existing: {:.1} MB", total_mb);
-            println!("Downloading missing files...");
+            info!("Existing: {:.1} MB", total_mb);
+            info!("Downloading missing files...");
 
             // Continue with download, but we'll modify the download logic to only get missing files
         }
@@ -192,11 +193,11 @@ pub async fn download_model(
 
     // Create output directory for model files
     let model_dir = format!("{}/{}", output_dir, model_id.replace("/", "_"));
-    println!("Creating model directory: {}", model_dir);
+    info!("Creating model directory: {}", model_dir);
     fs::create_dir_all(&model_dir).await?;
 
     // Download model from Hugging Face with resume capability
-    println!("Downloading model from Hugging Face: {}", model_id);
+    info!("Downloading model from Hugging Face: {}", model_id);
 
     // Check what files to download (all or just missing ones)
     let files_to_download =
@@ -220,7 +221,7 @@ pub async fn download_model(
         )
         .await?;
     } else {
-        println!("Using Git LFS backend");
+        info!("Using Git LFS backend");
         download_huggingface_model(model_id, &model_dir, token.as_deref(), resume).await?;
     }
 
@@ -235,12 +236,12 @@ async fn get_hf_token(provided_token: Option<&String>) -> Result<Option<String>>
 
     // 2. Check environment variables
     if let Ok(token) = env::var("HUGGINGFACE_HUB_TOKEN") {
-        println!("Using HF token from HUGGINGFACE_HUB_TOKEN environment variable");
+        info!("Using HF token from HUGGINGFACE_HUB_TOKEN environment variable");
         return Ok(Some(token));
     }
 
     if let Ok(token) = env::var("HF_TOKEN") {
-        println!("Using HF token from HF_TOKEN environment variable");
+        info!("Using HF token from HF_TOKEN environment variable");
         return Ok(Some(token));
     }
 
@@ -250,15 +251,15 @@ async fn get_hf_token(provided_token: Option<&String>) -> Result<Option<String>>
         if let Ok(token) = tokio::fs::read_to_string(&token_file).await {
             let token = token.trim().to_string();
             if !token.is_empty() {
-                println!("Using HF token from cache file: {}", token_file);
+                info!("Using HF token from cache file: {}", token_file);
                 return Ok(Some(token));
             }
         }
     }
 
     // 4. Try to prompt user for token (only for gated models)
-    println!("INFO: No HF token found. This may be needed for gated/private models.");
-    println!("INFO: You can set HF_TOKEN environment variable or use --hf-token parameter");
+    info!("No HF token found. This may be needed for gated/private models.");
+    info!("You can set HF_TOKEN environment variable or use --hf-token parameter");
 
     Ok(None)
 }
@@ -272,8 +273,8 @@ async fn setup_inferno_cache_directory(models_dir: &str) -> Result<PathBuf> {
     fs::create_dir_all(&cache_dir).await?;
     fs::create_dir_all(&hf_cache).await?;
 
-    println!("Using inferno cache directory: {}", cache_dir.display());
-    println!("  HuggingFace cache: {}", hf_cache.display());
+    info!("Using inferno cache directory: {}", cache_dir.display());
+    debug!("  HuggingFace cache: {}", hf_cache.display());
 
     Ok(hf_cache) // Return the HuggingFace cache directory for use in API builders
 }
@@ -285,22 +286,22 @@ async fn download_huggingface_model(
     resume: bool,
 ) -> Result<()> {
     // Method 1: Try using git2 (Rust git library) with LFS support
-    println!("Using git2 to clone repository...");
+    debug!("Using git2 to clone repository...");
     match clone_repo_with_lfs(model_id, output_dir, hf_token, resume).await {
         Ok(_) => {
-            println!("Successfully cloned repository with LFS files");
+            info!("Successfully cloned repository with LFS files");
             return Ok(());
         }
         Err(e) => {
-            println!(
-                "WARNING: Git2 clone failed: {}, trying alternative method...",
+            warn!(
+                "Git2 clone failed: {}, trying alternative method...",
                 e
             );
         }
     }
 
     // Method 2: Fallback to wget for individual files
-    println!("Using wget to download model files...");
+    info!("Using wget to download model files...");
     download_model_files_with_wget(model_id, output_dir, hf_token).await?;
 
     Ok(())
@@ -323,7 +324,7 @@ async fn clone_repo_with_lfs(
         && Path::new(output_dir).exists()
         && Path::new(&format!("{}/.git", output_dir)).exists()
     {
-        println!("  Resuming from existing repository...");
+        debug!("  Resuming from existing repository...");
         Repository::open(output_dir)?
     } else {
         // Clone the repository fresh with progress tracking
@@ -338,7 +339,7 @@ async fn clone_repo_with_lfs(
         let mut callbacks = RemoteCallbacks::new();
         callbacks.credentials(|_url, _username_from_url, _allowed_types| {
             if let Some(token) = hf_token {
-                println!("Using HF token for Git authentication");
+                debug!("Using HF token for Git authentication");
                 // Use the token as username and empty password for HuggingFace
                 Cred::userpass_plaintext(token, "")
             } else {
@@ -366,14 +367,14 @@ async fn clone_repo_with_lfs(
         let mut builder = git2::build::RepoBuilder::new();
         builder.fetch_options(fetch_options);
 
-        println!("  Cloning repository from Hugging Face...");
+        debug!("  Cloning repository from Hugging Face...");
         let repo = builder.clone(&clone_url, Path::new(output_dir))?;
         progress_bar.finish_with_message("Repository cloned");
         repo
     };
 
     // Now handle LFS files
-    println!("  Downloading LFS files...");
+    debug!("  Downloading LFS files...");
     download_lfs_files(&repo, output_dir, hf_token).await?;
 
     Ok(())
@@ -435,8 +436,8 @@ async fn download_lfs_files(
                     cached_files.push((file_name.clone(), expected_size));
                     continue;
                 } else {
-                    println!(
-                        "  WARNING: Hash mismatch for {}, re-downloading...",
+                    warn!(
+                        "  Hash mismatch for {}, re-downloading...",
                         file_name
                     );
                 }
@@ -477,16 +478,16 @@ async fn download_lfs_files(
     }
 
     // Verify all downloaded files
-    println!("Verifying integrity of downloaded files...");
+    info!("Verifying integrity of downloaded files...");
     let mut all_verified = true;
     for lfs_file in &lfs_files {
         let file_name = lfs_file.path.file_name().unwrap().to_string_lossy();
-        print!("  Verifying {}: ", file_name);
+        debug!("Verifying {}", file_name);
 
         if verify_file_hash(&lfs_file.path, &lfs_file.oid).await? {
-            println!("Hash verified");
+            debug!("Hash verified for {}", file_name);
         } else {
-            println!("Hash mismatch!");
+            error!("Hash mismatch for {}!", file_name);
             all_verified = false;
         }
     }
@@ -497,33 +498,33 @@ async fn download_lfs_files(
 
         // Show cache/download summary
         if !cached_files.is_empty() {
-            println!("Restored {} files from Git LFS cache:", cached_files.len());
+            info!("Restored {} files from Git LFS cache:", cached_files.len());
             let mut cached_size = 0u64;
             for (filename, size) in &cached_files {
                 cached_size += size;
                 let size_mb = *size as f64 / (1024.0 * 1024.0);
-                println!("  - {} ({:.1} MB)", filename, size_mb);
+                info!("  - {} ({:.1} MB)", filename, size_mb);
             }
         }
 
         if downloaded_count > 0 {
-            println!("Downloaded {} files via Git LFS", downloaded_count);
+            info!("Downloaded {} files via Git LFS", downloaded_count);
         }
 
         if !cached_files.is_empty() && downloaded_count > 0 {
-            println!(
+            info!(
                 "All LFS files completed successfully! ({} downloaded, {} from cache) in {:.1}s",
                 downloaded_count,
                 cached_files.len(),
                 total_duration.as_secs_f64()
             );
         } else if !cached_files.is_empty() {
-            println!(
+            info!(
                 "All LFS files restored from cache in {:.3}s",
                 total_duration.as_secs_f64()
             );
         } else {
-            println!(
+            info!(
                 "All LFS files downloaded and verified successfully! in {:.1}s",
                 total_duration.as_secs_f64()
             );
@@ -558,7 +559,7 @@ async fn find_lfs_files_with_git(
             if content.starts_with("version https://git-lfs.github.com/spec/v1") {
                 // This is an LFS pointer file, parse it using Git's LFS info
                 if let Ok(lfs_file) = parse_lfs_pointer(&content, &file_path) {
-                    println!(
+                    debug!(
                         "  Found LFS file: {} ({} bytes)",
                         file_path.file_name().unwrap().to_string_lossy(),
                         lfs_file.size
@@ -704,14 +705,14 @@ async fn download_model_files_with_wget(
         let url = format!("{}/{}", base_url, file);
         let output_file = format!("{}/{}", output_dir, file);
 
-        println!("  Trying to download: {}", file);
+        debug!("  Trying to download: {}", file);
 
         let mut wget_args = vec![&url, "-O", &output_file, "--timeout=30", "--tries=2", "-q"];
 
         // Add authorization header if token is provided
         let auth_header;
         if let Some(token) = hf_token {
-            println!("Using HF token for wget authentication");
+            debug!("Using HF token for wget authentication");
             auth_header = format!("Authorization: Bearer {}", token);
             wget_args.extend_from_slice(&["--header", &auth_header]);
         }
@@ -720,11 +721,11 @@ async fn download_model_files_with_wget(
 
         match status {
             Ok(status) if status.success() => {
-                println!("  Downloaded: {}", file);
+                info!("  Downloaded: {}", file);
                 downloaded_any = true;
             }
             _ => {
-                println!("  Failed to download: {}", file);
+                warn!("  Failed to download: {}", file);
                 // Remove failed download file if it exists
                 let _ = fs::remove_file(&output_file).await;
             }
@@ -742,7 +743,7 @@ async fn download_model_files_with_wget(
 }
 
 async fn verify_file_hash(file_path: &Path, expected_oid: &str) -> Result<bool> {
-    println!("    Expected: {}", expected_oid);
+    debug!("    Expected: {}", expected_oid);
 
     // Read file and compute SHA256 hash
     let mut file = std::fs::File::open(file_path)?;
@@ -758,10 +759,10 @@ async fn verify_file_hash(file_path: &Path, expected_oid: &str) -> Result<bool> 
     }
 
     let computed_hash = hex::encode(hasher.finalize());
-    println!("    Computed: {}", computed_hash);
+    debug!("    Computed: {}", computed_hash);
 
     let hash_match = computed_hash == expected_oid;
-    println!("    Match: {}", if hash_match { "YES" } else { "NO" });
+    debug!("    Match: {}", if hash_match { "YES" } else { "NO" });
 
     Ok(hash_match)
 }
@@ -774,11 +775,11 @@ pub(crate) async fn download_model_with_xet(
     _cache_dir: &Path,
     files_to_download: Option<&Vec<String>>,
 ) -> Result<()> {
-    println!("Using HuggingFace Hub's native API with xet backend for optimal performance");
+    info!("Using HuggingFace Hub's native API with xet backend for optimal performance");
 
     // Initialize the API client with proper token authentication
     let api_result = if let Some(token) = hf_token {
-        println!("Using HF token for authentication");
+        debug!("Using HF token for authentication");
         hf_hub::api::tokio::ApiBuilder::new()
             .with_token(Some(token.to_string()))
             .with_cache_dir(_cache_dir.to_path_buf())
@@ -792,23 +793,23 @@ pub(crate) async fn download_model_with_xet(
     let api = match api_result {
         Ok(api) => api,
         Err(e) => {
-            println!("ERROR: Failed to initialize HuggingFace Hub API: {}", e);
-            println!("Falling back to Git LFS...");
+            error!("Failed to initialize HuggingFace Hub API: {}", e);
+            info!("Falling back to Git LFS...");
             return download_huggingface_model(model_id, output_dir, hf_token, false).await;
         }
     };
 
     let repo = api.model(model_id.to_string());
 
-    // Try to get the repository info first to see what files are available
-    println!("Discovering available files...");
+        // Try to get the repository info first to see what files are available
+    debug!("Discovering available files...");
 
     // Determine which files to download
     let essential_files = if let Some(specific_files) = files_to_download {
-        println!("Downloading only missing files: {:?}", specific_files);
+        info!("Downloading only missing files: {:?}", specific_files);
         specific_files.clone()
     } else {
-        println!("Downloading all essential files");
+        info!("Downloading all essential files");
         vec![
             "model.safetensors".to_string(), // Primary model weights (safetensors format only)
             "config.json".to_string(),       // Model configuration (architecture, dimensions, etc.)
@@ -854,7 +855,7 @@ pub(crate) async fn download_model_with_xet(
                         }
                     }
                     Err(e) => {
-                        println!("WARNING: Failed to copy {}: {}", filename, e);
+                        warn!("Failed to copy {}: {}", filename, e);
                         failed_files.push(filename.to_string());
                     }
                 }
@@ -864,40 +865,40 @@ pub(crate) async fn download_model_with_xet(
 
                 // Handle different types of authentication errors with helpful messages
                 if error_msg.contains("401 Unauthorized") {
-                    println!(
+                    error!(
                         "Authentication failed for {}: No valid token provided",
                         filename
                     );
-                    println!("   Please provide a valid HuggingFace token using --hf-token or HF_TOKEN environment variable");
+                    info!("   Please provide a valid HuggingFace token using --hf-token or HF_TOKEN environment variable");
                 } else if error_msg.contains("403 Forbidden") {
-                    println!("Access denied for {}: Token lacks permissions or model requires license acceptance", filename);
-                    println!("   This model may require accepting license terms at https://huggingface.co/{}", model_id);
-                    println!("   Or your token may not have access to this gated model");
+                    error!("Access denied for {}: Token lacks permissions or model requires license acceptance", filename);
+                    info!("   This model may require accepting license terms at https://huggingface.co/{}", model_id);
+                    info!("   Or your token may not have access to this gated model");
                 } else {
-                    println!("DEBUG: Failed to download {} via hf-hub: {}", filename, e);
+                    debug!("Failed to download {} via hf-hub: {}", filename, e);
                 }
 
                 // Try direct HTTP download as fallback for files that fail with "relative URL" error
                 if error_msg.contains("relative URL without a base") {
-                    println!("DEBUG: Attempting direct HTTP download for {}", filename);
+                    debug!("Attempting direct HTTP download for {}", filename);
                     match download_file_direct_with_auth(model_id, filename, output_dir, hf_token)
                         .await
                     {
                         Ok(true) => {
                             downloaded_files.push(filename.to_string());
-                            println!(
-                                "DEBUG: Successfully downloaded {} via direct HTTP",
+                            debug!(
+                                "Successfully downloaded {} via direct HTTP",
                                 filename
                             );
                         }
                         Ok(false) => {
                             failed_files.push(filename.to_string());
-                            println!("DEBUG: File {} not found on server", filename);
+                            debug!("File {} not found on server", filename);
                         }
                         Err(http_err) => {
                             failed_files.push(filename.to_string());
-                            println!(
-                                "DEBUG: Direct HTTP download failed for {}: {}",
+                            debug!(
+                                "Direct HTTP download failed for {}: {}",
                                 filename, http_err
                             );
                         }
@@ -940,23 +941,23 @@ pub(crate) async fn download_model_with_xet(
     let all_files = [&downloaded_files[..], &cached_files[..]].concat();
 
     if all_files.is_empty() {
-        println!("ERROR: No model files could be downloaded");
+        error!("No model files could be downloaded");
 
         // Check if this was due to authentication issues
         if !failed_files.is_empty() {
             let has_auth_error = failed_files.iter().any(|_| hf_token.is_some());
             if has_auth_error {
-                println!("  This appears to be a gated model that requires:");
-                println!("   1. A valid HuggingFace token with access permissions");
-                println!(
+                error!("  This appears to be a gated model that requires:");
+                error!("   1. A valid HuggingFace token with access permissions");
+                error!(
                     "   2. Accepting the model's license terms at https://huggingface.co/{}",
                     model_id
                 );
-                println!("   3. Requesting access if it's a restricted model");
+                error!("   3. Requesting access if it's a restricted model");
             }
         }
 
-        println!("Falling back to Git LFS...");
+        info!("Falling back to Git LFS...");
         return download_huggingface_model(model_id, output_dir, hf_token, false).await;
     }
 
@@ -968,8 +969,8 @@ pub(crate) async fn download_model_with_xet(
     };
 
     if !model_file_exists {
-        println!("ERROR: Required model.safetensors file not found");
-        println!("Falling back to Git LFS...");
+        error!("Required model.safetensors file not found");
+        info!("Falling back to Git LFS...");
         return download_huggingface_model(model_id, output_dir, hf_token, false).await;
     }
 
@@ -978,28 +979,28 @@ pub(crate) async fn download_model_with_xet(
 
     // Show downloaded files (new network downloads)
     if !downloaded_files.is_empty() {
-        println!("Downloaded {} files:", downloaded_files.len());
+        info!("Downloaded {} files:", downloaded_files.len());
         for filename in &downloaded_files {
             let file_path = Path::new(output_dir).join(filename);
             if let Ok(metadata) = tokio::fs::metadata(&file_path).await {
                 let size = metadata.len();
                 total_size += size;
                 let size_mb = size as f64 / (1024.0 * 1024.0);
-                println!("  - {} ({:.1} MB)", filename, size_mb);
+                info!("  - {} ({:.1} MB)", filename, size_mb);
             }
         }
     }
 
     // Show cached files (restored from local cache)
     if !cached_files.is_empty() {
-        println!("Restored {} files from cache:", cached_files.len());
+        info!("Restored {} files from cache:", cached_files.len());
         for filename in &cached_files {
             let file_path = Path::new(output_dir).join(filename);
             if let Ok(metadata) = tokio::fs::metadata(&file_path).await {
                 let size = metadata.len();
                 total_size += size;
                 let size_mb = size as f64 / (1024.0 * 1024.0);
-                println!("  - {} ({:.1} MB)", filename, size_mb);
+                info!("  - {} ({:.1} MB)", filename, size_mb);
             }
         }
     }
@@ -1007,7 +1008,7 @@ pub(crate) async fn download_model_with_xet(
     let total_mb = total_size as f64 / (1024.0 * 1024.0);
 
     if !cached_files.is_empty() && !downloaded_files.is_empty() {
-        println!(
+        info!(
             "Total: {:.1} MB ({} downloaded, {} from cache) in {:.1}s",
             total_mb,
             downloaded_files.len(),
@@ -1015,13 +1016,13 @@ pub(crate) async fn download_model_with_xet(
             total_duration.as_secs_f64()
         );
     } else if !cached_files.is_empty() {
-        println!(
+        info!(
             "Total: {:.1} MB restored from cache in {:.3}s",
             total_mb,
             total_duration.as_secs_f64()
         );
     } else {
-        println!(
+        info!(
             "Total: {:.1} MB downloaded successfully in {:.1}s",
             total_mb,
             total_duration.as_secs_f64()
