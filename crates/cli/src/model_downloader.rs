@@ -274,7 +274,7 @@ async fn setup_inferno_cache_directory(models_dir: &str) -> Result<PathBuf> {
     fs::create_dir_all(&hf_cache).await?;
 
     println!("Using inferno cache directory: {}", cache_dir.display());
-    debug!("  HuggingFace cache: {}", hf_cache.display());
+    debug!("HuggingFace cache: {}", hf_cache.display());
 
     Ok(hf_cache) // Return the HuggingFace cache directory for use in API builders
 }
@@ -293,8 +293,8 @@ async fn download_huggingface_model(
             return Ok(());
         }
         Err(e) => {
-            println!(
-                "Git2 clone failed: {}, trying alternative method...",
+            error!(
+                "GIT LFS clone failed: {}, trying alternative method...",
                 e
             );
         }
@@ -324,7 +324,7 @@ async fn clone_repo_with_lfs(
         && Path::new(output_dir).exists()
         && Path::new(&format!("{}/.git", output_dir)).exists()
     {
-        debug!("  Resuming from existing repository...");
+        debug!("Resuming from existing repository...");
         Repository::open(output_dir)?
     } else {
         // Clone the repository fresh with progress tracking
@@ -367,7 +367,7 @@ async fn clone_repo_with_lfs(
         let mut builder = git2::build::RepoBuilder::new();
         builder.fetch_options(fetch_options);
 
-        debug!("  Cloning repository from Hugging Face...");
+        debug!("Cloning repository from Hugging Face...");
         let repo = builder.clone(&clone_url, Path::new(output_dir))?;
         progress_bar.finish_with_message("Repository cloned");
         repo
@@ -478,7 +478,7 @@ async fn download_lfs_files(
     }
 
     // Verify all downloaded files
-    println!("🔍 Verifying integrity of downloaded files...");
+    println!("Verifying integrity of downloaded files...");
     let mut all_verified = true;
     for lfs_file in &lfs_files {
         let file_name = lfs_file.path.file_name().unwrap().to_string_lossy();
@@ -513,19 +513,19 @@ async fn download_lfs_files(
 
         if !cached_files.is_empty() && downloaded_count > 0 {
             println!(
-                "🎉 All LFS files completed successfully! ({} downloaded, {} from cache) in {:.1}s",
+                "All LFS files completed successfully! ({} downloaded, {} from cache) in {:.1}s",
                 downloaded_count,
                 cached_files.len(),
                 total_duration.as_secs_f64()
             );
         } else if !cached_files.is_empty() {
             println!(
-                "⚡ All LFS files restored from cache in {:.3}s",
+                "All LFS files restored from cache in {:.3}s",
                 total_duration.as_secs_f64()
             );
         } else {
             println!(
-                "🎉 All LFS files downloaded and verified successfully! in {:.1}s",
+                "All LFS files downloaded and verified successfully! in {:.1}s",
                 total_duration.as_secs_f64()
             );
         }
@@ -705,7 +705,7 @@ async fn download_model_files_with_wget(
         let url = format!("{}/{}", base_url, file);
         let output_file = format!("{}/{}", output_dir, file);
 
-        debug!("  Trying to download: {}", file);
+        debug!("Trying to download: {}", file);
 
         let mut wget_args = vec![&url, "-O", &output_file, "--timeout=30", "--tries=2", "-q"];
 
@@ -721,11 +721,11 @@ async fn download_model_files_with_wget(
 
         match status {
             Ok(status) if status.success() => {
-                info!("  Downloaded: {}", file);
+                info!("Downloaded: {}", file);
                 downloaded_any = true;
             }
             _ => {
-                warn!("  Failed to download: {}", file);
+                error!("Failed to download: {}", file);
                 // Remove failed download file if it exists
                 let _ = fs::remove_file(&output_file).await;
             }
@@ -743,7 +743,7 @@ async fn download_model_files_with_wget(
 }
 
 async fn verify_file_hash(file_path: &Path, expected_oid: &str) -> Result<bool> {
-    debug!("    Expected: {}", expected_oid);
+    debug!("Expected: {}", expected_oid);
 
     // Read file and compute SHA256 hash
     let mut file = std::fs::File::open(file_path)?;
@@ -759,10 +759,10 @@ async fn verify_file_hash(file_path: &Path, expected_oid: &str) -> Result<bool> 
     }
 
     let computed_hash = hex::encode(hasher.finalize());
-    debug!("    Computed: {}", computed_hash);
+    debug!("Computed: {}", computed_hash);
 
     let hash_match = computed_hash == expected_oid;
-    debug!("    Match: {}", if hash_match { "YES" } else { "NO" });
+    debug!("Match: {}", if hash_match { "YES" } else { "NO" });
 
     Ok(hash_match)
 }
@@ -1017,7 +1017,7 @@ pub(crate) async fn download_model_with_xet(
         );
     } else if !cached_files.is_empty() {
         println!(
-            "⚡ Total: {:.1} MB restored from cache in {:.3}s",
+            "Total: {:.1} MB restored from cache in {:.3}s",
             total_mb,
             total_duration.as_secs_f64()
         );
