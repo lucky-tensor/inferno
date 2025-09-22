@@ -39,7 +39,7 @@ cargo build --release -p inferno
 cp ./target/release/inferno $HOME/.cargo/bin
 
 # check everything is in place
-inferno version
+inferno --help
 ```
 
 ### Hello Inference
