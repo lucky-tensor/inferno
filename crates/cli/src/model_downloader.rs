@@ -238,9 +238,9 @@ pub async fn download_model(
         }
     }
 
-    // Setup HuggingFace cache directory (use standard cache, not custom inferno cache)
+    // Setup Inferno cache directory
     let hf_cache_dir = get_hf_cache_dir()?;
-    println!("Using HuggingFace cache directory: {}", hf_cache_dir.display());
+    println!("Using Inferno cache directory: {}", hf_cache_dir.display());
 
     // Get HF token from parameter, environment, or prompt user
     let token = get_hf_token(hf_token).await?;
@@ -318,29 +318,22 @@ async fn get_hf_token(provided_token: Option<&String>) -> Result<Option<String>>
     Ok(None)
 }
 
-/// Get the standard HuggingFace Hub cache directory
-/// Respects HF_HOME and HF_HUB_CACHE environment variables
+/// Get the Inferno cache directory for models
+/// Uses ~/.inferno/models/cache instead of the standard HuggingFace cache
 fn get_hf_cache_dir() -> Result<PathBuf> {
-    // Check for explicit HF_HUB_CACHE first
+    // Check for explicit HF_HUB_CACHE override first
     if let Ok(cache_dir) = env::var("HF_HUB_CACHE") {
         return Ok(PathBuf::from(cache_dir));
     }
 
-    // Check for HF_HOME (general HF directory)
-    if let Ok(hf_home) = env::var("HF_HOME") {
-        return Ok(PathBuf::from(hf_home).join("hub"));
-    }
-
-    // Default to ~/.cache/huggingface/hub
+    // Use Inferno-specific cache directory: ~/.inferno/models/cache
     if let Ok(home) = env::var("HOME") {
-        let cache_dir = PathBuf::from(home).join(".cache").join("huggingface").join("hub");
+        let cache_dir = PathBuf::from(home).join(".inferno").join("models").join("cache");
         return Ok(cache_dir);
     }
 
-    Err(anyhow!("Could not determine HuggingFace cache directory. Please set HOME, HF_HOME, or HF_HUB_CACHE environment variable"))
-}
-
-async fn download_huggingface_model(
+    Err(anyhow!("Could not determine home directory for Inferno cache. Please set HOME environment variable"))
+}async fn download_huggingface_model(
     model_id: &str,
     output_dir: &str,
     hf_token: Option<&str>,
