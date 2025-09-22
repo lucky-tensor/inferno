@@ -20,6 +20,7 @@
 
 pub mod cli;
 pub mod error;
+pub mod inference_utils;
 pub mod metrics;
 pub mod operations_server;
 pub mod paths;
@@ -30,13 +31,15 @@ pub mod test_utils;
 // Re-export commonly used types for convenience
 pub use cli::{HealthCheckOptions, LoggingOptions, MetricsOptions, ServiceDiscoveryOptions};
 pub use error::{InfernoError, ProxyError, Result};
+pub use inference_utils::{
+    print_inference_stats, print_inference_stats_with_newline, InferenceResponseLike,
+};
 pub use metrics::{MetricsCollector, MetricsSnapshot};
 pub use operations_server::OperationsServer;
 // Backward compatibility alias
 pub use operations_server::OperationsServer as MetricsServer;
 pub use paths::{
-    default_models_dir, default_models_dir_string, expand_home_dir,
-    resolve_models_path,
+    default_models_dir, default_models_dir_string, expand_home_dir, resolve_models_path,
 };
 pub use service_discovery::{
     AuthMode, BackendRegistration, HealthCheckResult, HealthChecker, HttpHealthChecker, NodeInfo,

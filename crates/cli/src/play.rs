@@ -554,21 +554,7 @@ async fn run_headless_mode(mut context: PlayContext, prompt: String) -> Result<(
                     println!("{}", response.generated_text);
 
                     // Show statistics in headless mode
-                    let tokens_per_second = if response.inference_time_ms > 0.0 {
-                        (response.generated_tokens as f64 * 1000.0) / response.inference_time_ms
-                    } else {
-                        0.0
-                    };
-
-                    eprint!("\nStats: ");
-                    eprint!("Tokens: {} | ", response.generated_tokens);
-                    eprint!("Total: {:.0}ms | ", response.inference_time_ms);
-
-                    if let Some(ttft) = response.time_to_first_token_ms {
-                        eprint!("First token: {:.0}ms | ", ttft);
-                    }
-
-                    eprintln!("Speed: {:.1} tok/s", tokens_per_second);
+                    inferno_shared::print_inference_stats_with_newline(&response, None);
                 }
             }
             Err(e) => {
@@ -669,22 +655,7 @@ async fn run_interaction_loop(editor: &mut DefaultEditor, context: &mut PlayCont
                             println!("{}", response.generated_text);
 
                             // Show statistics after each response
-                            let tokens_per_second = if response.inference_time_ms > 0.0 {
-                                (response.generated_tokens as f64 * 1000.0)
-                                    / response.inference_time_ms
-                            } else {
-                                0.0
-                            };
-
-                            print!("\nStats: ");
-                            print!("Tokens: {} | ", response.generated_tokens);
-                            print!("Total: {:.0}ms | ", response.inference_time_ms);
-
-                            if let Some(ttft) = response.time_to_first_token_ms {
-                                print!("First token: {:.0}ms | ", ttft);
-                            }
-
-                            println!("Speed: {:.1} tok/s", tokens_per_second);
+                            inferno_shared::print_inference_stats_with_newline(&response, None);
                         }
                     }
                     Err(e) => {

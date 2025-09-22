@@ -99,6 +99,20 @@ impl Default for InferenceResponse {
     }
 }
 
+impl inferno_shared::InferenceResponseLike for InferenceResponse {
+    fn generated_tokens(&self) -> u32 {
+        self.generated_tokens
+    }
+
+    fn inference_time_ms(&self) -> f64 {
+        self.inference_time_ms
+    }
+
+    fn time_to_first_token_ms(&self) -> Option<f64> {
+        self.time_to_first_token_ms
+    }
+}
+
 /// Engine performance statistics
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InferenceStats {

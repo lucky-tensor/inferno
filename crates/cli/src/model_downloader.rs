@@ -2,7 +2,6 @@ use anyhow::{anyhow, Result};
 use futures_util::StreamExt;
 use git2::{Cred, FetchOptions, RemoteCallbacks, Repository};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use reqwest;
 use sha2::{Digest, Sha256};
 use std::env;
 use std::io::Read;
@@ -49,7 +48,11 @@ async fn create_file_symlink(target: &Path, link_path: &Path) -> Result<bool> {
 
     match symlink_result {
         Ok(()) => {
-            debug!("Created symlink: {} -> {}", link_path.display(), target.display());
+            debug!(
+                "Created symlink: {} -> {}",
+                link_path.display(),
+                target.display()
+            );
             Ok(true) // true indicates symlink was created
         }
         Err(e) => {
@@ -58,7 +61,11 @@ async fn create_file_symlink(target: &Path, link_path: &Path) -> Result<bool> {
             // Fallback: copy the file
             match fs::copy(target, link_path).await {
                 Ok(_) => {
-                    debug!("Copied file: {} -> {}", target.display(), link_path.display());
+                    debug!(
+                        "Copied file: {} -> {}",
+                        target.display(),
+                        link_path.display()
+                    );
                     Ok(false) // false indicates file was copied instead
                 }
                 Err(copy_err) => {
@@ -328,12 +335,16 @@ fn get_hf_cache_dir() -> Result<PathBuf> {
 
     // Use Inferno-specific cache directory: ~/.inferno/models/cache
     if let Ok(home) = env::var("HOME") {
-        let cache_dir = PathBuf::from(home).join(".inferno").join("models").join("cache");
+        let cache_dir = PathBuf::from(home)
+            .join(".inferno")
+            .join("models")
+            .join("cache");
         return Ok(cache_dir);
     }
 
     Err(anyhow!("Could not determine home directory for Inferno cache. Please set HOME environment variable"))
-}async fn download_huggingface_model(
+}
+async fn download_huggingface_model(
     model_id: &str,
     output_dir: &str,
     hf_token: Option<&str>,
@@ -347,10 +358,7 @@ fn get_hf_cache_dir() -> Result<PathBuf> {
             return Ok(());
         }
         Err(e) => {
-            error!(
-                "GIT LFS clone failed: {}, trying alternative method...",
-                e
-            );
+            error!("GIT LFS clone failed: {}, trying alternative method...", e);
         }
     }
 
@@ -490,10 +498,7 @@ async fn download_lfs_files(
                     cached_files.push((file_name.clone(), expected_size));
                     continue;
                 } else {
-                    warn!(
-                        "  Hash mismatch for {}, re-downloading...",
-                        file_name
-                    );
+                    warn!("  Hash mismatch for {}, re-downloading...", file_name);
                 }
             }
         }
@@ -552,7 +557,10 @@ async fn download_lfs_files(
 
         // Show cache/download summary
         if !cached_files.is_empty() {
-            println!("📋 Restored {} files from Git LFS cache:", cached_files.len());
+            println!(
+                "📋 Restored {} files from Git LFS cache:",
+                cached_files.len()
+            );
             let mut cached_size = 0u64;
             for (filename, size) in &cached_files {
                 cached_size += size;
@@ -855,7 +863,7 @@ pub(crate) async fn download_model_with_xet(
 
     let repo = api.model(model_id.to_string());
 
-        // Try to get the repository info first to see what files are available
+    // Try to get the repository info first to see what files are available
     println!("Discovering available files...");
 
     // Determine which files to download
@@ -954,10 +962,7 @@ pub(crate) async fn download_model_with_xet(
                     {
                         Ok(true) => {
                             downloaded_files.push(filename.to_string());
-                            debug!(
-                                "Successfully downloaded {} via direct HTTP",
-                                filename
-                            );
+                            debug!("Successfully downloaded {} via direct HTTP", filename);
                         }
                         Ok(false) => {
                             failed_files.push(filename.to_string());
@@ -965,10 +970,7 @@ pub(crate) async fn download_model_with_xet(
                         }
                         Err(http_err) => {
                             failed_files.push(filename.to_string());
-                            debug!(
-                                "Direct HTTP download failed for {}: {}",
-                                filename, http_err
-                            );
+                            debug!("Direct HTTP download failed for {}: {}", filename, http_err);
                         }
                     }
                 } else {
@@ -992,7 +994,9 @@ pub(crate) async fn download_model_with_xet(
                     let is_cache_hit = file_duration.as_millis() < 100;
 
                     // Create symlink from output directory to cache file
-                    if let Ok(is_symlink) = create_file_symlink(&cached_file_path, &target_path).await {
+                    if let Ok(is_symlink) =
+                        create_file_symlink(&cached_file_path, &target_path).await
+                    {
                         if is_symlink {
                             symlinked_files.push(filename.to_string());
                         } else {
