@@ -54,7 +54,7 @@ async fn create_file_symlink(target: &Path, link_path: &Path) -> Result<bool> {
         }
         Err(e) => {
             warn!("Failed to create symlink, falling back to copy: {}", e);
-            
+
             // Fallback: copy the file
             match fs::copy(target, link_path).await {
                 Ok(_) => {
@@ -325,18 +325,18 @@ fn get_hf_cache_dir() -> Result<PathBuf> {
     if let Ok(cache_dir) = env::var("HF_HUB_CACHE") {
         return Ok(PathBuf::from(cache_dir));
     }
-    
+
     // Check for HF_HOME (general HF directory)
     if let Ok(hf_home) = env::var("HF_HOME") {
         return Ok(PathBuf::from(hf_home).join("hub"));
     }
-    
+
     // Default to ~/.cache/huggingface/hub
     if let Ok(home) = env::var("HOME") {
         let cache_dir = PathBuf::from(home).join(".cache").join("huggingface").join("hub");
         return Ok(cache_dir);
     }
-    
+
     Err(anyhow!("Could not determine HuggingFace cache directory. Please set HOME, HF_HOME, or HF_HUB_CACHE environment variable"))
 }
 
@@ -1005,7 +1005,7 @@ pub(crate) async fn download_model_with_xet(
                         } else {
                             copied_files.push(filename.to_string());
                         }
-                        
+
                         if is_cache_hit {
                             cached_files.push(filename.to_string());
                         } else {
