@@ -20,15 +20,6 @@ jobs:
           method: 'network'
           sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust"]'
 
-      - name: Install NVIDIA drivers for nvidia-smi
-        run: |
-          # Add NVIDIA package repositories
-          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
-          sudo dpkg -i cuda-keyring_1.1-1_all.deb
-          sudo apt-get update
-
-          # Install nvidia-smi (r580+ compatible with CUDA 13.0)
-          sudo apt-get install -y nvidia-utils-580
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
@@ -40,6 +31,7 @@ jobs:
       - name: Run linter
         env:
           LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LD_LIBRARY_PATH }}"
+          CUDA_COMPUTE_CAP: "80"
         run: cargo lint
 
       - name: Check code format
