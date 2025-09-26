@@ -19,6 +19,16 @@ jobs:
           cuda: '13.0.0'
           method: 'network'
           sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust"]'
+
+      - name: Install NVIDIA drivers for nvidia-smi
+        run: |
+          # Add NVIDIA package repositories
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+          sudo dpkg -i cuda-keyring_1.1-1_all.deb
+          sudo apt-get update
+
+          # Install nvidia-smi (part of nvidia-utils)
+          sudo apt-get install -y nvidia-utils-535
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
