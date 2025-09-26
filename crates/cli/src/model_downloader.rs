@@ -2,7 +2,6 @@ use anyhow::{anyhow, Result};
 use futures_util::StreamExt;
 use git2::{Cred, FetchOptions, RemoteCallbacks, Repository};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use reqwest;
 use sha2::{Digest, Sha256};
 use std::env;
 use std::io::Read;
