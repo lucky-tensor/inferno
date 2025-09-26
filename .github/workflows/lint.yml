@@ -22,31 +22,13 @@ jobs:
 
       - name: Install nvidia-smi
         run: |
-          # Install nvidia-smi utility without full driver stack
-          # Using nvidia-utils package which provides just the tools
+          # Install nvidia-smi utility
           sudo apt-get update
-          sudo apt-get install -y nvidia-utils-535 nvidia-settings
+          sudo apt-get install -y nvidia-utils-535
 
-          # Add nvidia-smi to PATH and verify it works
-          export PATH="/usr/bin:/usr/local/cuda/bin:$PATH"
-          which nvidia-smi || echo "nvidia-smi not found"
-
-          # Create a mock nvidia-smi if the real one doesn't work (fallback)
-          if ! command -v nvidia-smi &> /dev/null; then
-            echo "Creating mock nvidia-smi"
-            sudo tee /usr/local/bin/nvidia-smi > /dev/null << 'EOF'
-          #!/bin/bash
-          if [[ "$1" == "--query-gpu=compute_cap" && "$2" == "--format=csv" ]]; then
-            echo "compute_cap"
-            echo "8.0"
-          else
-            echo "NVIDIA-SMI 535.86.10   Driver Version: 535.86.10   CUDA Version: 13.0"
-            echo ""
-            echo "GPU 0: Mock GPU (UUID: GPU-12345678)"
-          fi
-          EOF
-            sudo chmod +x /usr/local/bin/nvidia-smi
-          fi
+          # Verify nvidia-smi is installed and accessible
+          which nvidia-smi
+          nvidia-smi --version
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
