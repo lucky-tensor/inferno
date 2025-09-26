@@ -9,6 +9,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # For PRs, check out the actual PR head commit, not the merge commit
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
