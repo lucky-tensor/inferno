@@ -36,9 +36,9 @@ burn-import = { workspace = true, optional = true }
 llama-burn = { workspace = true, optional = true }
 
 # Candle ML Framework for optimized inference (with CUDA 13.0 support)
-candle-core = { git = "https://github.com/huggingface/candle", optional = true }
-candle-nn = { git = "https://github.com/huggingface/candle", optional = true }
-candle-transformers = { git = "https://github.com/huggingface/candle", optional = true }
+candle-core = { git = "https://github.com/huggingface/candle", optional = true, default-features = false }
+candle-nn = { git = "https://github.com/huggingface/candle", optional = true, default-features = false }
+candle-transformers = { git = "https://github.com/huggingface/candle", optional = true, default-features = false }
 
 # Shared dependencies for both frameworks
 tokenizers = { workspace = true, optional = true }
@@ -57,7 +57,7 @@ tempfile = { workspace = true }
 rstest = { workspace = true }
 
 [features]
-default = ["candle-cuda", "pretrained"]
+default = ["candle-cpu", "pretrained"]
 pretrained = []
 
 # Burn ML Framework features
