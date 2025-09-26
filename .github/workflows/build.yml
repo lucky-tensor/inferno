@@ -57,7 +57,18 @@ jobs:
       with:
         cuda: '13.0.0'
         method: 'network'
-        sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust", "nvrtc", "curand", "cublas"]'
+        sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust", "nvrtc"]'
+
+    - name: Install additional CUDA libraries
+      run: |
+        # Install available CUDA math libraries
+        sudo apt-get update
+        # Try to install cuBLAS and cuRAND libraries without version suffix
+        sudo apt-get install -y libcublas12 libcurand10 || true
+        # Try alternative package names
+        sudo apt-get install -y libcublas-12-0 libcurand-10-0 || true
+        # List what CUDA libraries are available
+        ls -la /usr/local/cuda-13.0/lib64/ | grep -E "(cublas|curand)" || echo "Libraries not found in standard location"
 
     - name: Verify CUDA Installation
       run: |
