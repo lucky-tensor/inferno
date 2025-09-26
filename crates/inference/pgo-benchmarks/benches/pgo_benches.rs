@@ -5,46 +5,74 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::{Duration, Instant};
 
-/// Configuration for concurrent inference benchmarks
-struct ConcurrentBenchmarkConfig {
+/// Configuration for PGO comparison benchmarks
+struct PGOBenchmarkConfig {
     model_path: PathBuf,
-    concurrent_binary: PathBuf,
+    original_binary: PathBuf,
+    pgo_binary: PathBuf,
 }
 
-impl ConcurrentBenchmarkConfig {
+impl PGOBenchmarkConfig {
     fn new() -> Option<Self> {
         let model_path = std::env::var("BENCH_MODEL_PATH")
             .map(PathBuf::from)
             .unwrap_or_else(|_| {
                 let home = std::env::var("HOME").unwrap_or_default();
                 PathBuf::from(format!(
-                    "{}/.inferno/models/TinyLlama_TinyLlama-1.1B-Chat-v1.0/model.safetensors",
+                    "{}/.inferno/models/TinyLlama_TinyLlama-1.1B-Chat-v1.0",
                     home
                 ))
             });
 
-        // Expected binary location (built by build.rs)
-        let concurrent_binary = PathBuf::from("./target/release/examples/concurrent_inference");
+        // Find workspace root using CARGO_MANIFEST_DIR
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
+            .expect("CARGO_MANIFEST_DIR should be set when running via cargo");
+
+        // pgo-benchmarks is at: workspace/crates/inference/pgo-benchmarks
+        // So workspace root is: manifest_dir + "../../.."
+        let workspace_root = PathBuf::from(&manifest_dir)
+            .parent()  // crates/inference/
+            .and_then(|p| p.parent())  // crates/
+            .and_then(|p| p.parent())  // workspace root
+            .map(|p| p.to_path_buf())
+            .expect("Could not find workspace root from manifest directory");
+
+        // Expected binary locations (built by PGO script)
+        let original_binary = workspace_root.join("target/release/examples/concurrent_inference.original");
+        let pgo_binary = workspace_root.join("target/release/examples/concurrent_inference.pgo");
 
         // Check if required files exist
         if !model_path.exists() {
             eprintln!("❌ Model not found at {:?}", model_path);
-            eprintln!("   Set BENCH_MODEL_PATH environment variable");
+            eprintln!("   Set BENCH_MODEL_PATH environment variable or download the model:");
+            eprintln!("   inferno download TinyLlama_TinyLlama-1.1B-Chat-v1.0");
             return None;
         }
 
-        if !concurrent_binary.exists() {
+        if !original_binary.exists() {
             eprintln!(
-                "❌ concurrent_inference binary not found at {:?}",
-                concurrent_binary
+                "❌ Original binary not found at {:?}",
+                original_binary
             );
-            eprintln!("   Run: cargo build --release --package inferno-inference --example concurrent_inference --features examples");
+            eprintln!("   Run the PGO script first from workspace root:");
+            eprintln!("   ./crates/inference/benches/build-pgo-concurrent.sh");
+            return None;
+        }
+
+        if !pgo_binary.exists() {
+            eprintln!(
+                "❌ PGO-optimized binary not found at {:?}",
+                pgo_binary
+            );
+            eprintln!("   Run the PGO script first from workspace root:");
+            eprintln!("   ./crates/inference/benches/build-pgo-concurrent.sh");
             return None;
         }
 
         Some(Self {
             model_path,
-            concurrent_binary,
+            original_binary,
+            pgo_binary,
         })
     }
 }
@@ -82,9 +110,9 @@ fn run_concurrent_inference(
     Ok(duration)
 }
 
-/// Benchmark single request performance
-fn bench_single_request(c: &mut Criterion) {
-    let config = match ConcurrentBenchmarkConfig::new() {
+/// Benchmark single request performance - Original vs PGO
+fn bench_single_request_pgo_comparison(c: &mut Criterion) {
+    let config = match PGOBenchmarkConfig::new() {
         Some(c) => c,
         None => {
             eprintln!("⚠️ Skipping single request benchmarks - configuration invalid");
@@ -92,7 +120,7 @@ fn bench_single_request(c: &mut Criterion) {
         }
     };
 
-    let mut group = c.benchmark_group("single_request");
+    let mut group = c.benchmark_group("single_request_pgo_comparison");
 
     let prompts = vec![
         ("short", "Hi"),
@@ -101,13 +129,31 @@ fn bench_single_request(c: &mut Criterion) {
     ];
 
     for (name, prompt) in prompts {
+        // Benchmark original binary
         group.bench_with_input(
-            BenchmarkId::new("concurrent_inference", name),
+            BenchmarkId::new("original", name),
             &prompt,
             |b, prompt| {
                 b.iter(|| {
                     run_concurrent_inference(
-                        &config.concurrent_binary,
+                        &config.original_binary,
+                        &config.model_path,
+                        prompt,
+                        1, // Single request
+                    )
+                    .expect("Single request should succeed")
+                });
+            },
+        );
+
+        // Benchmark PGO-optimized binary
+        group.bench_with_input(
+            BenchmarkId::new("pgo", name),
+            &prompt,
+            |b, prompt| {
+                b.iter(|| {
+                    run_concurrent_inference(
+                        &config.pgo_binary,
                         &config.model_path,
                         prompt,
                         1, // Single request
@@ -121,9 +167,9 @@ fn bench_single_request(c: &mut Criterion) {
     group.finish();
 }
 
-/// Benchmark medium concurrency performance (10-50 requests)
-fn bench_medium_concurrency(c: &mut Criterion) {
-    let config = match ConcurrentBenchmarkConfig::new() {
+/// Benchmark medium concurrency performance - Original vs PGO (10-50 requests)
+fn bench_medium_concurrency_pgo_comparison(c: &mut Criterion) {
+    let config = match PGOBenchmarkConfig::new() {
         Some(c) => c,
         None => {
             eprintln!("⚠️ Skipping medium concurrency benchmarks - configuration invalid");
@@ -131,20 +177,38 @@ fn bench_medium_concurrency(c: &mut Criterion) {
         }
     };
 
-    let mut group = c.benchmark_group("medium_concurrency");
+    let mut group = c.benchmark_group("medium_concurrency_pgo_comparison");
     group.throughput(Throughput::Elements(1));
 
     let concurrency_levels = vec![10, 25, 50];
     let prompt = "What is 2+2?";
 
     for concurrency in concurrency_levels {
+        // Benchmark original binary
         group.bench_with_input(
-            BenchmarkId::new("concurrent_requests", concurrency),
+            BenchmarkId::new("original", concurrency),
             &concurrency,
             |b, &concurrency| {
                 b.iter(|| {
                     run_concurrent_inference(
-                        &config.concurrent_binary,
+                        &config.original_binary,
+                        &config.model_path,
+                        prompt,
+                        concurrency,
+                    )
+                    .expect("Medium concurrency should succeed")
+                });
+            },
+        );
+
+        // Benchmark PGO-optimized binary
+        group.bench_with_input(
+            BenchmarkId::new("pgo", concurrency),
+            &concurrency,
+            |b, &concurrency| {
+                b.iter(|| {
+                    run_concurrent_inference(
+                        &config.pgo_binary,
                         &config.model_path,
                         prompt,
                         concurrency,
@@ -158,9 +222,9 @@ fn bench_medium_concurrency(c: &mut Criterion) {
     group.finish();
 }
 
-/// Benchmark high concurrency performance (100+ requests)
-fn bench_high_concurrency(c: &mut Criterion) {
-    let config = match ConcurrentBenchmarkConfig::new() {
+/// Benchmark high concurrency performance - Original vs PGO (100+ requests)
+fn bench_high_concurrency_pgo_comparison(c: &mut Criterion) {
+    let config = match PGOBenchmarkConfig::new() {
         Some(c) => c,
         None => {
             eprintln!("⚠️ Skipping high concurrency benchmarks - configuration invalid");
@@ -168,7 +232,7 @@ fn bench_high_concurrency(c: &mut Criterion) {
         }
     };
 
-    let mut group = c.benchmark_group("high_concurrency");
+    let mut group = c.benchmark_group("high_concurrency_pgo_comparison");
     group.throughput(Throughput::Elements(1));
     group.sample_size(10); // Fewer samples for high concurrency tests
 
@@ -176,13 +240,31 @@ fn bench_high_concurrency(c: &mut Criterion) {
     let prompt = "Hi";
 
     for concurrency in concurrency_levels {
+        // Benchmark original binary
         group.bench_with_input(
-            BenchmarkId::new("stress_test", concurrency),
+            BenchmarkId::new("original", concurrency),
             &concurrency,
             |b, &concurrency| {
                 b.iter(|| {
                     run_concurrent_inference(
-                        &config.concurrent_binary,
+                        &config.original_binary,
+                        &config.model_path,
+                        prompt,
+                        concurrency,
+                    )
+                    .expect("High concurrency should succeed")
+                });
+            },
+        );
+
+        // Benchmark PGO-optimized binary
+        group.bench_with_input(
+            BenchmarkId::new("pgo", concurrency),
+            &concurrency,
+            |b, &concurrency| {
+                b.iter(|| {
+                    run_concurrent_inference(
+                        &config.pgo_binary,
                         &config.model_path,
                         prompt,
                         concurrency,
@@ -198,8 +280,8 @@ fn bench_high_concurrency(c: &mut Criterion) {
 
 criterion_group!(
     benches,
-    bench_single_request,
-    bench_medium_concurrency,
-    bench_high_concurrency
+    bench_single_request_pgo_comparison,
+    bench_medium_concurrency_pgo_comparison,
+    bench_high_concurrency_pgo_comparison
 );
 criterion_main!(benches);

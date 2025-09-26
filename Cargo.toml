@@ -99,3 +99,26 @@ strip = true
 debug = false
 opt-level = 3
 lto = "fat"
+
+# PGO profile for instrumented builds (profile generation)
+[profile.pgo-gen]
+inherits = "release"
+# Note: LTO conflicts with PGO instrumentation, so we disable it for the instrumented build
+lto = false
+# Keep other optimizations to match release as closely as possible
+codegen-units = 1
+panic = "abort"
+strip = true
+debug = false
+opt-level = 3
+
+# PGO profile for optimized builds (profile use)
+[profile.pgo-use]
+inherits = "release"
+# Can use full optimizations since we're consuming profile data, not generating it
+codegen-units = 1
+panic = "abort"
+strip = true
+debug = false
+opt-level = 3
+lto = "fat"
