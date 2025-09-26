@@ -69,21 +69,21 @@ jobs:
           echo "Creating mock nvidia-smi for build compatibility"
           sudo mkdir -p /usr/bin
           sudo tee /usr/bin/nvidia-smi > /dev/null << 'EOF'
-#!/bin/bash
-# Mock nvidia-smi for CI builds
-echo "NVIDIA-SMI 535.54.03    Driver Version: 535.54.03    CUDA Version: 13.0"
-echo ""
-echo "| NVIDIA-SMI 535.54.03              Driver Version: 535.54.03    CUDA Version: 13.0     |"
-echo "|-------------------------------+----------------------+----------------------+"
-echo "| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |"
-echo "| Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |"
-echo "|                               |                      |               MIG M. |"
-echo "|===============================+======================+======================|"
-echo "|   0  Tesla T4            Off  | 00000000:00:04.0 Off |                    0 |"
-echo "| N/A   35C    P8     9W /  70W |      0MiB / 15109MiB |      0%      Default |"
-echo "|                               |                      |                  N/A |"
-echo "+-------------------------------+----------------------+----------------------+"
-EOF
+          #!/bin/bash
+          # Mock nvidia-smi for CI builds
+          echo "NVIDIA-SMI 535.54.03    Driver Version 535.54.03    CUDA Version 13.0"
+          echo ""
+          echo "| NVIDIA-SMI 535.54.03              Driver Version 535.54.03    CUDA Version 13.0     |"
+          echo "|-------------------------------+----------------------+----------------------+"
+          echo "| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |"
+          echo "| Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |"
+          echo "|                               |                      |               MIG M. |"
+          echo "|===============================+======================+======================|"
+          echo "|   0  Tesla T4            Off  | 00000000:00:04.0 Off |                    0 |"
+          echo "| N/A   35C    P8     9W /  70W |      0MiB / 15109MiB |      0%      Default |"
+          echo "|                               |                      |                  N/A |"
+          echo "+-------------------------------+----------------------+----------------------+"
+          EOF
           sudo chmod +x /usr/bin/nvidia-smi
         fi
 
