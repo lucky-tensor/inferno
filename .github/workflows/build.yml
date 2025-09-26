@@ -57,7 +57,7 @@ jobs:
       with:
         cuda: '13.0.0'
         method: 'network'
-        sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust"]'
+        sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust", "nvrtc", "curand", "cublas"]'
 
     - name: Verify CUDA Installation
       run: |
