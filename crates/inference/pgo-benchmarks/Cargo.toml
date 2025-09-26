@@ -1,0 +1,20 @@
+[package]
+name = "pgo-benchmarks"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "PGO performance benchmarks for Inferno inference"
+publish = false
+
+[dependencies]
+# Minimal dependencies - only what's needed for benchmarks
+criterion = { workspace = true }
+
+[build-dependencies]
+# No external dependencies needed for build.rs
+
+[[bench]]
+name = "pgo_benches"
+harness = false

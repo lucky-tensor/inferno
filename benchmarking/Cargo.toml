@@ -15,6 +15,9 @@ criterion = { workspace = true }
 tokio = { workspace = true }
 serde_json = { workspace = true }
 
+[build-dependencies]
+# No external dependencies needed for build.rs
+
 [[bench]]
 name = "metrics"
 harness = false
@@ -46,3 +49,6 @@ harness = false
 [[bench]]
 name = "service_discovery"
 harness = false
+
+
+

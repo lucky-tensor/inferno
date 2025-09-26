@@ -1,4 +1,4 @@
-Make sure all our cod quality checks pass
+Make sure all our code quality checks pass
 1. format all code with `cargo fmt`
 2. use `cargo lint` to check lint errors (do not use another lint command)
 3. fix lint issues until `cargo lint` produces no errors

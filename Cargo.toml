@@ -8,6 +8,7 @@ members = [
     "crates/inference",
     "benchmarking",
     "testsuite",
+    "crates/inference/pgo-benchmarks",
 ]
 resolver = "2"
 default-members = ["crates/cli"]

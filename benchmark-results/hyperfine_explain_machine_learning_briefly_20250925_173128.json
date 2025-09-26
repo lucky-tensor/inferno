@@ -1,0 +1,72 @@
+{
+  "results": [
+    {
+      "command": "./target/release/inferno-baseline play --prompt \"explain machine learning briefly\" --model-path \"/home/jeef/.inferno/models/TinyLlama_TinyLlama-1.1B-Chat-v1.0/model.safetensors\"",
+      "mean": 1.9892170069600001,
+      "stddev": 0.031292258868651966,
+      "median": 1.99881385916,
+      "user": 1.1777826999999998,
+      "system": 0.7411577999999999,
+      "min": 1.90109643866,
+      "max": 2.0080625746600003,
+      "times": [
+        1.9909362136600002,
+        2.0080625746600003,
+        1.90109643866,
+        1.99418933966,
+        1.99762921966,
+        1.99939294866,
+        1.9999359086600002,
+        2.0012808796600003,
+        2.0014117766600004,
+        1.99823476966
+      ],
+      "exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "command": "./target/release/inferno-pgo play --prompt \"explain machine learning briefly\" --model-path \"/home/jeef/.inferno/models/TinyLlama_TinyLlama-1.1B-Chat-v1.0/model.safetensors\"",
+      "mean": 1.9715146967600004,
+      "stddev": 0.05759571356230241,
+      "median": 1.99786227116,
+      "user": 1.1473419999999999,
+      "system": 0.7255887999999999,
+      "min": 1.82635564166,
+      "max": 2.01015389466,
+      "times": [
+        1.97655874266,
+        1.9984169736600002,
+        1.99790500966,
+        1.9978195326600001,
+        2.0014572786600002,
+        1.98561106066,
+        2.01015389466,
+        1.91677162766,
+        2.0040972056600004,
+        1.82635564166
+      ],
+      "exit_codes": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ]
+}
