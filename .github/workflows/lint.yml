@@ -12,7 +12,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: clippy, rustfmt
       - name: Setup CUDA
         uses: Jimver/cuda-toolkit@v0.2.27
         with:
@@ -28,17 +28,18 @@ jobs:
         run: |
           echo "Updating dependencies to ensure cudarc 0.17.3+ for CUDA 13.0 support..."
           cargo update
-      - name: Run linter
-        env:
-          LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LD_LIBRARY_PATH }}"
-          CUDA_COMPUTE_CAP: "80"
-        run: cargo lint
-
-      - name: Check code format
-        run: cargo fmt -- --check
 
       - name: Install cargo-machete
         run: cargo install cargo-machete
 
       - name: Check for unused dependencies
         run: cargo machete
+
+      - name: Check code format
+        run: cargo fmt -- --check
+
+      - name: Run linter
+        env:
+          LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LD_LIBRARY_PATH }}"
+          CUDA_COMPUTE_CAP: "80"
+        run: cargo lint
