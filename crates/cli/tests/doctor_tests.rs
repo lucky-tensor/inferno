@@ -8,7 +8,7 @@
 //! - Output formatting
 //! - Error handling
 
-use inferno_cli::doctor::*;
+use inferno::doctor::*;
 use std::fs;
 use tempfile::TempDir;
 
@@ -1029,7 +1029,7 @@ fn test_display_results_table_basic() {
 /// Integration test that runs the full diagnostic process
 #[tokio::test]
 async fn test_run_diagnostics_integration() -> Result<(), Box<dyn std::error::Error>> {
-    use inferno_cli::cli_options::DoctorCliOptions;
+    use inferno::cli_options::DoctorCliOptions;
 
     let temp_dir = TempDir::new()?;
     let model_dir = temp_dir.path().to_str().unwrap().to_string();
@@ -1058,7 +1058,7 @@ async fn test_run_diagnostics_integration() -> Result<(), Box<dyn std::error::Er
 /// Integration test with verbose output and YAML format
 #[tokio::test]
 async fn test_run_diagnostics_verbose_yaml() -> Result<(), Box<dyn std::error::Error>> {
-    use inferno_cli::cli_options::DoctorCliOptions;
+    use inferno::cli_options::DoctorCliOptions;
 
     let temp_dir = TempDir::new()?;
     let model_dir = temp_dir.path().to_str().unwrap().to_string();
@@ -1083,7 +1083,7 @@ async fn test_run_diagnostics_verbose_yaml() -> Result<(), Box<dyn std::error::E
 /// Integration test with table format (default)
 #[tokio::test]
 async fn test_run_diagnostics_table_format() -> Result<(), Box<dyn std::error::Error>> {
-    use inferno_cli::cli_options::DoctorCliOptions;
+    use inferno::cli_options::DoctorCliOptions;
 
     let temp_dir = TempDir::new()?;
     let model_dir = temp_dir.path().to_str().unwrap().to_string();
