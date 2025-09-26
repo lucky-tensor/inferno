@@ -3,7 +3,7 @@ on:
   push:
     branches: ["**"]
   pull_request:
-    branches: [main, build-ci]
+    branches: [main]
 jobs:
   lint:
     runs-on: ubuntu-latest
