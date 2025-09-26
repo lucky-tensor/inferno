@@ -30,6 +30,7 @@ jobs:
       - name: Run linter
         env:
           LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LD_LIBRARY_PATH }}"
+          CUDA_COMPUTE_CAP: "80"
         run: cargo lint
 
       - name: Check code format
