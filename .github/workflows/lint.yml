@@ -9,13 +9,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          # Ensure consistent line ending handling across PR and push contexts
-          fetch-depth: 0
-      - name: Configure Git line endings
-        run: |
-          git config --global core.autocrlf false
-          git config --global core.eol lf
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
