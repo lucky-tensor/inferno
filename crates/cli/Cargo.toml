@@ -1,5 +1,5 @@
 [package]
-name = "inferno-cli"
+name = "inferno"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

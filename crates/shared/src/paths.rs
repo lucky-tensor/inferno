@@ -7,14 +7,11 @@ use std::env;
 use std::path::{Path, PathBuf};
 
 /// Default models directory name relative to user home
-const MODELS_DIR_NAME: &str = "models";
-
-/// Default cache directory name relative to user home
-const CACHE_DIR_NAME: &str = ".cache/inferno";
+const MODELS_DIR_NAME: &str = ".inferno/models";
 
 /// Get the default models directory path
 ///
-/// Returns `$HOME/models` on Unix systems, or equivalent on other platforms.
+/// Returns `$HOME/.inferno/models` on Unix systems, or equivalent on other platforms.
 /// This is the standard location where Inferno looks for and stores AI models.
 ///
 /// # Examples
@@ -27,14 +24,6 @@ const CACHE_DIR_NAME: &str = ".cache/inferno";
 /// ```
 pub fn default_models_dir() -> PathBuf {
     get_home_dir().join(MODELS_DIR_NAME)
-}
-
-/// Get the default cache directory path
-///
-/// Returns `$HOME/.cache/inferno` on Unix systems, or equivalent on other platforms.
-/// This is where Inferno stores temporary files, downloaded models cache, etc.
-pub fn default_cache_dir() -> PathBuf {
-    get_home_dir().join(CACHE_DIR_NAME)
 }
 
 /// Get the user's home directory
