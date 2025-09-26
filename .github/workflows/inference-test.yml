@@ -62,44 +62,18 @@ jobs:
       with:
         cache-on-failure: true
 
-    - name: Install cargo-nextest
-      run: |
-        cargo install cargo-nextest --locked
 
     - name: Run inference tests
       run: |
         echo "Running inference tests with ${{ matrix.backend }} on ${{ matrix.os }}"
 
-        # Create test output directory
-        mkdir -p test-results
-
-        # Run inference tests with comprehensive reporting
+        # Run inference tests
         echo "Testing inferno-inference package..."
-        cargo nextest run --features ${{ matrix.backend }} --package inferno-inference \
-          --no-fail-fast --final-status-level=slow \
-          --message-format=json-pretty > test-results/inference-${{ matrix.backend }}-${{ matrix.os }}.json || true
+        cargo test --features ${{ matrix.backend }} --package inferno-inference
 
         echo "Testing inferno-llama package..."
-        cargo nextest run --features ${{ matrix.backend }} --package inferno-llama \
-          --no-fail-fast --final-status-level=slow \
-          --message-format=json-pretty > test-results/llama-${{ matrix.backend }}-${{ matrix.os }}.json || true
+        cargo test --features ${{ matrix.backend }} --package inferno-llama
 
-    - name: Upload Inference Test Results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: inference-test-results-${{ matrix.backend }}-${{ matrix.os }}
-        path: test-results/
-        retention-days: 30
-
-    - name: Generate Inference Test Report
-      uses: dorny/test-reporter@v1
-      if: always()
-      with:
-        name: Inference Test Results (${{ matrix.backend }} on ${{ matrix.os }})
-        path: 'test-results/*.json'
-        reporter: 'jest-junit'
-        fail-on-error: false
 
   cuda-inference-test:
     name: CUDA Inference Test
@@ -136,9 +110,6 @@ jobs:
         method: 'network'
         sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust"]'
 
-    - name: Install cargo-nextest
-      run: |
-        cargo install cargo-nextest --locked
 
     - name: Run CUDA inference tests
       env:
@@ -152,33 +123,10 @@ jobs:
         echo "Running CUDA inference tests with physical GPU..."
         echo "Using physical GPU acceleration"
 
-        # Create test output directory
-        mkdir -p test-results
-
-        # Run CUDA inference tests with comprehensive reporting
+        # Run CUDA inference tests
         echo "Testing inferno-inference with CUDA..."
-        cargo nextest run --features candle-cuda --package inferno-inference \
-          --no-fail-fast --final-status-level=slow \
-          --message-format=json-pretty > test-results/inference-cuda-gpu.json || true
+        cargo test --features candle-cuda --package inferno-inference
 
         echo "Testing inferno-llama with CUDA..."
-        cargo nextest run --features cuda --package inferno-llama \
-          --no-fail-fast --final-status-level=slow \
-          --message-format=json-pretty > test-results/llama-cuda-gpu.json || true
+        cargo test --features cuda --package inferno-llama
 
-    - name: Upload CUDA Inference Test Results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: inference-test-results-cuda-gpu
-        path: test-results/
-        retention-days: 30
-
-    - name: Generate CUDA Inference Test Report
-      uses: dorny/test-reporter@v1
-      if: always()
-      with:
-        name: CUDA Inference Test Results (GPU)
-        path: 'test-results/*.json'
-        reporter: 'jest-junit'
-        fail-on-error: false

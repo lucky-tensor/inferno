@@ -21,9 +21,3 @@ jobs:
           git checkout origin/main -- .prior_bench || echo "No .prior_bench folder found on main branch"
       - name: Run benchmarks and check for regressions
         run: ./benchmarking/check-performance.sh
-      - name: Upload benchmark artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmark-report
-          path: |
-            benchmark.json

@@ -86,13 +86,4 @@ jobs:
         # Build with verbose output to catch any compilation issues
         cargo build --release --features candle-cuda --verbose
 
-    - name: Upload CUDA Binary Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: inferno-cuda-binary-${{ github.sha }}
-        path: |
-          target/release/inferno*
-          !target/release/*.d
-          !target/release/deps/
-        retention-days: 30
 

@@ -72,9 +72,6 @@ jobs:
         method: 'network'
         sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust"]'
 
-    - name: Install cargo-nextest
-      run: |
-        cargo install cargo-nextest --locked
 
     - name: Run tests with specific backend
       # Skip CUDA tests when no physical GPU is detected
@@ -84,45 +81,22 @@ jobs:
       run: |
         echo "Running tests with ${{ matrix.backend }} backend on ${{ matrix.os }}"
 
-        # Create test output directory
-        mkdir -p test-results
-
         case "${{ matrix.backend }}" in
           cpu)
             echo "Testing CPU backends (candle-cpu, burn-cpu)"
-            cargo nextest run --features candle-cpu --no-fail-fast --final-status-level=slow \
-              --message-format=json-pretty > test-results/candle-cpu-${{ matrix.os }}.json || true
-            cargo nextest run --features burn-cpu --no-fail-fast --final-status-level=slow \
-              --message-format=json-pretty > test-results/burn-cpu-${{ matrix.os }}.json || true
+            cargo test --features candle-cpu
+            cargo test --features burn-cpu
             ;;
           cuda)
             echo "Testing CUDA backend"
-            cargo nextest run --features candle-cuda --no-fail-fast --final-status-level=slow \
-              --message-format=json-pretty > test-results/candle-cuda-${{ matrix.os }}.json || true
+            cargo test --features candle-cuda
             ;;
           metal)
             echo "Testing Metal backend"
-            cargo nextest run --features candle-metal --no-fail-fast --final-status-level=slow \
-              --message-format=json-pretty > test-results/candle-metal-${{ matrix.os }}.json || true
+            cargo test --features candle-metal
             ;;
         esac
 
-    - name: Upload Test Results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: test-results-${{ matrix.backend }}-${{ matrix.os }}
-        path: test-results/
-        retention-days: 30
-
-    - name: Generate Test Report
-      uses: dorny/test-reporter@v1
-      if: always()
-      with:
-        name: Test Results (${{ matrix.backend }} on ${{ matrix.os }})
-        path: 'test-results/*.json'
-        reporter: 'jest-junit'
-        fail-on-error: false
 
   cuda-test:
     name: CUDA Test (GPU Runner)
@@ -159,9 +133,6 @@ jobs:
         method: 'network'
         sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust"]'
 
-    - name: Install cargo-nextest
-      run: |
-        cargo install cargo-nextest --locked
 
     - name: Run CUDA tests
       env:
@@ -175,26 +146,6 @@ jobs:
         echo "Running CUDA tests with physical GPU..."
         echo "Using physical GPU acceleration"
 
-        # Create test output directory
-        mkdir -p test-results
+        # Run tests
+        cargo test --features candle-cuda
 
-        # Run tests with comprehensive reporting
-        cargo nextest run --features candle-cuda --no-fail-fast --final-status-level=slow \
-          --message-format=json-pretty > test-results/candle-cuda-gpu.json || true
-
-    - name: Upload GPU Test Results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: test-results-cuda-gpu
-        path: test-results/
-        retention-days: 30
-
-    - name: Generate GPU Test Report
-      uses: dorny/test-reporter@v1
-      if: always()
-      with:
-        name: CUDA GPU Test Results
-        path: 'test-results/*.json'
-        reporter: 'jest-junit'
-        fail-on-error: false
