@@ -42,7 +42,7 @@ impl CandleBackendType {
         feature = "candle-cuda",
         feature = "candle-metal"
     ))]
-    pub fn create_device(&self) -> Result<Device, InferenceError> {
+    pub fn create_device(self) -> Result<Device, InferenceError> {
         match self {
             Self::Cpu => {
                 tracing::info!("Initializing CPU device for Candle inference");

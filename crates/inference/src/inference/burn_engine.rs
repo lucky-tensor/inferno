@@ -315,7 +315,7 @@ impl BurnInferenceEngine {
 
             // Load model using SafeTensors with burn-import (no async conflicts)
             info!("  Loading model with real weights using SafeTensors via burn-import...");
-            match crate::models::llama_loader::load_llama_weights(&model_path, &self.device) {
+            match crate::models::llama_loader::load_llama_weights(&model_path, self.device) {
                 Ok(loaded_model) => {
                     self.model = Some(Mutex::new(loaded_model));
                     info!(
@@ -469,7 +469,7 @@ impl BurnInferenceEngine {
     }
 
     /// Shutdown the engine
-    pub fn shutdown(&mut self) -> InfernoResult<()> {
+    pub fn shutdown(&mut self) {
         info!("Shutting down Burn inference engine");
         self.initialized = false;
         self.model_ready = false;
@@ -478,8 +478,6 @@ impl BurnInferenceEngine {
         {
             self.model = None;
         }
-
-        Ok(())
     }
 
     /// Perform REAL neural network text generation using the loaded `TinyLlama` model

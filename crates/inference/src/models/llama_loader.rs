@@ -37,7 +37,7 @@ type Backend = NdArray<f32>;
 #[cfg(all(feature = "burn-cpu", feature = "pretrained"))]
 pub fn load_llama_weights(
     model_path: &Path,
-    device: &Device<Backend>,
+    device: Device<Backend>,
 ) -> Result<Llama<Backend, SentiencePieceTokenizer>, Box<dyn Error>> {
     println!("  Loading pre-trained Llama model with real weights...");
 
@@ -101,7 +101,7 @@ pub fn load_llama_weights(
 
     // Initialize the model structure (with random weights initially)
     let model = config
-        .init::<Backend, SentiencePieceTokenizer>(device)
+        .init::<Backend, SentiencePieceTokenizer>(&device)
         .map_err(|e| format!("Failed to initialize TinyLlama model: {}", e))?;
 
     println!("  Model structure initialized, attempting to load SafeTensors weights...");
@@ -348,7 +348,7 @@ pub fn load_model_config(
 #[cfg(all(feature = "burn-cpu", not(feature = "pretrained")))]
 pub fn load_llama_weights(
     model_path: &Path,
-    device: &Device<Backend>,
+    device: Device<Backend>,
 ) -> Result<Llama<Backend, SentiencePieceTokenizer>, Box<dyn Error>> {
     println!("   Loading Llama with random weights (pretrained feature not enabled)");
 

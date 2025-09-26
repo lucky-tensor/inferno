@@ -1,0 +1,12 @@
+# Clippy configuration to reduce noise
+# Suppress overly pedantic lints that add noise without much value
+
+# Allow some common patterns in benchmarks and build scripts
+allow-expect-in-tests = true
+allow-unwrap-in-tests = true
+
+# Suppress noisy lints for development
+avoid-breaking-exported-api = false
+
+# Allow mixed integer types in benchmarks
+# Note: cast-lossless should be configured via #[allow(clippy::cast_lossless)] in code

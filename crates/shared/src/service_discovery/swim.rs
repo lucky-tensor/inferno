@@ -268,6 +268,7 @@ pub struct GossipUpdate {
 
 /// Membership event for service discovery integration
 #[derive(Debug, Clone)]
+#[allow(clippy::enum_variant_names)]
 pub enum SwimMembershipEvent {
     /// New member joined cluster
     MemberJoined(SwimMember),

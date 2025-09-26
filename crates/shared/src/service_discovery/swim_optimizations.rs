@@ -70,7 +70,7 @@ impl CompactMember {
     }
 
     /// Converts to full SwimMember
-    pub fn to_swim_member(&self, node_id: &str) -> SwimMember {
+    pub fn to_swim_member(self, node_id: &str) -> SwimMember {
         let node_type = match self.flags & 0x03 {
             0 => super::types::NodeType::Proxy,
             1 => super::types::NodeType::Backend,

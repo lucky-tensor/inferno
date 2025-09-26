@@ -145,7 +145,7 @@ impl QuantizedLlamaAttention {
         attention_mask: Option<&Tensor>,
         seqlen_offsets: &[usize],
         start_offsets_kernel: Tensor,
-        kv_cache: &mut candle_transformers::models::llama::Cache,
+        kv_cache: &candle_transformers::models::llama::Cache,
     ) -> candle_core::Result<Tensor> {
         let (b_sz, seq_len, _) = x.dims3()?;
 
@@ -301,7 +301,7 @@ impl QuantizedLlamaLayer {
         attention_mask: Option<&Tensor>,
         seqlen_offsets: &[usize],
         start_offsets_kernel: Tensor,
-        kv_cache: &mut candle_transformers::models::llama::Cache,
+        kv_cache: &candle_transformers::models::llama::Cache,
     ) -> candle_core::Result<Tensor> {
         let residual = x;
 
@@ -408,7 +408,7 @@ impl QuantizedLlama {
         seqlen_offsets: &[usize],
         start_offsets_kernel: Tensor,
         _context_lens: Vec<(usize, usize)>,
-        kv_caches: &mut [candle_transformers::models::llama::Cache],
+        kv_caches: &[candle_transformers::models::llama::Cache],
     ) -> candle_core::Result<Tensor> {
         let (_b_sz, seq_len) = input_ids.dims2()?;
 
@@ -429,7 +429,7 @@ impl QuantizedLlama {
                 attention_mask.as_ref(),
                 seqlen_offsets,
                 start_offsets_kernel.clone(),
-                &mut kv_caches[layer_idx],
+                &kv_caches[layer_idx],
             )?;
         }
 

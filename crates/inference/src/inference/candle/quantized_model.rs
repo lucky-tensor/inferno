@@ -760,10 +760,7 @@ impl QuantizedVarBuilder {
 
     /// Calculate optimal activation quantization scale for a tensor
     /// Uses the min-max range to compute the scale factor for INT8 quantization
-    pub fn compute_activation_scale(
-        &self,
-        activations: &Tensor,
-    ) -> Result<(f32, i8), InferenceError> {
+    pub fn compute_activation_scale(activations: &Tensor) -> Result<(f32, i8), InferenceError> {
         // Get tensor data as Vec<f32>
         let shape = activations.shape();
         let data = if shape.rank() == 1 {
@@ -799,7 +796,7 @@ impl QuantizedVarBuilder {
         bias_name: Option<&str>,
     ) -> Result<Tensor, InferenceError> {
         // Compute activation quantization scale
-        let (activation_scale, activation_zero_point) = self.compute_activation_scale(input)?;
+        let (activation_scale, activation_zero_point) = Self::compute_activation_scale(input)?;
 
         // Perform quantized matrix multiplication
         let output =

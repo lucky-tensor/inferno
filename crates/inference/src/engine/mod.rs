@@ -39,7 +39,7 @@ impl InfernoBackend {
         );
 
         // Initialize engine
-        let engine = Arc::new(InfernoEngine::new(&config)?);
+        let engine = Arc::new(InfernoEngine::new(&config));
 
         Ok(Self {
             engine,
@@ -139,10 +139,10 @@ enum EngineState {
 
 impl InfernoEngine {
     /// Create a new engine
-    pub fn new(_config: &InfernoConfig) -> InfernoResult<Self> {
-        Ok(Self {
+    pub fn new(_config: &InfernoConfig) -> Self {
+        Self {
             state: RwLock::new(EngineState::NotStarted),
-        })
+        }
     }
 
     /// Start the engine

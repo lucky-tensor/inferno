@@ -1,18 +1,17 @@
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+#![allow(clippy::expect_used, clippy::unwrap_used)]
+
+use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::{Duration, Instant};
 
-/// Configuration for PGO benchmarks
-struct PGOBenchmarkConfig {
+/// Configuration for concurrent inference benchmarks
+struct ConcurrentBenchmarkConfig {
     model_path: PathBuf,
-    baseline_binary: PathBuf,
-    pgo_binary: PathBuf,
-    baseline_concurrent_binary: PathBuf,
-    pgo_concurrent_binary: PathBuf,
+    concurrent_binary: PathBuf,
 }
 
-impl PGOBenchmarkConfig {
+impl ConcurrentBenchmarkConfig {
     fn new() -> Option<Self> {
         let model_path = std::env::var("BENCH_MODEL_PATH")
             .map(PathBuf::from)
@@ -24,98 +23,33 @@ impl PGOBenchmarkConfig {
                 ))
             });
 
-        // Expected binary locations (built by build.rs)
-        let baseline_binary = PathBuf::from("./target/release/inferno-baseline");
-        let pgo_binary = PathBuf::from("./target/release/inferno-pgo");
-        let baseline_concurrent_binary =
-            PathBuf::from("./target/release/examples/concurrent_inference-baseline");
-        let pgo_concurrent_binary =
-            PathBuf::from("./target/release/examples/concurrent_inference-pgo");
+        // Expected binary location (built by build.rs)
+        let concurrent_binary = PathBuf::from("./target/release/examples/concurrent_inference");
 
-        // Check if all required files exist
+        // Check if required files exist
         if !model_path.exists() {
             eprintln!("❌ Model not found at {:?}", model_path);
             eprintln!("   Set BENCH_MODEL_PATH environment variable");
             return None;
         }
 
-        if !baseline_binary.exists() {
-            eprintln!("❌ Baseline binary not found at {:?}", baseline_binary);
-            eprintln!("   build.rs should have created this automatically");
-            return None;
-        }
-
-        if !pgo_binary.exists() {
-            eprintln!("❌ PGO binary not found at {:?}", pgo_binary);
-            eprintln!("   build.rs should have created this automatically");
-            return None;
-        }
-
-        if !baseline_concurrent_binary.exists() {
+        if !concurrent_binary.exists() {
             eprintln!(
-                "❌ Baseline concurrent example not found at {:?}",
-                baseline_concurrent_binary
+                "❌ concurrent_inference binary not found at {:?}",
+                concurrent_binary
             );
-            eprintln!("   build.rs should have created this automatically");
+            eprintln!("   Run: cargo build --release --package inferno-inference --example concurrent_inference --features examples");
             return None;
         }
 
-        if !pgo_concurrent_binary.exists() {
-            eprintln!(
-                "❌ PGO concurrent example not found at {:?}",
-                pgo_concurrent_binary
-            );
-            eprintln!("   build.rs should have created this automatically");
-            return None;
-        }
-
-        println!("🚀 All PGO benchmark binaries found:");
-        println!("   Model: {:?}", model_path);
-        println!("   Baseline CLI: {:?}", baseline_binary);
-        println!("   PGO CLI: {:?}", pgo_binary);
-        println!("   Baseline Concurrent: {:?}", baseline_concurrent_binary);
-        println!("   PGO Concurrent: {:?}", pgo_concurrent_binary);
-
-        Some(PGOBenchmarkConfig {
+        Some(Self {
             model_path,
-            baseline_binary,
-            pgo_binary,
-            baseline_concurrent_binary,
-            pgo_concurrent_binary,
+            concurrent_binary,
         })
     }
 }
 
-/// Run single inference request
-fn run_single_inference(
-    binary: &PathBuf,
-    model_path: &PathBuf,
-    prompt: &str,
-) -> Result<Duration, Box<dyn std::error::Error>> {
-    let start = Instant::now();
-
-    let output = Command::new(binary)
-        .arg("play")
-        .arg("--prompt")
-        .arg(prompt)
-        .arg("--model-path")
-        .arg(model_path)
-        .output()?;
-
-    let duration = start.elapsed();
-
-    if !output.status.success() {
-        return Err(format!(
-            "Single inference failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
-    }
-
-    Ok(duration)
-}
-
-/// Run concurrent inference requests
+/// Run concurrent inference with the specified parameters
 fn run_concurrent_inference(
     binary: &PathBuf,
     model_path: &PathBuf,
@@ -125,19 +59,21 @@ fn run_concurrent_inference(
     let start = Instant::now();
 
     let output = Command::new(binary)
-        .arg("--prompt")
-        .arg(prompt)
-        .arg("--model-path")
-        .arg(model_path)
-        .arg("--concurrent")
-        .arg(concurrency.to_string())
+        .args([
+            "--prompt",
+            prompt,
+            "--model-path",
+            &model_path.to_string_lossy(),
+            "--concurrent",
+            &concurrency.to_string(),
+        ])
         .output()?;
 
     let duration = start.elapsed();
 
     if !output.status.success() {
         return Err(format!(
-            "Concurrent inference failed: {}",
+            "Inference failed: {}",
             String::from_utf8_lossy(&output.stderr)
         )
         .into());
@@ -146,138 +82,74 @@ fn run_concurrent_inference(
     Ok(duration)
 }
 
-/// Benchmark single request latency (CLI comparison)
-fn bench_single_request_latency(c: &mut Criterion) {
-    let config = match PGOBenchmarkConfig::new() {
-        Some(config) => config,
+/// Benchmark single request performance
+fn bench_single_request(c: &mut Criterion) {
+    let config = match ConcurrentBenchmarkConfig::new() {
+        Some(c) => c,
         None => {
-            eprintln!("⚠️  Skipping PGO benchmarks - missing binaries or model");
+            eprintln!("⚠️ Skipping single request benchmarks - configuration invalid");
             return;
         }
     };
 
-    let mut group = c.benchmark_group("pgo_single_request");
-    group.sample_size(5);
-    group.measurement_time(Duration::from_secs(120));
+    let mut group = c.benchmark_group("single_request");
 
-    let prompts = vec!["hi", "what is python?", "explain machine learning briefly"];
+    let prompts = vec![
+        ("short", "Hi"),
+        ("medium", "Explain machine learning briefly"),
+        ("long", "Write a detailed explanation of neural networks, including forward propagation, backpropagation, and gradient descent"),
+    ];
 
-    for prompt in &prompts {
-        // Benchmark baseline
+    for (name, prompt) in prompts {
         group.bench_with_input(
-            BenchmarkId::new("baseline", prompt),
-            prompt,
-            |b, &prompt| {
-                b.iter_custom(|iters| {
-                    let mut total_duration = Duration::new(0, 0);
-                    for _ in 0..iters {
-                        match run_single_inference(
-                            &config.baseline_binary,
-                            &config.model_path,
-                            prompt,
-                        ) {
-                            Ok(duration) => total_duration += duration,
-                            Err(e) => {
-                                eprintln!("Baseline single request error: {}", e);
-                                total_duration += Duration::from_secs(30);
-                            }
-                        }
-                    }
-                    total_duration
+            BenchmarkId::new("concurrent_inference", name),
+            &prompt,
+            |b, prompt| {
+                b.iter(|| {
+                    run_concurrent_inference(
+                        &config.concurrent_binary,
+                        &config.model_path,
+                        prompt,
+                        1, // Single request
+                    )
+                    .expect("Single request should succeed")
                 });
             },
         );
-
-        // Benchmark PGO
-        group.bench_with_input(BenchmarkId::new("pgo", prompt), prompt, |b, &prompt| {
-            b.iter_custom(|iters| {
-                let mut total_duration = Duration::new(0, 0);
-                for _ in 0..iters {
-                    match run_single_inference(&config.pgo_binary, &config.model_path, prompt) {
-                        Ok(duration) => total_duration += duration,
-                        Err(e) => {
-                            eprintln!("PGO single request error: {}", e);
-                            total_duration += Duration::from_secs(30);
-                        }
-                    }
-                }
-                total_duration
-            });
-        });
     }
 
     group.finish();
 }
 
-/// Benchmark low-medium concurrency (where PGO starts to shine)
-fn bench_concurrent_requests_medium(c: &mut Criterion) {
-    let config = match PGOBenchmarkConfig::new() {
-        Some(config) => config,
-        None => return,
+/// Benchmark medium concurrency performance (10-50 requests)
+fn bench_medium_concurrency(c: &mut Criterion) {
+    let config = match ConcurrentBenchmarkConfig::new() {
+        Some(c) => c,
+        None => {
+            eprintln!("⚠️ Skipping medium concurrency benchmarks - configuration invalid");
+            return;
+        }
     };
 
-    let mut group = c.benchmark_group("pgo_concurrent_medium");
-    group.sample_size(3);
-    group.measurement_time(Duration::from_secs(180));
+    let mut group = c.benchmark_group("medium_concurrency");
+    group.throughput(Throughput::Elements(1));
 
     let concurrency_levels = vec![10, 25, 50];
-    let test_prompt = "hello world";
-
-    println!("🔥 Testing medium concurrency - where PGO really shines!");
+    let prompt = "What is 2+2?";
 
     for concurrency in concurrency_levels {
-        group.throughput(Throughput::Elements(concurrency as u64));
-
-        println!("   Testing {} concurrent requests...", concurrency);
-
-        // Benchmark baseline
         group.bench_with_input(
-            BenchmarkId::new("baseline", concurrency),
+            BenchmarkId::new("concurrent_requests", concurrency),
             &concurrency,
             |b, &concurrency| {
-                b.iter_custom(|iters| {
-                    let mut total_duration = Duration::new(0, 0);
-                    for _ in 0..iters {
-                        match run_concurrent_inference(
-                            &config.baseline_concurrent_binary,
-                            &config.model_path,
-                            test_prompt,
-                            concurrency,
-                        ) {
-                            Ok(duration) => total_duration += duration,
-                            Err(e) => {
-                                eprintln!("Baseline concurrent error ({}): {}", concurrency, e);
-                                total_duration += Duration::from_secs(60);
-                            }
-                        }
-                    }
-                    total_duration
-                });
-            },
-        );
-
-        // Benchmark PGO
-        group.bench_with_input(
-            BenchmarkId::new("pgo", concurrency),
-            &concurrency,
-            |b, &concurrency| {
-                b.iter_custom(|iters| {
-                    let mut total_duration = Duration::new(0, 0);
-                    for _ in 0..iters {
-                        match run_concurrent_inference(
-                            &config.pgo_concurrent_binary,
-                            &config.model_path,
-                            test_prompt,
-                            concurrency,
-                        ) {
-                            Ok(duration) => total_duration += duration,
-                            Err(e) => {
-                                eprintln!("PGO concurrent error ({}): {}", concurrency, e);
-                                total_duration += Duration::from_secs(60);
-                            }
-                        }
-                    }
-                    total_duration
+                b.iter(|| {
+                    run_concurrent_inference(
+                        &config.concurrent_binary,
+                        &config.model_path,
+                        prompt,
+                        concurrency,
+                    )
+                    .expect("Medium concurrency should succeed")
                 });
             },
         );
@@ -286,78 +158,36 @@ fn bench_concurrent_requests_medium(c: &mut Criterion) {
     group.finish();
 }
 
-/// Benchmark high concurrency (stress test)
-fn bench_concurrent_requests_high(c: &mut Criterion) {
-    let config = match PGOBenchmarkConfig::new() {
-        Some(config) => config,
-        None => return,
+/// Benchmark high concurrency performance (100+ requests)
+fn bench_high_concurrency(c: &mut Criterion) {
+    let config = match ConcurrentBenchmarkConfig::new() {
+        Some(c) => c,
+        None => {
+            eprintln!("⚠️ Skipping high concurrency benchmarks - configuration invalid");
+            return;
+        }
     };
 
-    let mut group = c.benchmark_group("pgo_concurrent_high");
-    group.sample_size(2);
-    group.measurement_time(Duration::from_secs(300));
+    let mut group = c.benchmark_group("high_concurrency");
+    group.throughput(Throughput::Elements(1));
+    group.sample_size(10); // Fewer samples for high concurrency tests
 
     let concurrency_levels = vec![100, 200];
-    let test_prompt = "hi"; // Very short for stress test
-
-    println!("⚡ Testing high concurrency - maximum PGO benefits!");
+    let prompt = "Hi";
 
     for concurrency in concurrency_levels {
-        group.throughput(Throughput::Elements(concurrency as u64));
-
-        println!("   Stress testing {} concurrent requests...", concurrency);
-
-        // Benchmark baseline
         group.bench_with_input(
-            BenchmarkId::new("baseline", concurrency),
+            BenchmarkId::new("stress_test", concurrency),
             &concurrency,
             |b, &concurrency| {
-                b.iter_custom(|iters| {
-                    let mut total_duration = Duration::new(0, 0);
-                    for _ in 0..iters {
-                        match run_concurrent_inference(
-                            &config.baseline_concurrent_binary,
-                            &config.model_path,
-                            test_prompt,
-                            concurrency,
-                        ) {
-                            Ok(duration) => total_duration += duration,
-                            Err(e) => {
-                                eprintln!(
-                                    "Baseline high concurrent error ({}): {}",
-                                    concurrency, e
-                                );
-                                total_duration += Duration::from_secs(120);
-                            }
-                        }
-                    }
-                    total_duration
-                });
-            },
-        );
-
-        // Benchmark PGO
-        group.bench_with_input(
-            BenchmarkId::new("pgo", concurrency),
-            &concurrency,
-            |b, &concurrency| {
-                b.iter_custom(|iters| {
-                    let mut total_duration = Duration::new(0, 0);
-                    for _ in 0..iters {
-                        match run_concurrent_inference(
-                            &config.pgo_concurrent_binary,
-                            &config.model_path,
-                            test_prompt,
-                            concurrency,
-                        ) {
-                            Ok(duration) => total_duration += duration,
-                            Err(e) => {
-                                eprintln!("PGO high concurrent error ({}): {}", concurrency, e);
-                                total_duration += Duration::from_secs(120);
-                            }
-                        }
-                    }
-                    total_duration
+                b.iter(|| {
+                    run_concurrent_inference(
+                        &config.concurrent_binary,
+                        &config.model_path,
+                        prompt,
+                        concurrency,
+                    )
+                    .expect("High concurrency should succeed")
                 });
             },
         );
@@ -368,8 +198,8 @@ fn bench_concurrent_requests_high(c: &mut Criterion) {
 
 criterion_group!(
     benches,
-    bench_single_request_latency,
-    bench_concurrent_requests_medium,
-    bench_concurrent_requests_high
+    bench_single_request,
+    bench_medium_concurrency,
+    bench_high_concurrency
 );
 criterion_main!(benches);

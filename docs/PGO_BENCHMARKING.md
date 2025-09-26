@@ -21,37 +21,38 @@ export BENCH_MODEL_PATH=/path/to/your/model.safetensors
 export BENCH_MODEL_PATH=~/.inferno/models/TinyLlama_TinyLlama-1.1B-Chat-v1.0/model.safetensors
 ```
 
-### 2. Run Complete PGO Benchmark Suite
+### 2. Run Concurrent Inference Benchmarks
 ```bash
 # Navigate to project root
 cd ~/inferno
 
-# Single command - fully automated PGO benchmarking
+# Build the concurrent_inference example
+cargo build --release --package inferno-inference --example concurrent_inference --features examples
+
+# Run fast concurrent inference benchmarks
 cargo bench --package pgo-benchmarks
 ```
 
-### 3. Development Mode (Skip Heavy Builds)
+### 3. Fast and Simple
 ```bash
-# For faster iteration during development
-export SKIP_PGO_BUILD=1
+# Benchmark build completes in ~30 seconds (no hanging, no shell scripts)
 cargo bench --package pgo-benchmarks
 
 # Or see verbose build progress
 cargo bench --package pgo-benchmarks -vv
 ```
 
-## ✨ What Happens Automatically
+## ✨ What Happens
 
-The **build.rs** script handles everything:
+The system is now streamlined:
 
-1. **📦 Baseline Build**: Builds `inferno` + `concurrent_inference` examples
-2. **🔄 PGO Profiling**: Runs real inference workloads to generate profile data
-3. **🔥 Optimized Build**: Rebuilds binaries with profile-guided optimization
-4. **📊 Comprehensive Testing**: Benchmarks baseline vs PGO across concurrency levels
-5. **📈 Statistical Analysis**: Generates detailed performance comparison reports
+1. **📦 Manual Build**: Build `concurrent_inference` example once manually
+2. **📊 Comprehensive Testing**: Benchmarks across different concurrency levels
+3. **📈 Statistical Analysis**: Generates detailed performance reports
 
-**First run**: 5-15 minutes (includes PGO profiling)
-**Subsequent runs**: ~30 seconds (cached binaries)
+**Example build time**: ~1 minute (one-time setup)
+**Benchmark build time**: ~30 seconds (no hanging!)
+**Benchmark time**: Varies by concurrency level and model size
 
 ## 📊 Benchmark Architecture
 
