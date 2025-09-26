@@ -27,8 +27,8 @@ jobs:
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
           sudo apt-get update
 
-          # Install nvidia-smi (part of nvidia-utils)
-          sudo apt-get install -y nvidia-utils-535
+          # Install nvidia-smi (r580+ compatible with CUDA 13.0)
+          sudo apt-get install -y nvidia-utils-580
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
