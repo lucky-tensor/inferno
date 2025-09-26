@@ -30,7 +30,7 @@ jobs:
       - name: Run linter
         env:
           LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LD_LIBRARY_PATH }}"
-        run: cargo lint
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Check code format
         run: cargo fmt -- --check
