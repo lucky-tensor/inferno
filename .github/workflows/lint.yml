@@ -20,16 +20,6 @@ jobs:
           method: 'network'
           sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust"]'
 
-      - name: Install nvidia-smi
-        run: |
-          # Install nvidia-smi utility
-          sudo apt-get update
-          sudo apt-get install -y nvidia-utils-535
-
-          # Verify nvidia-smi is installed and accessible
-          which nvidia-smi
-          nvidia-smi --version
-
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
@@ -41,6 +31,7 @@ jobs:
       - name: Run linter
         env:
           LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LD_LIBRARY_PATH }}"
+          CUDA_COMPUTE_CAP: "80"
         run: cargo lint
 
       - name: Check code format
