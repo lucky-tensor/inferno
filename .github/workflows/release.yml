@@ -86,14 +86,52 @@ jobs:
         echo "Archive Name: ${ARCHIVE_NAME}"
         echo "Is Prerelease: ${IS_PRERELEASE}"
 
-    - name: Setup CUDA Environment
-      uses: ./.github/actions/setup-cuda
+    - name: Update dependencies for CUDA 13.0 support
+      run: |
+        echo "Updating dependencies to ensure cudarc 0.17.3+ for CUDA 13.0 support..."
+        cargo update
+
+    - name: Setup CUDA
+      uses: Jimver/cuda-toolkit@v0.2.27
       with:
-        cuda-version: '13.0.0'
-        compute-capability: '80'
-        install-math-libs: 'true'
+        cuda: '13.0.0'
+        method: 'network'
+        sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust", "nvrtc"]'
+
+    - name: Install CUDA math libraries
+      run: |
+        echo "Installing CUDA math libraries..."
+        # Update package list
+        sudo apt-get update
+
+        # Install cuBLAS and cuRAND from the full CUDA toolkit
+        # Use the full cuda-toolkit-13-0 to get all libraries
+        sudo apt-get install -y cuda-toolkit-13-0 || echo "Full toolkit install failed, trying individual components"
+
+        # If full toolkit fails, try individual packages
+        sudo apt-get install -y cuda-nvcc-13-0 cuda-cudart-13-0 cuda-cudart-dev-13-0 || true
+
+        # Check what libraries are actually installed
+        echo "=== Checking CUDA libraries ==="
+        find /usr/local/cuda-13.0/lib64/ -name "*cublas*" -o -name "*curand*" -o -name "*nvrtc*" || echo "No CUDA 13.0 libraries found"
+
+        # Try to find libraries in system locations
+        find /usr/lib/x86_64-linux-gnu/ -name "*cublas*" -o -name "*curand*" 2>/dev/null || echo "No system CUDA libraries found"
+
+    - name: Verify CUDA Installation
+      run: |
+        echo "CUDA Installation Verification:"
+        nvcc --version
+        echo "CUDA_HOME: $CUDA_HOME"
+        echo "CUDA_PATH: $CUDA_PATH"
+        ls -la $CUDA_PATH/lib64/ | head -10
 
     - name: Build CUDA release binary
+      env:
+        # CUDA environment variables (set by cuda-toolkit action)
+        LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LD_LIBRARY_PATH }}"
+        LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LIBRARY_PATH }}"
+        CUDA_COMPUTE_CAP: "80"
       run: |
         echo "Building CUDA-enabled release binary"
 
