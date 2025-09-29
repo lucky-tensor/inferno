@@ -4,35 +4,50 @@ on:
     branches: ["**"]
   pull_request:
     branches: [main]
+
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        # NOTE: We intentionally use default checkout behavior:
+        # - PR triggers: Check out the merge commit (tests PR + target branch compatibility)
+        # - Push triggers: Check out the actual pushed commit
+        # This ensures PRs are tested against the target branch state
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          profile: minimal
-          components: clippy
+          components: clippy, rustfmt
       - name: Setup CUDA
         uses: Jimver/cuda-toolkit@v0.2.27
         with:
           cuda: '13.0.0'
+          method: 'network'
+          sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust"]'
+
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-      - name: Run linter
-        env:
-          LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: Check code format
-        run: cargo fmt -- --check
+      - name: Update dependencies for CUDA 13.0 support
+        run: |
+          echo "Updating dependencies to ensure cudarc 0.17.3+ for CUDA 13.0 support..."
+          cargo update
 
       - name: Install cargo-machete
         run: cargo install cargo-machete
 
       - name: Check for unused dependencies
         run: cargo machete
+
+      - name: Check code format
+        run: cargo fmt -- --check
+
+      - name: Run linter
+        env:
+          LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LD_LIBRARY_PATH }}"
+          CUDA_COMPUTE_CAP: "80"
+        run: cargo lint

@@ -1,0 +1,161 @@
+name: Inference Test
+
+# Tests inference functionality across platforms with model loading
+# - Multi-platform: Ubuntu (CPU/default), macOS (CPU/Metal)
+# - CUDA testing: Only on GPU runners when explicitly requested or workflow_dispatch
+
+on:
+  push:
+    branches: ["main", "*dev", "ci*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  detect-gpu:
+    name: GPU Detection
+    runs-on: ubuntu-latest
+    outputs:
+      cuda_available: ${{ steps.gpu.outputs.available }}
+    steps:
+    - name: Check for NVIDIA GPU
+      id: gpu
+      run: |
+        if command -v nvidia-smi &> /dev/null && nvidia-smi &> /dev/null; then
+          echo "available=true" >> $GITHUB_OUTPUT
+          echo "Physical GPU detected"
+          nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+        else
+          echo "available=false" >> $GITHUB_OUTPUT
+          echo "No physical GPU detected"
+        fi
+
+  multi-platform-inference:
+    name: Multi-Platform Inference
+    runs-on: ${{ matrix.os }}
+    needs: detect-gpu
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        backend: [candle-cpu, candle-metal, burn-cpu]
+        exclude:
+          # Metal only works on macOS
+          - os: ubuntu-latest
+            backend: candle-metal
+          # Skip burn-cpu on macOS for now (focus on candle)
+          - os: macos-latest
+            backend: burn-cpu
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+
+
+    - name: Run inference tests
+      run: |
+        echo "Running inference tests with ${{ matrix.backend }} on ${{ matrix.os }}"
+
+        # Run inference tests
+        echo "Testing inferno-inference package..."
+        cargo test --features ${{ matrix.backend }} --package inferno-inference
+
+        echo "Testing inferno-llama package..."
+        cargo test --features ${{ matrix.backend }} --package inferno-llama
+
+
+  cuda-inference-test:
+    name: CUDA Inference Test
+    runs-on: ${{ github.repository_owner == 'lucky-tensor' && 'gpu-runners' || 'ubuntu-latest' }}
+    needs: detect-gpu
+    timeout-minutes: 60
+    # Only run CUDA tests when explicitly requested via 'test-gpu' label or manual trigger
+    if: contains(github.event.pull_request.labels.*.name, 'test-gpu') || github.event_name == 'workflow_dispatch'
+
+    env:
+      CUDA_AVAILABLE: ${{ needs.detect-gpu.outputs.cuda_available }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+
+    - name: Update dependencies for CUDA 13.0 support
+      run: |
+        echo "Updating dependencies to ensure cudarc 0.17.3+ for CUDA 13.0 support..."
+        cargo update
+
+    - name: Setup CUDA
+      if: env.CUDA_AVAILABLE != 'true'
+      uses: Jimver/cuda-toolkit@v0.2.27
+      with:
+        cuda: '13.0.0'
+        method: 'network'
+        sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust", "nvidia-fs", "libcublas", "libcublas-dev"]'
+
+    - name: Install NVIDIA Utils
+      if: env.CUDA_AVAILABLE != 'true'
+      run: |
+        # Install nvidia-utils package which provides nvidia-smi
+        sudo apt-get update
+        sudo apt-get install -y nvidia-utils-535 || sudo apt-get install -y nvidia-utils-525 || sudo apt-get install -y nvidia-utils-520
+        # Create a mock nvidia-smi if the real one doesn't work in CI
+        if ! command -v nvidia-smi &> /dev/null; then
+          echo "Creating mock nvidia-smi for build compatibility"
+          sudo mkdir -p /usr/bin
+          cat << 'EOF' | sudo tee /usr/bin/nvidia-smi > /dev/null
+#!/bin/bash
+# Mock nvidia-smi for CI builds
+echo "NVIDIA-SMI 535.54.03    Driver Version: 535.54.03    CUDA Version: 13.0"
+echo ""
+echo "| NVIDIA-SMI 535.54.03              Driver Version: 535.54.03    CUDA Version: 13.0     |"
+echo "|-------------------------------+----------------------+----------------------+"
+echo "| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |"
+echo "| Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |"
+echo "|                               |                      |               MIG M. |"
+echo "|===============================+======================+======================|"
+echo "|   0  Tesla T4            Off  | 00000000:00:04.0 Off |                    0 |"
+echo "| N/A   35C    P8     9W /  70W |      0MiB / 15109MiB |      0%      Default |"
+echo "|                               |                      |                  N/A |"
+echo "+-------------------------------+----------------------+----------------------+"
+EOF
+          sudo chmod +x /usr/bin/nvidia-smi
+        fi
+
+
+    - name: Run CUDA inference tests
+      env:
+        LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LD_LIBRARY_PATH }}"
+      run: |
+        if [[ "${{ env.CUDA_AVAILABLE }}" != "true" ]]; then
+          echo "Skipping CUDA inference test - no physical GPU available"
+          exit 0
+        fi
+
+        echo "Running CUDA inference tests with physical GPU..."
+        echo "Using physical GPU acceleration"
+
+        # Run CUDA inference tests
+        echo "Testing inferno-inference with CUDA..."
+        cargo test --features candle-cuda --package inferno-inference
+
+        echo "Testing inferno-llama with CUDA..."
+        cargo test --features cuda --package inferno-llama
+
