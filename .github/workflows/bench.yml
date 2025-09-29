@@ -1,6 +1,10 @@
 name: Benchmark Acceptance Test
 on:
   workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   bench-test:
     runs-on: ubuntu-latest
