@@ -91,6 +91,14 @@ jobs:
       with:
         cuda-version: '13.0.0'
 
+    - name: Set CUDA Environment Variables
+      run: |
+        echo "CUDA_HOME=/usr/local/cuda-13.0" >> $GITHUB_ENV
+        echo "CUDA_PATH=/usr/local/cuda-13.0" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=/usr/local/cuda-13.0/lib64:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}" >> $GITHUB_ENV
+        echo "LIBRARY_PATH=/usr/local/cuda-13.0/lib64:/usr/lib/x86_64-linux-gnu:${LIBRARY_PATH}" >> $GITHUB_ENV
+        echo "PATH=/usr/local/cuda-13.0/bin:${PATH}" >> $GITHUB_ENV
+
     - name: Build CUDA release binary
       env:
         # CUDA environment variables are set by setup-cuda action
