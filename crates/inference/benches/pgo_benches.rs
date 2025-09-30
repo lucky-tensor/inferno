@@ -1,7 +1,7 @@
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 use regex::Regex;
@@ -235,8 +235,8 @@ impl PGOBenchmarkConfig {
 
 /// Run concurrent inference with the specified parameters and collect detailed metrics
 fn run_concurrent_inference(
-    binary: &PathBuf,
-    model_path: &PathBuf,
+    binary: &Path,
+    model_path: &Path,
     prompt: &str,
     concurrency: usize,
 ) -> Result<InferenceMetrics, Box<dyn std::error::Error>> {
@@ -273,8 +273,8 @@ fn run_concurrent_inference(
 
 /// Run a warm-up + measurement cycle to isolate CPU performance and collect detailed metrics
 fn run_concurrent_inference_warm(
-    binary: &PathBuf,
-    model_path: &PathBuf,
+    binary: &Path,
+    model_path: &Path,
     prompt: &str,
     concurrency: usize,
 ) -> Result<InferenceMetrics, Box<dyn std::error::Error>> {
