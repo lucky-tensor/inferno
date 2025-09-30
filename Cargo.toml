@@ -59,7 +59,7 @@ toml = "0.8"
 num_cpus = "1.16"
 parking_lot = "0.12"
 once_cell = "1.19"
-validator = { version = "0.18", features = ["derive"] }
+validator = { version = "0.19", features = ["derive"] }
 tempfile = "3.8"
 rstest = "0.18"
 
