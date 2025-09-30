@@ -36,6 +36,16 @@ runs:
         # Try to find libraries in system locations
         find /usr/lib/x86_64-linux-gnu/ -name "*cublas*" -o -name "*curand*" 2>/dev/null || echo "No system CUDA libraries found"
 
+    - name: Set CUDA Environment Variables
+      shell: bash
+      run: |
+        # Ensure CUDA environment variables are properly set
+        echo "CUDA_HOME=/usr/local/cuda-13.0" >> $GITHUB_ENV
+        echo "CUDA_PATH=/usr/local/cuda-13.0" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=/usr/local/cuda-13.0/lib64:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}" >> $GITHUB_ENV
+        echo "LIBRARY_PATH=/usr/local/cuda-13.0/lib64:/usr/lib/x86_64-linux-gnu:${LIBRARY_PATH}" >> $GITHUB_ENV
+        echo "PATH=/usr/local/cuda-13.0/bin:${PATH}" >> $GITHUB_ENV
+
     - name: Verify CUDA Installation
       shell: bash
       run: |
@@ -43,6 +53,7 @@ runs:
         nvcc --version
         echo "CUDA_HOME: $CUDA_HOME"
         echo "CUDA_PATH: $CUDA_PATH"
+        echo "LD_LIBRARY_PATH: $LD_LIBRARY_PATH"
         if [ -d "$CUDA_PATH/lib64/" ]; then
           ls -la $CUDA_PATH/lib64/ | head -10
         else

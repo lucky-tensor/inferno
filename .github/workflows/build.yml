@@ -60,9 +60,7 @@ jobs:
 
     - name: Build CUDA Binary
       env:
-        # CUDA environment variables (set by cuda-toolkit action)
-        LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LD_LIBRARY_PATH }}"
-        LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LIBRARY_PATH }}"
+        # CUDA environment variables are set by setup-cuda action
         CUDA_COMPUTE_CAP: "80"
       run: |
         echo "Building CUDA binary for production release"
