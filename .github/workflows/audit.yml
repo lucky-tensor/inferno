@@ -1,10 +1,6 @@
 name: Security Audit
 
 on:
-  push:
-    branches: ["**"]
-  schedule:
-    - cron: "0 2 * * *" # Run daily at 2 AM
   workflow_dispatch:
 
 permissions:
