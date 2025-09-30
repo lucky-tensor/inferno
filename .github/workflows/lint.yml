@@ -4,29 +4,53 @@ on:
     branches: ["**"]
   pull_request:
     branches: [main]
+
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        # NOTE: We intentionally use default checkout behavior:
+        # - PR triggers: Check out the merge commit (tests PR + target branch compatibility)
+        # - Push triggers: Check out the actual pushed commit
+        # This ensures PRs are tested against the target branch state
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          profile: minimal
-          components: clippy
+          components: clippy, rustfmt
+      - name: Setup CUDA Environment
+        id: cuda-setup
+        uses: ./.github/actions/setup-cuda
+        with:
+          cuda-version: '13.0.0'
+
+      - name: Set CUDA Environment Variables
+        run: |
+          echo "CUDA_HOME=/usr/local/cuda-13.0" >> $GITHUB_ENV
+          echo "CUDA_PATH=/usr/local/cuda-13.0" >> $GITHUB_ENV
+          echo "LD_LIBRARY_PATH=/usr/local/cuda-13.0/lib64:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}" >> $GITHUB_ENV
+          echo "LIBRARY_PATH=/usr/local/cuda-13.0/lib64:/usr/lib/x86_64-linux-gnu:${LIBRARY_PATH}" >> $GITHUB_ENV
+          echo "PATH=/usr/local/cuda-13.0/bin:${PATH}" >> $GITHUB_ENV
+
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-      - name: Run linter
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      - name: Check code format
-        run: cargo fmt -- --check
 
       - name: Install cargo-machete
         run: cargo install cargo-machete
 
       - name: Check for unused dependencies
         run: cargo machete
+
+      - name: Check code format
+        run: cargo fmt -- --check
+
+      - name: Run linter
+        env:
+          LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LD_LIBRARY_PATH }}"
+          CUDA_COMPUTE_CAP: "80"
+        run: cargo lint

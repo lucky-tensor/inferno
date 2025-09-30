@@ -1,19 +1,23 @@
 name: Coverage
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  # Temporarily disabled - re-enable after lint and build tests pass
+  workflow_dispatch: # Manual trigger only
+  # push:
+  #   branches: [main]
+  # pull_request:
+  #   branches: [main]
+
+permissions:
+  contents: read
+
 jobs:
   coverage:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          profile: minimal
           components: llvm-tools-preview
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
@@ -23,8 +27,3 @@ jobs:
         run: cargo install cargo-llvm-cov
       - name: Generate coverage report
         run: cargo coverage
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage.txt

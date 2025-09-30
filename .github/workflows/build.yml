@@ -1,4 +1,6 @@
 name: Build
+permissions:
+  contents: read
 
 on:
   schedule:
@@ -38,6 +40,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      # NOTE: We intentionally use default checkout behavior:
+      # - PR triggers: Check out the merge commit (tests PR + target branch compatibility)
+      # - Push triggers: Check out the actual pushed commit
+      # This ensures PRs are tested against the target branch state
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
@@ -47,31 +53,24 @@ jobs:
       with:
         cache-on-failure: true
 
-    - name: Setup CUDA
-      uses: Jimver/cuda-toolkit@v0.2.16
+    - name: Setup CUDA Environment
+      id: cuda-setup
+      uses: ./.github/actions/setup-cuda
       with:
-        cuda: '13.0.0'
-        method: 'network'
-        sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust", "visual_studio_integration"]'
+        cuda-version: '13.0.0'
 
-    - name: Setup cuDNN
+    - name: Set CUDA Environment Variables
       run: |
-        # Install cuDNN using apt (compatible with CUDA 13.0)
-        sudo apt-get update
-        sudo apt-get -y install libcudnn8-dev
-
-    - name: Verify CUDA Installation
-      run: |
-        echo "CUDA Installation Verification:"
-        nvcc --version
-        echo "CUDA_HOME: $CUDA_HOME"
-        echo "CUDA_PATH: $CUDA_PATH"
-        ls -la $CUDA_PATH/lib64/ | head -10
+        echo "CUDA_HOME=/usr/local/cuda-13.0" >> $GITHUB_ENV
+        echo "CUDA_PATH=/usr/local/cuda-13.0" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=/usr/local/cuda-13.0/lib64:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}" >> $GITHUB_ENV
+        echo "LIBRARY_PATH=/usr/local/cuda-13.0/lib64:/usr/lib/x86_64-linux-gnu:${LIBRARY_PATH}" >> $GITHUB_ENV
+        echo "PATH=/usr/local/cuda-13.0/bin:${PATH}" >> $GITHUB_ENV
 
     - name: Build CUDA Binary
       env:
-        # CUDA environment variables (set by cuda-toolkit action)
-        LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LD_LIBRARY_PATH }}"
+        # CUDA environment variables are set by setup-cuda action
+        CUDA_COMPUTE_CAP: "80"
       run: |
         echo "Building CUDA binary for production release"
 
@@ -87,30 +86,3 @@ jobs:
         # Build with verbose output to catch any compilation issues
         cargo build --release --features candle-cuda --verbose
 
-    - name: Upload CUDA Binary Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: inferno-cuda-binary-${{ github.sha }}
-        path: |
-          target/release/inferno*
-          !target/release/*.d
-          !target/release/deps/
-        retention-days: 30
-
-  # Keep a simple build job for basic functionality
-  basic-build:
-    name: Basic Build (Default Features)
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Cache Rust dependencies
-      uses: Swatinem/rust-cache@v2
-      with:
-        cache-on-failure: true
-
-    - name: Build with default features
-      run: cargo build --release

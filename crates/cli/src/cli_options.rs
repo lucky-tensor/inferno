@@ -96,7 +96,7 @@ pub struct DoctorCliOptions {
         short = 'm',
         long = "model-dir",
         value_name = "PATH",
-        default_value = "./models"
+        default_value_t = inferno_shared::default_models_dir_string()
     )]
     pub model_dir: String,
 
