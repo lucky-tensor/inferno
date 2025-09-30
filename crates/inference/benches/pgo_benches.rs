@@ -1,10 +1,10 @@
 #![allow(clippy::expect_used, clippy::unwrap_used)]
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use regex::Regex;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
-use regex::Regex;
 
 /// Detailed performance metrics parsed from concurrent_inference output
 #[derive(Debug, Clone)]
@@ -50,38 +50,56 @@ impl InferenceMetrics {
         let mut metrics = Self::new(wall_time);
 
         // Parse cold start breakdown
-        if let Some(captures) = Regex::new(r"Backend initialization:\s+([0-9.]+)s").unwrap().captures(output) {
+        if let Some(captures) = Regex::new(r"Backend initialization:\s+([0-9.]+)s")
+            .unwrap()
+            .captures(output)
+        {
             if let Ok(secs) = captures[1].parse::<f64>() {
                 metrics.backend_init_time = Some(Duration::from_secs_f64(secs));
             }
         }
 
-        if let Some(captures) = Regex::new(r"Engine creation:\s+([0-9.]+)s").unwrap().captures(output) {
+        if let Some(captures) = Regex::new(r"Engine creation:\s+([0-9.]+)s")
+            .unwrap()
+            .captures(output)
+        {
             if let Ok(secs) = captures[1].parse::<f64>() {
                 metrics.engine_create_time = Some(Duration::from_secs_f64(secs));
             }
         }
 
-        if let Some(captures) = Regex::new(r"Model loading \+ GPU:\s+([0-9.]+)s").unwrap().captures(output) {
+        if let Some(captures) = Regex::new(r"Model loading \+ GPU:\s+([0-9.]+)s")
+            .unwrap()
+            .captures(output)
+        {
             if let Ok(secs) = captures[1].parse::<f64>() {
                 metrics.model_load_time = Some(Duration::from_secs_f64(secs));
             }
         }
 
-        if let Some(captures) = Regex::new(r"Total cold start:\s+([0-9.]+)s").unwrap().captures(output) {
+        if let Some(captures) = Regex::new(r"Total cold start:\s+([0-9.]+)s")
+            .unwrap()
+            .captures(output)
+        {
             if let Ok(secs) = captures[1].parse::<f64>() {
                 metrics.cold_start_time = Some(Duration::from_secs_f64(secs));
             }
         }
 
         // Parse concurrent performance metrics
-        if let Some(captures) = Regex::new(r"Successful requests:\s+([0-9]+)/").unwrap().captures(output) {
+        if let Some(captures) = Regex::new(r"Successful requests:\s+([0-9]+)/")
+            .unwrap()
+            .captures(output)
+        {
             if let Ok(count) = captures[1].parse::<u32>() {
                 metrics.successful_requests = Some(count);
             }
         }
 
-        if let Some(captures) = Regex::new(r"Total tokens generated:\s+([0-9]+)").unwrap().captures(output) {
+        if let Some(captures) = Regex::new(r"Total tokens generated:\s+([0-9]+)")
+            .unwrap()
+            .captures(output)
+        {
             if let Ok(count) = captures[1].parse::<u32>() {
                 metrics.total_tokens = Some(count);
             }
@@ -93,13 +111,19 @@ impl InferenceMetrics {
             }
         }
 
-        if let Some(captures) = Regex::new(r"Mean:\s+([0-9.]+)s \([0-9.]+% of total\)").unwrap().captures(output) {
+        if let Some(captures) = Regex::new(r"Mean:\s+([0-9.]+)s \([0-9.]+% of total\)")
+            .unwrap()
+            .captures(output)
+        {
             if let Ok(secs) = captures[1].parse::<f64>() {
                 metrics.mean_lock_wait_time = Some(Duration::from_secs_f64(secs));
             }
         }
 
-        if let Some(captures) = Regex::new(r"Mean:\s+([0-9.]+)s \(([0-9.]+)% of total\)$").unwrap().captures(output) {
+        if let Some(captures) = Regex::new(r"Mean:\s+([0-9.]+)s \(([0-9.]+)% of total\)$")
+            .unwrap()
+            .captures(output)
+        {
             if let Ok(secs) = captures[1].parse::<f64>() {
                 metrics.mean_inference_time = Some(Duration::from_secs_f64(secs));
             }
@@ -108,19 +132,28 @@ impl InferenceMetrics {
             }
         }
 
-        if let Some(captures) = Regex::new(r"Average tokens/sec:\s+([0-9.]+)").unwrap().captures(output) {
+        if let Some(captures) = Regex::new(r"Average tokens/sec:\s+([0-9.]+)")
+            .unwrap()
+            .captures(output)
+        {
             if let Ok(rate) = captures[1].parse::<f64>() {
                 metrics.tokens_per_sec = Some(rate);
             }
         }
 
-        if let Some(captures) = Regex::new(r"Requests/sec:\s+([0-9.]+)").unwrap().captures(output) {
+        if let Some(captures) = Regex::new(r"Requests/sec:\s+([0-9.]+)")
+            .unwrap()
+            .captures(output)
+        {
             if let Ok(rate) = captures[1].parse::<f64>() {
                 metrics.requests_per_sec = Some(rate);
             }
         }
 
-        if let Some(captures) = Regex::new(r"Parallelism efficiency:\s+([0-9.]+)%").unwrap().captures(output) {
+        if let Some(captures) = Regex::new(r"Parallelism efficiency:\s+([0-9.]+)%")
+            .unwrap()
+            .captures(output)
+        {
             if let Ok(eff) = captures[1].parse::<f64>() {
                 metrics.parallelism_efficiency = Some(eff);
             }
@@ -156,14 +189,15 @@ impl PGOBenchmarkConfig {
         // pgo-benchmarks is at: workspace/crates/inference/pgo-benchmarks
         // So workspace root is: manifest_dir + "../../.."
         let workspace_root = PathBuf::from(&manifest_dir)
-            .parent()  // crates/inference/
-            .and_then(|p| p.parent())  // crates/
-            .and_then(|p| p.parent())  // workspace root
+            .parent() // crates/inference/
+            .and_then(|p| p.parent()) // crates/
+            .and_then(|p| p.parent()) // workspace root
             .map(|p| p.to_path_buf())
             .expect("Could not find workspace root from manifest directory");
 
         // Expected binary locations (built by PGO script)
-        let original_binary = workspace_root.join("target/release/examples/concurrent_inference.original");
+        let original_binary =
+            workspace_root.join("target/release/examples/concurrent_inference.original");
         let pgo_binary = workspace_root.join("target/release/examples/concurrent_inference.pgo");
 
         // Check if required files exist
@@ -175,20 +209,14 @@ impl PGOBenchmarkConfig {
         }
 
         if !original_binary.exists() {
-            eprintln!(
-                "❌ Original binary not found at {:?}",
-                original_binary
-            );
+            eprintln!("❌ Original binary not found at {:?}", original_binary);
             eprintln!("   Run the PGO script first from workspace root:");
             eprintln!("   ./crates/inference/benches/build-pgo-concurrent.sh");
             return None;
         }
 
         if !pgo_binary.exists() {
-            eprintln!(
-                "❌ PGO-optimized binary not found at {:?}",
-                pgo_binary
-            );
+            eprintln!("❌ PGO-optimized binary not found at {:?}", pgo_binary);
             eprintln!("   Run the PGO script first from workspace root:");
             eprintln!("   ./crates/inference/benches/build-pgo-concurrent.sh");
             return None;
@@ -196,8 +224,8 @@ impl PGOBenchmarkConfig {
 
         // Verify that the binaries are actually different
         use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
         use std::fs;
+        use std::hash::{Hash, Hasher};
 
         let original_hash = {
             let content = fs::read(&original_binary).expect("Failed to read original binary");
@@ -268,7 +296,10 @@ fn run_concurrent_inference(
     let stderr = String::from_utf8_lossy(&output.stderr);
     let combined_output = format!("{}\n{}", stdout, stderr);
 
-    Ok(InferenceMetrics::parse_from_output(duration, &combined_output))
+    Ok(InferenceMetrics::parse_from_output(
+        duration,
+        &combined_output,
+    ))
 }
 
 /// Run a warm-up + measurement cycle to isolate CPU performance and collect detailed metrics
@@ -320,7 +351,10 @@ fn run_concurrent_inference_warm(
     let stderr = String::from_utf8_lossy(&output.stderr);
     let combined_output = format!("{}\n{}", stdout, stderr);
 
-    Ok(InferenceMetrics::parse_from_output(duration, &combined_output))
+    Ok(InferenceMetrics::parse_from_output(
+        duration,
+        &combined_output,
+    ))
 }
 
 /// Benchmark single request performance - Original vs PGO
@@ -344,58 +378,54 @@ fn bench_single_request_pgo_comparison(c: &mut Criterion) {
 
     for (name, prompt) in &prompts {
         // Benchmark original binary
-        group.bench_with_input(
-            BenchmarkId::new("original", name),
-            &prompt,
-            |b, &prompt| {
-                b.iter(|| {
-                    let metrics = run_concurrent_inference(
-                        &config.original_binary,
-                        &config.model_path,
-                        prompt,
-                        1, // Single request
-                    )
-                    .expect("Single request should succeed");
+        group.bench_with_input(BenchmarkId::new("original", name), &prompt, |b, &prompt| {
+            b.iter(|| {
+                let metrics = run_concurrent_inference(
+                    &config.original_binary,
+                    &config.model_path,
+                    prompt,
+                    1, // Single request
+                )
+                .expect("Single request should succeed");
 
-                    // Log detailed metrics for analysis
-                    if let Some(cold_start) = metrics.cold_start_time {
-                        eprintln!("ORIGINAL {} cold_start: {:.3}s", name, cold_start.as_secs_f64());
-                    }
-                    if let Some(tokens_per_sec) = metrics.tokens_per_sec {
-                        eprintln!("ORIGINAL {} tokens/sec: {:.1}", name, tokens_per_sec);
-                    }
+                // Log detailed metrics for analysis
+                if let Some(cold_start) = metrics.cold_start_time {
+                    eprintln!(
+                        "ORIGINAL {} cold_start: {:.3}s",
+                        name,
+                        cold_start.as_secs_f64()
+                    );
+                }
+                if let Some(tokens_per_sec) = metrics.tokens_per_sec {
+                    eprintln!("ORIGINAL {} tokens/sec: {:.1}", name, tokens_per_sec);
+                }
 
-                    metrics.wall_time
-                });
-            },
-        );
+                metrics.wall_time
+            });
+        });
 
         // Benchmark PGO-optimized binary
-        group.bench_with_input(
-            BenchmarkId::new("pgo", name),
-            &prompt,
-            |b, &prompt| {
-                b.iter(|| {
-                    let metrics = run_concurrent_inference(
-                        &config.pgo_binary,
-                        &config.model_path,
-                        prompt,
-                        1, // Single request
-                    )
-                    .expect("Single request should succeed");
+        group.bench_with_input(BenchmarkId::new("pgo", name), &prompt, |b, &prompt| {
+            b.iter(|| {
+                let metrics = run_concurrent_inference(
+                    &config.pgo_binary,
+                    &config.model_path,
+                    prompt,
+                    1, // Single request
+                )
+                .expect("Single request should succeed");
 
-                    // Log detailed metrics for analysis
-                    if let Some(cold_start) = metrics.cold_start_time {
-                        eprintln!("PGO {} cold_start: {:.3}s", name, cold_start.as_secs_f64());
-                    }
-                    if let Some(tokens_per_sec) = metrics.tokens_per_sec {
-                        eprintln!("PGO {} tokens/sec: {:.1}", name, tokens_per_sec);
-                    }
+                // Log detailed metrics for analysis
+                if let Some(cold_start) = metrics.cold_start_time {
+                    eprintln!("PGO {} cold_start: {:.3}s", name, cold_start.as_secs_f64());
+                }
+                if let Some(tokens_per_sec) = metrics.tokens_per_sec {
+                    eprintln!("PGO {} tokens/sec: {:.1}", name, tokens_per_sec);
+                }
 
-                    metrics.wall_time
-                });
-            },
-        );
+                metrics.wall_time
+            });
+        });
     }
 
     group.finish();
@@ -421,7 +451,10 @@ fn bench_single_request_pgo_comparison(c: &mut Criterion) {
 
                     // Log inference-specific metrics (should be higher % since warm)
                     if let Some(inference_pct) = metrics.inference_percentage {
-                        eprintln!("ORIGINAL_WARM {} inference_pct: {:.1}%", name, inference_pct);
+                        eprintln!(
+                            "ORIGINAL_WARM {} inference_pct: {:.1}%",
+                            name, inference_pct
+                        );
                     }
                     if let Some(tokens_per_sec) = metrics.tokens_per_sec {
                         eprintln!("ORIGINAL_WARM {} tokens/sec: {:.1}", name, tokens_per_sec);
@@ -433,31 +466,27 @@ fn bench_single_request_pgo_comparison(c: &mut Criterion) {
         );
 
         // Benchmark PGO-optimized binary (warm)
-        warm_group.bench_with_input(
-            BenchmarkId::new("pgo_warm", name),
-            &prompt,
-            |b, &prompt| {
-                b.iter(|| {
-                    let metrics = run_concurrent_inference_warm(
-                        &config.pgo_binary,
-                        &config.model_path,
-                        prompt,
-                        1, // Single request
-                    )
-                    .expect("Single warm request should succeed");
+        warm_group.bench_with_input(BenchmarkId::new("pgo_warm", name), &prompt, |b, &prompt| {
+            b.iter(|| {
+                let metrics = run_concurrent_inference_warm(
+                    &config.pgo_binary,
+                    &config.model_path,
+                    prompt,
+                    1, // Single request
+                )
+                .expect("Single warm request should succeed");
 
-                    // Log inference-specific metrics (should be higher % since warm)
-                    if let Some(inference_pct) = metrics.inference_percentage {
-                        eprintln!("PGO_WARM {} inference_pct: {:.1}%", name, inference_pct);
-                    }
-                    if let Some(tokens_per_sec) = metrics.tokens_per_sec {
-                        eprintln!("PGO_WARM {} tokens/sec: {:.1}", name, tokens_per_sec);
-                    }
+                // Log inference-specific metrics (should be higher % since warm)
+                if let Some(inference_pct) = metrics.inference_percentage {
+                    eprintln!("PGO_WARM {} inference_pct: {:.1}%", name, inference_pct);
+                }
+                if let Some(tokens_per_sec) = metrics.tokens_per_sec {
+                    eprintln!("PGO_WARM {} tokens/sec: {:.1}", name, tokens_per_sec);
+                }
 
-                    metrics.wall_time
-                });
-            },
-        );
+                metrics.wall_time
+            });
+        });
     }
 
     warm_group.finish();
@@ -497,10 +526,16 @@ fn bench_medium_concurrency_pgo_comparison(c: &mut Criterion) {
 
                     // Log concurrency-specific metrics
                     if let Some(req_per_sec) = metrics.requests_per_sec {
-                        eprintln!("ORIGINAL concurrent={} req/sec: {:.1}", concurrency, req_per_sec);
+                        eprintln!(
+                            "ORIGINAL concurrent={} req/sec: {:.1}",
+                            concurrency, req_per_sec
+                        );
                     }
                     if let Some(parallel_eff) = metrics.parallelism_efficiency {
-                        eprintln!("ORIGINAL concurrent={} parallel_eff: {:.1}%", concurrency, parallel_eff);
+                        eprintln!(
+                            "ORIGINAL concurrent={} parallel_eff: {:.1}%",
+                            concurrency, parallel_eff
+                        );
                     }
 
                     metrics.wall_time
@@ -527,7 +562,10 @@ fn bench_medium_concurrency_pgo_comparison(c: &mut Criterion) {
                         eprintln!("PGO concurrent={} req/sec: {:.1}", concurrency, req_per_sec);
                     }
                     if let Some(parallel_eff) = metrics.parallelism_efficiency {
-                        eprintln!("PGO concurrent={} parallel_eff: {:.1}%", concurrency, parallel_eff);
+                        eprintln!(
+                            "PGO concurrent={} parallel_eff: {:.1}%",
+                            concurrency, parallel_eff
+                        );
                     }
 
                     metrics.wall_time
@@ -574,10 +612,16 @@ fn bench_high_concurrency_pgo_comparison(c: &mut Criterion) {
 
                     // Log high-concurrency specific metrics
                     if let Some(req_per_sec) = metrics.requests_per_sec {
-                        eprintln!("ORIGINAL high_concurrent={} req/sec: {:.1}", concurrency, req_per_sec);
+                        eprintln!(
+                            "ORIGINAL high_concurrent={} req/sec: {:.1}",
+                            concurrency, req_per_sec
+                        );
                     }
                     if let Some(parallel_eff) = metrics.parallelism_efficiency {
-                        eprintln!("ORIGINAL high_concurrent={} parallel_eff: {:.1}%", concurrency, parallel_eff);
+                        eprintln!(
+                            "ORIGINAL high_concurrent={} parallel_eff: {:.1}%",
+                            concurrency, parallel_eff
+                        );
                     }
 
                     metrics.wall_time
@@ -601,10 +645,16 @@ fn bench_high_concurrency_pgo_comparison(c: &mut Criterion) {
 
                     // Log high-concurrency specific metrics
                     if let Some(req_per_sec) = metrics.requests_per_sec {
-                        eprintln!("PGO high_concurrent={} req/sec: {:.1}", concurrency, req_per_sec);
+                        eprintln!(
+                            "PGO high_concurrent={} req/sec: {:.1}",
+                            concurrency, req_per_sec
+                        );
                     }
                     if let Some(parallel_eff) = metrics.parallelism_efficiency {
-                        eprintln!("PGO high_concurrent={} parallel_eff: {:.1}%", concurrency, parallel_eff);
+                        eprintln!(
+                            "PGO high_concurrent={} parallel_eff: {:.1}%",
+                            concurrency, parallel_eff
+                        );
                     }
 
                     metrics.wall_time
@@ -633,8 +683,16 @@ fn bench_cpu_intensive_pgo_comparison(c: &mut Criterion) {
     // Test scenarios that should stress CPU paths more
     let scenarios = vec![
         ("many_small_requests", "Hi", 50), // Many small concurrent requests
-        ("medium_concurrent", "Explain the concept of machine learning in simple terms", 20),
-        ("large_concurrent", "Write a detailed explanation of how neural networks work, including backpropagation", 10),
+        (
+            "medium_concurrent",
+            "Explain the concept of machine learning in simple terms",
+            20,
+        ),
+        (
+            "large_concurrent",
+            "Write a detailed explanation of how neural networks work, including backpropagation",
+            10,
+        ),
     ];
 
     for (name, prompt, concurrency) in scenarios {
@@ -654,10 +712,17 @@ fn bench_cpu_intensive_pgo_comparison(c: &mut Criterion) {
 
                     // Log CPU-intensive metrics - these should show PGO benefits
                     if let Some(inference_pct) = metrics.inference_percentage {
-                        eprintln!("ORIGINAL_INTENSIVE {} inference_pct: {:.1}%", name, inference_pct);
+                        eprintln!(
+                            "ORIGINAL_INTENSIVE {} inference_pct: {:.1}%",
+                            name, inference_pct
+                        );
                     }
                     if let Some(mean_inf) = metrics.mean_inference_time {
-                        eprintln!("ORIGINAL_INTENSIVE {} mean_inference: {:.3}s", name, mean_inf.as_secs_f64());
+                        eprintln!(
+                            "ORIGINAL_INTENSIVE {} mean_inference: {:.3}s",
+                            name,
+                            mean_inf.as_secs_f64()
+                        );
                     }
 
                     metrics.wall_time
@@ -681,10 +746,17 @@ fn bench_cpu_intensive_pgo_comparison(c: &mut Criterion) {
 
                     // Log CPU-intensive metrics - these should show PGO benefits
                     if let Some(inference_pct) = metrics.inference_percentage {
-                        eprintln!("PGO_INTENSIVE {} inference_pct: {:.1}%", name, inference_pct);
+                        eprintln!(
+                            "PGO_INTENSIVE {} inference_pct: {:.1}%",
+                            name, inference_pct
+                        );
                     }
                     if let Some(mean_inf) = metrics.mean_inference_time {
-                        eprintln!("PGO_INTENSIVE {} mean_inference: {:.3}s", name, mean_inf.as_secs_f64());
+                        eprintln!(
+                            "PGO_INTENSIVE {} mean_inference: {:.3}s",
+                            name,
+                            mean_inf.as_secs_f64()
+                        );
                     }
 
                     metrics.wall_time

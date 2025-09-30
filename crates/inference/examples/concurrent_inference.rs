@@ -129,11 +129,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✅ Done ({:.3}s)", model_load_time.as_secs_f64());
     println!();
     println!("📊 COLD START BREAKDOWN:");
-    println!("   Backend initialization: {:.3}s", backend_init_time.as_secs_f64());
-    println!("   Engine creation:        {:.3}s", engine_create_time.as_secs_f64());
-    println!("   Model loading + GPU:    {:.3}s", model_load_time.as_secs_f64());
+    println!(
+        "   Backend initialization: {:.3}s",
+        backend_init_time.as_secs_f64()
+    );
+    println!(
+        "   Engine creation:        {:.3}s",
+        engine_create_time.as_secs_f64()
+    );
+    println!(
+        "   Model loading + GPU:    {:.3}s",
+        model_load_time.as_secs_f64()
+    );
     println!("   ═══════════════════════════════");
-    println!("   Total cold start:       {:.3}s", total_cold_start_time.as_secs_f64());
+    println!(
+        "   Total cold start:       {:.3}s",
+        total_cold_start_time.as_secs_f64()
+    );
     println!();
 
     // Create shared engine reference for concurrent access
@@ -238,7 +250,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let spawn_time = spawn_start.elapsed();
-        println!("📤 All requests spawned in {:.3}s", spawn_time.as_secs_f64());
+        println!(
+            "📤 All requests spawned in {:.3}s",
+            spawn_time.as_secs_f64()
+        );
         println!();
 
         // Collect results with detailed timing analysis
@@ -261,7 +276,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     // Track first and last completion times for throughput analysis
                     let completion_time = total_start.elapsed();
-                    if first_request_time.is_none() || completion_time < first_request_time.unwrap() {
+                    if first_request_time.is_none() || completion_time < first_request_time.unwrap()
+                    {
                         first_request_time = Some(completion_time);
                     }
                     if last_request_time.is_none() || completion_time > last_request_time.unwrap() {
@@ -285,8 +301,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("========================");
 
         println!("🎯 Overall Results:");
-        println!("   Successful requests: {}/{}", successful_requests, args.concurrent);
-        println!("   Total execution time: {:.3}s", total_duration.as_secs_f64());
+        println!(
+            "   Successful requests: {}/{}",
+            successful_requests, args.concurrent
+        );
+        println!(
+            "   Total execution time: {:.3}s",
+            total_duration.as_secs_f64()
+        );
         println!("   Total tokens generated: {}", total_tokens);
 
         if successful_requests > 0 {
@@ -295,9 +317,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             lock_wait_times.sort_by(|a, b| a.partial_cmp(b).unwrap());
             inference_times.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-            let mean_total = individual_durations.iter().sum::<std::time::Duration>() / individual_durations.len() as u32;
-            let mean_wait = lock_wait_times.iter().sum::<std::time::Duration>() / lock_wait_times.len() as u32;
-            let mean_inference = inference_times.iter().sum::<std::time::Duration>() / inference_times.len() as u32;
+            let mean_total = individual_durations.iter().sum::<std::time::Duration>()
+                / individual_durations.len() as u32;
+            let mean_wait =
+                lock_wait_times.iter().sum::<std::time::Duration>() / lock_wait_times.len() as u32;
+            let mean_inference =
+                inference_times.iter().sum::<std::time::Duration>() / inference_times.len() as u32;
 
             let median_total = individual_durations[individual_durations.len() / 2];
             let median_wait = lock_wait_times[lock_wait_times.len() / 2];
@@ -311,40 +336,82 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("   ┌─ Total per request:");
             println!("   │  Mean:   {:.3}s", mean_total.as_secs_f64());
             println!("   │  Median: {:.3}s", median_total.as_secs_f64());
-            println!("   │  Range:  {:.3}s - {:.3}s", individual_durations[0].as_secs_f64(), individual_durations.last().unwrap().as_secs_f64());
+            println!(
+                "   │  Range:  {:.3}s - {:.3}s",
+                individual_durations[0].as_secs_f64(),
+                individual_durations.last().unwrap().as_secs_f64()
+            );
             println!("   │");
             println!("   ├─ Lock wait time (concurrency overhead):");
-            println!("   │  Mean:   {:.3}s ({:.1}% of total)", mean_wait.as_secs_f64(), (mean_wait.as_secs_f64() / mean_total.as_secs_f64()) * 100.0);
+            println!(
+                "   │  Mean:   {:.3}s ({:.1}% of total)",
+                mean_wait.as_secs_f64(),
+                (mean_wait.as_secs_f64() / mean_total.as_secs_f64()) * 100.0
+            );
             println!("   │  Median: {:.3}s", median_wait.as_secs_f64());
             println!("   │");
             println!("   └─ Pure inference time (PGO optimizes this):");
-            println!("      Mean:   {:.3}s ({:.1}% of total)", mean_inference.as_secs_f64(), (mean_inference.as_secs_f64() / mean_total.as_secs_f64()) * 100.0);
+            println!(
+                "      Mean:   {:.3}s ({:.1}% of total)",
+                mean_inference.as_secs_f64(),
+                (mean_inference.as_secs_f64() / mean_total.as_secs_f64()) * 100.0
+            );
             println!("      Median: {:.3}s", median_inference.as_secs_f64());
 
             println!();
             println!("🚀 Throughput Analysis:");
-            println!("   First request completed: {:.3}s", first_completion.as_secs_f64());
-            println!("   Last request completed:  {:.3}s", last_completion.as_secs_f64());
-            println!("   Average tokens/sec:      {:.1}", total_tokens as f64 / total_duration.as_secs_f64());
-            println!("   Requests/sec:            {:.1}", successful_requests as f64 / total_duration.as_secs_f64());
+            println!(
+                "   First request completed: {:.3}s",
+                first_completion.as_secs_f64()
+            );
+            println!(
+                "   Last request completed:  {:.3}s",
+                last_completion.as_secs_f64()
+            );
+            println!(
+                "   Average tokens/sec:      {:.1}",
+                total_tokens as f64 / total_duration.as_secs_f64()
+            );
+            println!(
+                "   Requests/sec:            {:.1}",
+                successful_requests as f64 / total_duration.as_secs_f64()
+            );
 
             // Performance insights for PGO analysis
-            let inference_percentage = (mean_inference.as_secs_f64() / mean_total.as_secs_f64()) * 100.0;
+            let inference_percentage =
+                (mean_inference.as_secs_f64() / mean_total.as_secs_f64()) * 100.0;
             let wait_percentage = (mean_wait.as_secs_f64() / mean_total.as_secs_f64()) * 100.0;
 
             println!();
             println!("💡 PGO Optimization Insights:");
             if inference_percentage > 50.0 {
-                println!("   ✅ Good PGO target: {:.1}% of time spent in pure inference", inference_percentage);
+                println!(
+                    "   ✅ Good PGO target: {:.1}% of time spent in pure inference",
+                    inference_percentage
+                );
                 println!("      PGO should show meaningful improvements here");
             } else {
-                println!("   ⚠️  Limited PGO benefit: only {:.1}% of time in pure inference", inference_percentage);
-                println!("      Most time spent on concurrency overhead ({:.1}%) or I/O", wait_percentage);
+                println!(
+                    "   ⚠️  Limited PGO benefit: only {:.1}% of time in pure inference",
+                    inference_percentage
+                );
+                println!(
+                    "      Most time spent on concurrency overhead ({:.1}%) or I/O",
+                    wait_percentage
+                );
             }
 
             let total_cpu_time = mean_inference.as_secs_f64() * successful_requests as f64;
-            println!("   📈 Total CPU inference time: {:.3}s (vs {:.3}s wall time)", total_cpu_time, total_duration.as_secs_f64());
-            println!("   📊 Parallelism efficiency: {:.1}% ({:.1}x speedup)", (total_cpu_time / total_duration.as_secs_f64()) * 100.0, total_cpu_time / total_duration.as_secs_f64());
+            println!(
+                "   📈 Total CPU inference time: {:.3}s (vs {:.3}s wall time)",
+                total_cpu_time,
+                total_duration.as_secs_f64()
+            );
+            println!(
+                "   📊 Parallelism efficiency: {:.1}% ({:.1}x speedup)",
+                (total_cpu_time / total_duration.as_secs_f64()) * 100.0,
+                total_cpu_time / total_duration.as_secs_f64()
+            );
         }
     }
 
