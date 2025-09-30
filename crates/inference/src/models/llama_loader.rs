@@ -1,40 +1,38 @@
 //! Llama model loader using the official burn-llama implementation
+//!
+//! NOTE: This entire module is currently disabled since Burn framework
+//! support has been temporarily removed due to compilation issues.
 
-#[cfg(feature = "burn-cpu")]
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "burn-cpu")]
-use std::error::Error;
-#[cfg(feature = "burn-cpu")]
-use std::path::Path;
-#[cfg(feature = "burn-cpu")]
-use tracing::{info, warn};
 
+// NOTE: These imports are commented out since their functions are disabled
+// use std::error::Error;
+// use std::path::Path;
+// use tracing::{info, warn};
+
+// All Burn-related imports commented out since Burn is disabled
+/*
 // CPU backend imports
-#[cfg(feature = "burn-cpu")]
 use burn::{backend::ndarray::NdArray, tensor::Device};
 
 // CUDA backend imports
 
-#[cfg(feature = "burn-cpu")]
 use llama_burn::llama::{Llama, LlamaConfig};
 
-#[cfg(feature = "burn-cpu")]
 use llama_burn::tokenizer::SentiencePieceTokenizer;
 
-#[cfg(feature = "burn-cpu")]
 use burn::record::FullPrecisionSettings;
-#[cfg(feature = "burn-cpu")]
 use burn_import::safetensors::{LoadArgs, SafetensorsFileRecorder};
-#[cfg(feature = "burn-cpu")]
 use safetensors::SafeTensors;
 
 // Backend type aliases
-#[cfg(feature = "burn-cpu")]
 type Backend = NdArray<f32>;
+*/
 
+// Burn model loading functions commented out since Burn is disabled
+/*
 /// Load Llama model with pre-trained weights from `SafeTensors`
 /// Supports dynamic configuration loading from config.json
-#[cfg(all(feature = "burn-cpu", feature = "pretrained"))]
 pub fn load_llama_weights(
     model_path: &Path,
     device: &Device<Backend>,
@@ -42,12 +40,29 @@ pub fn load_llama_weights(
     println!("  Loading pre-trained Llama model with real weights...");
 
     // Check if we have the required files
-    let weights_path = model_path.join("model.safetensors");
     let tokenizer_path = model_path.join("tokenizer.json");
 
-    if !weights_path.exists() {
-        return Err(format!("SafeTensors file not found: {}", weights_path.display()).into());
+    // Check for model files - either single or sharded
+    let has_single_model = model_path.join("model.safetensors").exists();
+    let has_sharded_model = model_path.join("model.safetensors.index.json").exists();
+
+    if !has_single_model && !has_sharded_model {
+        return Err(format!(
+            "No SafeTensors model files found in {}. Expected either 'model.safetensors' or sharded model files with 'model.safetensors.index.json'",
+            model_path.display()
+        ).into());
     }
+
+    // For now, this loader only supports single model files
+    // TODO: Add support for sharded models
+    if !has_single_model {
+        return Err(format!(
+            "This model uses sharded weights which are not yet supported by the Llama loader. Found index file: {}",
+            model_path.join("model.safetensors.index.json").display()
+        ).into());
+    }
+
+    let weights_path = model_path.join("model.safetensors");
 
     // Check if tokenizer exists, create a minimal fallback if not
     if !tokenizer_path.exists() {
@@ -123,7 +138,6 @@ pub fn load_llama_weights(
 }
 
 // Helper function to load SafeTensors weights using burn-import
-#[cfg(all(feature = "burn-cpu", feature = "pretrained"))]
 fn load_safetensors_weights(
     weights_path: &Path,
     _model: &Llama<Backend, SentiencePieceTokenizer>,
@@ -243,7 +257,7 @@ fn load_safetensors_weights(
     }
 
     // Summary of current state
-    println!("🚧 Current implementation status:");
+    println!("Current implementation status:");
     println!("     SafeTensors file parsing works");
     println!("     Manual weight mapping to llama-burn model not yet implemented");
     println!("     Model will use Xavier/He initialized weights for now");
@@ -257,9 +271,9 @@ fn load_safetensors_weights(
 
     Ok(())
 }
+*/
 
 /// `HuggingFace` model configuration structure from config.json
-#[cfg(feature = "burn-cpu")]
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct HuggingFaceConfig {
     pub hidden_size: Option<u32>,
@@ -275,8 +289,9 @@ struct HuggingFaceConfig {
     pub model_type: Option<String>,
 }
 
+// Burn model configuration loading commented out since Burn is disabled
+/*
 /// Load model configuration from config.json or use defaults
-#[cfg(feature = "burn-cpu")]
 pub fn load_model_config(
     model_path: &Path,
     tokenizer_path: &str,
@@ -343,23 +358,6 @@ pub fn load_model_config(
         })
     }
 }
+*/
 
-/// Fallback for when pretrained feature is not available
-#[cfg(all(feature = "burn-cpu", not(feature = "pretrained")))]
-pub fn load_llama_weights(
-    model_path: &Path,
-    device: &Device<Backend>,
-) -> Result<Llama<Backend, SentiencePieceTokenizer>, Box<dyn Error>> {
-    println!("   Loading Llama with random weights (pretrained feature not enabled)");
-
-    let tokenizer_path = model_path.join("tokenizer.json");
-    let effective_tokenizer_path = tokenizer_path.to_str().unwrap().to_string();
-
-    // Load configuration from config.json or use defaults
-    let config = load_model_config(model_path, &effective_tokenizer_path)?;
-
-    // Initialize the model with random weights
-    let model = config.init::<Backend, SentiencePieceTokenizer>(device)?;
-
-    Ok(model)
-}
+// All Burn-related functionality commented out since Burn is disabled

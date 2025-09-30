@@ -3,5 +3,6 @@
 pub mod llama_loader;
 pub mod tests;
 
-#[cfg(feature = "burn-cpu")]
-pub use llama_loader::load_llama_weights;
+// NOTE: load_llama_weights is currently commented out in llama_loader.rs
+// TODO: Re-enable when Burn framework support is restored
+// pub use llama_loader::load_llama_weights;

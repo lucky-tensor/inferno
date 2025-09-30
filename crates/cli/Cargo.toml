@@ -8,10 +8,10 @@ repository.workspace = true
 description = "Unified command-line interface for Inferno distributed systems"
 
 [dependencies]
-inferno-shared = { path = "../shared" }
-inferno-proxy = { path = "../proxy" }
-inferno-backend = { path = "../backend" }
-inferno-governator = { path = "../governator" }
+inferno-shared = { workspace = true }
+inferno-proxy = { workspace = true }
+inferno-backend = { workspace = true }
+inferno-governator = { workspace = true }
 
 # Core dependencies
 tokio = { workspace = true }
@@ -20,31 +20,31 @@ tracing-subscriber = { workspace = true }
 serde = { workspace = true }
 
 # Download functionality dependencies
-anyhow = "1.0"
-git2 = "0.19"
-reqwest = { workspace = true, features = ["stream"] }
-futures-util = "0.3"
-sha2 = "0.10"
-hex = "0.4"
-indicatif = "0.17"
-hf-hub = { workspace = true, features = ["tokio"] }
+anyhow = { workspace = true }
+git2 = { workspace = true }
+reqwest = { workspace = true }
+futures-util = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+indicatif = { workspace = true }
+hf-hub = { workspace = true }
 
 # Doctor command dependencies
-sysinfo = "0.30"
-regex = "1.10"
+sysinfo = { workspace = true }
+regex = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
-walkdir = "2.4"
+walkdir = { workspace = true }
 
 # Play mode dependencies
-rustyline = "14.0"
-inferno-inference = { path = "../inference" }
+rustyline = { workspace = true }
+inferno-inference = { workspace = true }
 tracing = { workspace = true }
-rand = "0.8"
+rand = { workspace = true }
 
 [dev-dependencies]
 tokio-test = { workspace = true }
-tempfile = "3.8"
+tempfile = { workspace = true }
 
 [features]
 default = ["candle-cuda", "pretrained"]

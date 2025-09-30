@@ -25,11 +25,6 @@ pub enum InferenceError {
     IoError(String),
 }
 
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 impl From<candle_core::Error> for InferenceError {
     fn from(error: candle_core::Error) -> Self {
         Self::ProcessingError(format!("Candle error: {}", error))
@@ -144,10 +139,8 @@ pub enum EngineType {
     /// Candle framework with CPU backend
     CandleCpu,
     /// Candle framework with CUDA backend
-    #[cfg(feature = "candle-cuda")]
     CandleCuda,
     /// Candle framework with Metal backend
-    #[cfg(feature = "candle-metal")]
     CandleMetal,
 }
 
@@ -156,9 +149,7 @@ impl std::fmt::Display for EngineType {
         match self {
             Self::BurnCpu => write!(f, "Burn-CPU"),
             Self::CandleCpu => write!(f, "Candle-CPU"),
-            #[cfg(feature = "candle-cuda")]
             Self::CandleCuda => write!(f, "Candle-CUDA"),
-            #[cfg(feature = "candle-metal")]
             Self::CandleMetal => write!(f, "Candle-Metal"),
         }
     }

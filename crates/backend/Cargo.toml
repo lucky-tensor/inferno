@@ -8,8 +8,8 @@ repository.workspace = true
 description = "AI inference backend component of Inferno distributed systems"
 
 [dependencies]
-inferno-shared = { path = "../shared" }
-inferno-inference = { path = "../inference", optional = true }
+inferno-shared = { workspace = true }
+inferno-inference = { workspace = true, optional = true }
 
 # Core dependencies
 tokio = { workspace = true }
@@ -18,10 +18,10 @@ tracing = { workspace = true }
 clap = { workspace = true }
 reqwest = { workspace = true }
 serde_json = { workspace = true }
-hyper = { version = "1.0", features = ["full"] }
-hyper-util = { version = "0.1", features = ["full"] }
-http-body-util = "0.1"
-bytes = "1.0"
+hyper-v1 = { workspace = true }
+hyper-util = { workspace = true }
+http-body-util = { workspace = true }
+bytes = { workspace = true }
 
 [dev-dependencies]
 tokio-test = { workspace = true }

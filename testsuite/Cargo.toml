@@ -9,17 +9,17 @@ description = "Test suite for Inferno distributed systems"
 publish = false
 
 [dependencies]
-inferno-proxy = { path = "../crates/proxy" }
-inferno-backend = { path = "../crates/backend" }
-inferno-shared = { path = "../crates/shared" }
+inferno-proxy = { workspace = true }
+inferno-backend = { workspace = true }
+inferno-shared = { workspace = true }
 
 tokio = { workspace = true }
 serde_json = { workspace = true }
 reqwest = { workspace = true }
 wiremock = { workspace = true }
 tracing-subscriber = { workspace = true }
-rand = "0.8"
-libc = "0.2"
+rand = { workspace = true }
+libc = { workspace = true }
 
 [[test]]
 name = "proxy_backend_e2e"

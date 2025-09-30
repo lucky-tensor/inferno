@@ -98,24 +98,15 @@ impl GpuAllocator for CudaMemoryPool {
                 allocation_id,
             })
         } else {
-            // GPU allocation would be implemented here with CUDA
-            #[cfg(not(feature = "candle-cuda"))]
-            {
-                Err(crate::error::InfernoError::CudaNotAvailable)
-            }
+            // GPU allocation - TODO: Implement actual CUDA allocation using cudarc
+            let allocation_id = self.allocation_counter.fetch_add(1, Ordering::SeqCst);
 
-            #[cfg(feature = "candle-cuda")]
-            {
-                // TODO: Implement actual CUDA allocation using cudarc
-                let allocation_id = self.allocation_counter.fetch_add(1, Ordering::SeqCst);
-
-                Ok(DeviceMemory {
-                    ptr: std::ptr::null_mut(), // Would be actual CUDA ptr
-                    size,
-                    device_id: self.device_id,
-                    allocation_id,
-                })
-            }
+            Ok(DeviceMemory {
+                ptr: std::ptr::null_mut(), // Would be actual CUDA ptr
+                size,
+                device_id: self.device_id,
+                allocation_id,
+            })
         }
     }
 
@@ -145,20 +136,11 @@ impl GpuAllocator for CudaMemoryPool {
                 std::alloc::dealloc(memory.ptr.cast::<u8>(), layout);
             }
         } else {
-            // GPU deallocation would be implemented here
-            #[cfg(not(feature = "candle-cuda"))]
-            {
-                return Err(crate::error::InfernoError::CudaNotAvailable);
-            }
-
-            #[cfg(feature = "candle-cuda")]
-            {
-                // TODO: Implement actual CUDA deallocation
-                tracing::debug!(
-                    "Deallocating GPU memory: allocation_id={}",
-                    memory.allocation_id
-                );
-            }
+            // GPU deallocation - TODO: Implement actual CUDA deallocation
+            tracing::debug!(
+                "Deallocating GPU memory: allocation_id={}",
+                memory.allocation_id
+            );
         }
 
         Ok(())
@@ -175,21 +157,12 @@ impl GpuAllocator for CudaMemoryPool {
             // CPU memory stats (simplified)
             stats.total_memory_bytes = 8 * 1024 * 1024 * 1024; // Assume 8GB RAM
             stats.utilization_percentage = 0.5; // Placeholder
-            stats.num_allocations = self.allocation_counter.load(Ordering::SeqCst) as usize;
         } else {
-            #[cfg(not(feature = "candle-cuda"))]
-            {
-                return Err(crate::error::InfernoError::CudaNotAvailable);
-            }
-
-            #[cfg(feature = "candle-cuda")]
-            {
-                // TODO: Get actual CUDA memory stats using cudarc
-                stats.total_memory_bytes = 12 * 1024 * 1024 * 1024; // Placeholder: 12GB GPU
-                stats.utilization_percentage = 0.3; // Placeholder
-                stats.num_allocations = self.allocation_counter.load(Ordering::SeqCst) as usize;
-            }
+            // TODO: Get actual CUDA memory stats using cudarc
+            stats.total_memory_bytes = 12 * 1024 * 1024 * 1024; // Placeholder: 12GB GPU
+            stats.utilization_percentage = 0.3; // Placeholder
         }
+        stats.num_allocations = self.allocation_counter.load(Ordering::SeqCst) as usize;
 
         Ok(stats)
     }

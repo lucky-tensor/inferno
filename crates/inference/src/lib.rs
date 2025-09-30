@@ -90,8 +90,8 @@ pub use inference::{
     create_engine, create_math_test_request, InferenceEngine, InferenceRequest, InferenceResponse,
 };
 
-#[cfg(feature = "burn-cpu")]
-pub use inference::BurnInferenceEngine;
+// BurnInferenceEngine temporarily disabled due to upstream Burn compilation issues
+// pub use inference::BurnInferenceEngine;
 
 pub use server::InfernoServer;
 pub use service::InfernoServiceRegistration;

@@ -86,4 +86,3 @@ jobs:
         # Build with verbose output to catch any compilation issues
         cargo build --release --features candle-cuda --verbose
 
-

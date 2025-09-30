@@ -2,8 +2,11 @@
 //! This test shows real model inference with quality output
 
 use inferno_inference::config::InfernoConfig;
+
 use inferno_inference::inference::{BurnInferenceEngine, InferenceRequest};
+
 use std::env;
+
 use std::time::Instant;
 
 #[tokio::test]

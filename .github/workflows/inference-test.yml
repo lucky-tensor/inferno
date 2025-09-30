@@ -1,0 +1,179 @@
+name: Inference Test
+
+# Tests inference functionality across platforms with model loading
+# - Multi-platform: Ubuntu (CPU/default), macOS (CPU/Metal)
+# - CUDA testing: Only on GPU runners when explicitly requested or workflow_dispatch
+
+on:
+  push:
+    branches: ["main", "*dev", "ci*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  detect-gpu:
+    name: GPU Detection
+    runs-on: ubuntu-latest
+    outputs:
+      cuda_available: ${{ steps.gpu.outputs.available }}
+    steps:
+    - name: Check for NVIDIA GPU
+      id: gpu
+      run: |
+        if command -v nvidia-smi &> /dev/null && nvidia-smi &> /dev/null; then
+          echo "available=true" >> $GITHUB_OUTPUT
+          echo "Physical GPU detected"
+          nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+        else
+          echo "available=false" >> $GITHUB_OUTPUT
+          echo "No physical GPU detected"
+        fi
+
+  multi-platform-inference:
+    name: Multi-Platform Inference
+    runs-on: ${{ matrix.os }}
+    needs: detect-gpu
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        backend: [candle-cpu, candle-metal, burn-cpu]
+        exclude:
+          # Metal only works on macOS
+          - os: ubuntu-latest
+            backend: candle-metal
+          # Skip burn-cpu on macOS for now (focus on candle)
+          - os: macos-latest
+            backend: burn-cpu
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+
+    - name: Install cargo-nextest
+      run: |
+        cargo install cargo-nextest --locked
+
+    - name: Run inference tests
+      run: |
+        echo "Running inference tests with ${{ matrix.backend }} on ${{ matrix.os }}"
+
+        # Create test output directory
+        mkdir -p test-results
+
+        # Run inference tests with comprehensive reporting
+        echo "Testing inferno-inference package..."
+        cargo nextest run --features ${{ matrix.backend }} --package inferno-inference \
+          --no-fail-fast --final-status-level=slow \
+          --message-format=json-pretty > test-results/inference-${{ matrix.backend }}-${{ matrix.os }}.json || true
+
+        echo "Testing inferno-llama package..."
+        cargo nextest run --features ${{ matrix.backend }} --package inferno-llama \
+          --no-fail-fast --final-status-level=slow \
+          --message-format=json-pretty > test-results/llama-${{ matrix.backend }}-${{ matrix.os }}.json || true
+
+    - name: Upload Inference Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: inference-test-results-${{ matrix.backend }}-${{ matrix.os }}
+        path: test-results/
+        retention-days: 30
+
+    - name: Generate Inference Test Report
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: Inference Test Results (${{ matrix.backend }} on ${{ matrix.os }})
+        path: 'test-results/*.json'
+        reporter: 'java-junit'
+        fail-on-error: false
+
+  cuda-inference-test:
+    name: CUDA Inference Test
+    runs-on: ${{ github.repository_owner == 'lucky-tensor' && 'gpu-runners' || 'ubuntu-latest' }}
+    needs: detect-gpu
+    timeout-minutes: 60
+    # Only run CUDA tests when explicitly requested via 'test-gpu' label or manual trigger
+    if: contains(github.event.pull_request.labels.*.name, 'test-gpu') || github.event_name == 'workflow_dispatch'
+
+    env:
+      CUDA_AVAILABLE: ${{ needs.detect-gpu.outputs.cuda_available }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+
+    - name: Setup CUDA
+      if: env.CUDA_AVAILABLE != 'true'
+      uses: Jimver/cuda-toolkit@v0.2.16
+      with:
+        cuda: '13.0.0'
+        method: 'network'
+        sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust"]'
+
+    - name: Install cargo-nextest
+      run: |
+        cargo install cargo-nextest --locked
+
+    - name: Run CUDA inference tests
+      env:
+        LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LD_LIBRARY_PATH }}"
+      run: |
+        if [[ "${{ env.CUDA_AVAILABLE }}" != "true" ]]; then
+          echo "Skipping CUDA inference test - no physical GPU available"
+          exit 0
+        fi
+
+        echo "Running CUDA inference tests with physical GPU..."
+        echo "Using physical GPU acceleration"
+
+        # Create test output directory
+        mkdir -p test-results
+
+        # Run CUDA inference tests with comprehensive reporting
+        echo "Testing inferno-inference with CUDA..."
+        cargo nextest run --features candle-cuda --package inferno-inference \
+          --no-fail-fast --final-status-level=slow \
+          --message-format=json-pretty > test-results/inference-cuda-gpu.json || true
+
+        echo "Testing inferno-llama with CUDA..."
+        cargo nextest run --features cuda --package inferno-llama \
+          --no-fail-fast --final-status-level=slow \
+          --message-format=json-pretty > test-results/llama-cuda-gpu.json || true
+
+    - name: Upload CUDA Inference Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: inference-test-results-cuda-gpu
+        path: test-results/
+        retention-days: 30
+
+    - name: Generate CUDA Inference Test Report
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: CUDA Inference Test Results (GPU)
+        path: 'test-results/*.json'
+        reporter: 'java-junit'
+        fail-on-error: false

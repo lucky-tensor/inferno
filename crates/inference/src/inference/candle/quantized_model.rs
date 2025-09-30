@@ -78,23 +78,7 @@
 use crate::inference::InferenceError;
 use serde::{Deserialize, Serialize};
 
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 use candle_core::{Device, Tensor};
-
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 use safetensors::SafeTensors;
 
 /// Configuration for compressed-tensors quantization
@@ -184,11 +168,6 @@ impl QuantizedModelConfig {
 }
 
 /// Runtime quantized tensor that preserves INT8 weights in memory
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 #[derive(Debug, Clone)]
 pub struct QuantizedTensor {
     /// INT8 weight data
@@ -219,11 +198,6 @@ pub enum QuantizationScheme {
 }
 
 /// Runtime quantized matrix multiplication operations
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 impl QuantizedTensor {
     /// Create a new quantized tensor from INT8 data
     pub fn new(
@@ -272,26 +246,24 @@ impl QuantizedTensor {
         activation_scale: f32,
         activation_zero_point: i8,
     ) -> Result<Tensor, InferenceError> {
-        #[cfg(feature = "candle-cuda")]
-        {
-            // Use proper cuBLAS INT8 GEMM
-            self.cuda_cublas_i8_gemm(input_activations, activation_scale, activation_zero_point)
-        }
-        #[cfg(not(feature = "candle-cuda"))]
-        {
-            // Fallback for non-CUDA builds
-            self.fallback_dequantized_matmul(
-                input_activations,
-                activation_scale,
-                activation_zero_point,
+        // Try CUDA optimization first, fallback to CPU implementation
+        self.cuda_cublas_i8_gemm(input_activations, activation_scale, activation_zero_point)
+            .map_or_else(
+                |_| {
+                    // Fallback for when CUDA is not available or fails
+                    self.fallback_dequantized_matmul(
+                        input_activations,
+                        activation_scale,
+                        activation_zero_point,
+                    )
+                },
+                Ok,
             )
-        }
     }
 
     /// TRUE cuBLAS INT8 GEMM implementation using Tensor Cores
     ///
     /// This uses actual INT8 x INT8 -> INT32 cuBLAS operations for maximum performance
-    #[cfg(feature = "candle-cuda")]
     fn cuda_cublas_i8_gemm(
         &self,
         input_activations: &Tensor,
@@ -332,7 +304,6 @@ impl QuantizedTensor {
     }
 
     /// GPU-accelerated dequantization and scaling
-    #[cfg(feature = "candle-cuda")]
     fn gpu_accelerated_dequantization(
         &self,
         int32_result: Vec<i32>,
@@ -711,11 +682,6 @@ impl QuantizedTensor {
 }
 
 /// Variable builder for quantized tensors - provides access to INT8 weights
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 pub struct QuantizedVarBuilder {
     /// Storage for quantized tensors by name
     pub tensors: std::collections::HashMap<String, QuantizedTensor>,
@@ -723,11 +689,6 @@ pub struct QuantizedVarBuilder {
     pub device: Device,
 }
 
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 impl QuantizedVarBuilder {
     /// Get a quantized tensor by name
     pub fn get_quantized_tensor(&self, name: &str) -> Option<&QuantizedTensor> {
@@ -816,21 +777,11 @@ impl QuantizedVarBuilder {
 }
 
 /// Native Rust compressed-tensors loader for w8a8 quantization
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 pub struct CompressedTensorsLoader {
     device: Device,
     config: QuantizedModelConfig,
 }
 
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 impl CompressedTensorsLoader {
     pub fn new(device: Device, config: QuantizedModelConfig) -> Self {
         Self { device, config }
@@ -910,19 +861,28 @@ impl CompressedTensorsLoader {
         ),
         InferenceError,
     > {
-        let safetensors_path = std::path::Path::new(model_path).join("model.safetensors");
+        let model_dir = std::path::Path::new(model_path);
+        let single_model_path = model_dir.join("model.safetensors");
+        let sharded_index_path = model_dir.join("model.safetensors.index.json");
 
-        if !safetensors_path.exists() {
+        if !single_model_path.exists() && !sharded_index_path.exists() {
             return Err(InferenceError::InitializationError(format!(
-                "SafeTensors file not found: {}",
-                safetensors_path.display()
+                "No SafeTensors model files found in {}. Expected either 'model.safetensors' or sharded model files with 'model.safetensors.index.json'",
+                model_dir.display()
             )));
+        }
+
+        // For now, only support single model files for quantized models
+        if !single_model_path.exists() {
+            return Err(InferenceError::InitializationError(
+                "Quantized sharded models are not yet supported. Please use a single model.safetensors file.".to_string()
+            ));
         }
 
         tracing::info!("  Loading compressed-tensors model with runtime quantized inference (INT8 preservation)");
 
         // Load the SafeTensors file
-        let buffer = tokio::fs::read(&safetensors_path).await.map_err(|e| {
+        let buffer = tokio::fs::read(&single_model_path).await.map_err(|e| {
             InferenceError::InitializationError(format!("Failed to read SafeTensors: {}", e))
         })?;
 
@@ -1121,7 +1081,7 @@ impl CompressedTensorsLoader {
                         }
                         _ => {
                             tracing::debug!(
-                                "⏭️ Skipping tensor {} with unsupported dtype: {:?}",
+                                "Skipping tensor {} with unsupported dtype: {:?}",
                                 tensor_name,
                                 tensor_info.dtype()
                             );
@@ -1210,7 +1170,7 @@ impl CompressedTensorsLoader {
                     }
                     _ => {
                         tracing::debug!(
-                            "⏭️ Skipping non-weight tensor {} with dtype: {:?}",
+                            "Skipping non-weight tensor {} with dtype: {:?}",
                             tensor_name,
                             tensor_info.dtype()
                         );
@@ -1467,7 +1427,6 @@ mod tests {
             return;
         }
 
-        #[cfg(feature = "candle-cpu")]
         {
             use candle_core::Device;
 
@@ -1502,7 +1461,6 @@ mod tests {
 
     #[test]
     fn test_dequantization_logic() {
-        #[cfg(feature = "candle-cpu")]
         {
             use candle_core::Device;
 

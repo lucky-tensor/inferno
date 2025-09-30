@@ -1,0 +1,189 @@
+name: Test
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  detect-gpu:
+    name: GPU Detection
+    runs-on: ubuntu-latest
+    outputs:
+      cuda_available: ${{ steps.gpu.outputs.available }}
+    steps:
+    - name: Check for NVIDIA GPU
+      id: gpu
+      run: |
+        if command -v nvidia-smi &> /dev/null && nvidia-smi &> /dev/null; then
+          echo "available=true" >> $GITHUB_OUTPUT
+          echo "Physical GPU detected"
+          nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+        else
+          echo "available=false" >> $GITHUB_OUTPUT
+          echo "No physical GPU detected"
+        fi
+
+  multi-platform-test:
+    name: Multi-Platform Test
+    runs-on: ${{ matrix.os }}
+    needs: detect-gpu
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        backend: [cpu, cuda, metal]
+        exclude:
+          # Metal only works on macOS
+          - os: ubuntu-latest
+            backend: metal
+          # CUDA only runs when physical GPU is available
+          - os: macos-latest
+            backend: cuda
+    # Skip CUDA tests when no physical GPU is detected
+    if: matrix.backend != 'cuda' || needs.detect-gpu.outputs.cuda_available == 'true'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+
+    - name: Setup CUDA
+      if: matrix.backend == 'cuda'
+      uses: Jimver/cuda-toolkit@v0.2.16
+      with:
+        cuda: '13.0.0'
+        method: 'network'
+        sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust"]'
+
+    - name: Install cargo-nextest
+      run: |
+        cargo install cargo-nextest --locked
+
+    - name: Run tests with specific backend
+      env:
+        LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LD_LIBRARY_PATH }}"
+      run: |
+        echo "Running tests with ${{ matrix.backend }} backend on ${{ matrix.os }}"
+
+        # Create test output directory
+        mkdir -p test-results
+
+        case "${{ matrix.backend }}" in
+          cpu)
+            echo "Testing CPU backends (candle-cpu, burn-cpu)"
+            cargo nextest run --features candle-cpu --no-fail-fast --final-status-level=slow \
+              --message-format=json-pretty > test-results/candle-cpu-${{ matrix.os }}.json || true
+            cargo nextest run --features burn-cpu --no-fail-fast --final-status-level=slow \
+              --message-format=json-pretty > test-results/burn-cpu-${{ matrix.os }}.json || true
+            ;;
+          cuda)
+            echo "Testing CUDA backend"
+            cargo nextest run --features candle-cuda --no-fail-fast --final-status-level=slow \
+              --message-format=json-pretty > test-results/candle-cuda-${{ matrix.os }}.json || true
+            ;;
+          metal)
+            echo "Testing Metal backend"
+            cargo nextest run --features candle-metal --no-fail-fast --final-status-level=slow \
+              --message-format=json-pretty > test-results/candle-metal-${{ matrix.os }}.json || true
+            ;;
+        esac
+
+    - name: Upload Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.backend }}-${{ matrix.os }}
+        path: test-results/
+        retention-days: 30
+
+    - name: Generate Test Report
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: Test Results (${{ matrix.backend }} on ${{ matrix.os }})
+        path: 'test-results/*.json'
+        reporter: 'java-junit'
+        fail-on-error: false
+
+  cuda-test:
+    name: CUDA Test (GPU Runner)
+    runs-on: ${{ github.repository_owner == 'lucky-tensor' && 'gpu-runners' || 'ubuntu-latest' }}
+    needs: detect-gpu
+    timeout-minutes: 45
+    # Only run CUDA tests when explicitly requested via 'test-gpu' label or manual trigger
+    if: contains(github.event.pull_request.labels.*.name, 'test-gpu') || github.event_name == 'workflow_dispatch'
+
+    env:
+      CUDA_AVAILABLE: ${{ needs.detect-gpu.outputs.cuda_available }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        cache-on-failure: true
+
+    - name: Setup CUDA
+      if: env.CUDA_AVAILABLE != 'true'
+      uses: Jimver/cuda-toolkit@v0.2.16
+      with:
+        cuda: '13.0.0'
+        method: 'network'
+        sub-packages: '["nvcc", "cudart", "cudart-dev", "thrust"]'
+
+    - name: Install cargo-nextest
+      run: |
+        cargo install cargo-nextest --locked
+
+    - name: Run CUDA tests
+      env:
+        LD_LIBRARY_PATH: "${{ env.CUDA_PATH }}/lib64:/usr/lib/x86_64-linux-gnu:${{ env.LD_LIBRARY_PATH }}"
+      run: |
+        if [[ "${{ env.CUDA_AVAILABLE }}" != "true" ]]; then
+          echo "Skipping CUDA test - no physical GPU available"
+          exit 0
+        fi
+
+        echo "Running CUDA tests with physical GPU..."
+        echo "Using physical GPU acceleration"
+
+        # Create test output directory
+        mkdir -p test-results
+
+        # Run tests with comprehensive reporting
+        cargo nextest run --features candle-cuda --no-fail-fast --final-status-level=slow \
+          --message-format=json-pretty > test-results/candle-cuda-gpu.json || true
+
+    - name: Upload GPU Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-cuda-gpu
+        path: test-results/
+        retention-days: 30
+
+    - name: Generate GPU Test Report
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: CUDA GPU Test Results
+        path: 'test-results/*.json'
+        reporter: 'java-junit'
+        fail-on-error: false

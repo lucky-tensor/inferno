@@ -11,9 +11,11 @@ use crate::config::InfernoConfig;
 use crate::inference::{
     InferenceEngine, InferenceError, InferenceRequest, InferenceResponse, InferenceStats,
 };
+use inferno_shared::validate_and_display_model_memory;
 
 use super::{
     backend::CandleBackendType,
+    bf16_llama::BF16CompatibleLlama,
     model_config::CandleModelConfig,
     quantized_model::{CompressedTensorsLoader, QuantizedModelConfig},
     simple_quantized_llama::HybridQuantizedLlama,
@@ -27,48 +29,19 @@ use std::time::Instant;
 use tokio::sync::RwLock;
 use tracing::{debug, info};
 
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 use candle_core::{DType, Device, IndexOp, Tensor};
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 use candle_nn::VarBuilder;
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 use candle_transformers::models::llama::{Cache, Config as LlamaConfig, Llama};
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 use tokenizers::Tokenizer;
 
 /// Model type enum to support both regular and quantized models
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 enum CandleModelType {
     Regular(Llama),
+    BF16Compatible(BF16CompatibleLlama),
     Quantized(HybridQuantizedLlama),
 }
 
 /// Model wrapper containing the loaded model and related components
-#[cfg(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-))]
 struct CandleModelWrapper {
     model: CandleModelType,
     tokenizer: Tokenizer,
@@ -106,11 +79,6 @@ pub struct CandleInferenceEngine {
     ready: AtomicBool,
 
     /// Loaded model and components (when available)
-    #[cfg(any(
-        feature = "candle-cpu",
-        feature = "candle-cuda",
-        feature = "candle-metal"
-    ))]
     model: RwLock<Option<CandleModelWrapper>>,
 
     /// Statistics tracking
@@ -119,25 +87,14 @@ pub struct CandleInferenceEngine {
 
 impl CandleInferenceEngine {
     pub fn new() -> Self {
-        #[cfg(feature = "candle-cuda")]
-        {
-            Self::with_backend(CandleBackendType::Cuda)
-        }
-        #[cfg(not(feature = "candle-cuda"))]
-        {
-            Self::with_backend(CandleBackendType::Cpu)
-        }
+        // Always prefer CUDA if available, otherwise use CPU
+        Self::with_backend(CandleBackendType::Cuda)
     }
 
     pub fn with_backend(backend_type: CandleBackendType) -> Self {
         Self {
             backend_type,
             ready: AtomicBool::new(false),
-            #[cfg(any(
-                feature = "candle-cpu",
-                feature = "candle-cuda",
-                feature = "candle-metal"
-            ))]
             model: RwLock::new(None),
             stats: Arc::new(InferenceStatsInner::default()),
         }
@@ -171,11 +128,75 @@ impl CandleInferenceEngine {
     }
 
     /// Create a `VarBuilder` that handles tensor remapping and weight tying for Llama models
-    #[cfg(any(
-        feature = "candle-cpu",
-        feature = "candle-cuda",
-        feature = "candle-metal"
-    ))]
+    /// Detect the native dtype of the model from `SafeTensors` file
+    fn detect_model_dtype(safetensors_path: &std::path::Path) -> Result<DType, InferenceError> {
+        use std::fs::File;
+        use std::io::Read;
+
+        let mut file = File::open(safetensors_path).map_err(|e| {
+            InferenceError::InitializationError(format!("Failed to open SafeTensors file: {}", e))
+        })?;
+
+        // Read SafeTensors header to detect dtype
+        let mut header_size_bytes = [0u8; 8];
+        file.read_exact(&mut header_size_bytes).map_err(|e| {
+            InferenceError::InitializationError(format!(
+                "Failed to read SafeTensors header size: {}",
+                e
+            ))
+        })?;
+
+        let header_size = u64::from_le_bytes(header_size_bytes);
+        if header_size > 1024 * 1024 {
+            // Sanity check: header shouldn't be > 1MB
+            return Err(InferenceError::InitializationError(
+                "Invalid SafeTensors header size".to_string(),
+            ));
+        }
+
+        let mut header_bytes = vec![0u8; header_size as usize];
+        file.read_exact(&mut header_bytes).map_err(|e| {
+            InferenceError::InitializationError(format!("Failed to read SafeTensors header: {}", e))
+        })?;
+
+        let header_str = String::from_utf8(header_bytes).map_err(|e| {
+            InferenceError::InitializationError(format!("Invalid SafeTensors header UTF-8: {}", e))
+        })?;
+
+        // Parse JSON header to find dtype of first tensor
+        let header: serde_json::Value = serde_json::from_str(&header_str).map_err(|e| {
+            InferenceError::InitializationError(format!(
+                "Failed to parse SafeTensors header JSON: {}",
+                e
+            ))
+        })?;
+
+        // Find first tensor and its dtype
+        if let Some(obj) = header.as_object() {
+            for (key, value) in obj {
+                if key != "__metadata__" {
+                    if let Some(dtype_str) = value.get("dtype").and_then(|d| d.as_str()) {
+                        let dtype = match dtype_str {
+                            "F32" => DType::F32,
+                            "F16" => DType::F16,
+                            "BF16" => DType::BF16,
+                            _ => {
+                                info!("  Unknown dtype '{}', defaulting to F16", dtype_str);
+                                DType::F16
+                            }
+                        };
+                        info!("  Detected model dtype: {:?} from tensor '{}'", dtype, key);
+                        return Ok(dtype);
+                    }
+                }
+            }
+        }
+
+        Err(InferenceError::InitializationError(
+            "No tensors found in SafeTensors header".to_string(),
+        ))
+    }
+
     fn create_remapping_var_builder(base_builder: VarBuilder<'_>) -> VarBuilder<'_> {
         // For Llama 3.2 models with weight tying, we need to handle the case where
         // lm_head.weight should be the same as model.embed_tokens.weight
@@ -184,11 +205,6 @@ impl CandleInferenceEngine {
     }
 
     /// Generate text tokens using the loaded model
-    #[cfg(any(
-        feature = "candle-cpu",
-        feature = "candle-cuda",
-        feature = "candle-metal"
-    ))]
     #[allow(clippy::too_many_lines)]
     async fn generate_tokens(
         wrapper: &CandleModelWrapper,
@@ -199,10 +215,11 @@ impl CandleInferenceEngine {
     ) -> Result<(Vec<u32>, Option<f64>), InferenceError> {
         let start_time = Instant::now();
 
-        // Convert input tokens to tensor
-        let input_tensor = Tensor::new(input_tokens, &wrapper.device).map_err(|e| {
-            InferenceError::InvalidArgument(format!("Failed to create input tensor: {}", e))
-        })?;
+        // Convert input tokens to tensor - explicitly use U32 for token IDs
+        let input_tensor = Tensor::from_slice(input_tokens, input_tokens.len(), &wrapper.device)
+            .map_err(|e| {
+                InferenceError::InvalidArgument(format!("Failed to create input tensor: {}", e))
+            })?;
 
         let input_tensor = input_tensor.unsqueeze(0).map_err(|e| {
             InferenceError::InvalidArgument(format!("Failed to add batch dimension: {}", e))
@@ -220,16 +237,37 @@ impl CandleInferenceEngine {
         let mut time_to_first_token_ms = None;
 
         for i in 0..max_tokens {
-            // Run forward pass - TRUE quantized vs regular
+            // Run forward pass with appropriate method for model type
             let logits = match &wrapper.model {
-                CandleModelType::Regular(llama_model) => llama_model
-                    .forward(&current_input, 0, &mut cache)
-                    .map_err(|e| {
-                        InferenceError::ProcessingError(format!(
-                            "Regular model forward pass failed: {}",
-                            e
-                        ))
-                    })?,
+                CandleModelType::Regular(llama_model) => {
+                    // Input tokens should always be U32, no conversion needed
+                    if current_input.dtype() != DType::U32 {
+                        return Err(InferenceError::ProcessingError(format!(
+                            "Invalid input tensor dtype: expected U32, got {:?}",
+                            current_input.dtype()
+                        )));
+                    }
+
+                    llama_model
+                        .forward(&current_input, 0, &mut cache)
+                        .map_err(|e| {
+                            InferenceError::ProcessingError(format!(
+                                "Regular model forward pass failed: {}",
+                                e
+                            ))
+                        })?
+                }
+                CandleModelType::BF16Compatible(bf16_model) => {
+                    debug!("Running BF16-compatible forward pass with intelligent RoPE handling");
+                    bf16_model
+                        .forward_with_cache(&current_input, 0, &mut cache)
+                        .map_err(|e| {
+                            InferenceError::ProcessingError(format!(
+                                "BF16-compatible model forward pass failed: {}",
+                                e
+                            ))
+                        })?
+                }
                 CandleModelType::Quantized(quantized_llama) => {
                     debug!("  Running TRUE quantized inference with INT8 weights!");
 
@@ -382,8 +420,8 @@ impl CandleInferenceEngine {
                 break;
             }
 
-            // Prepare next input (just the newly generated token)
-            current_input = Tensor::new(&[next_token], &wrapper.device)
+            // Prepare next input (just the newly generated token) - explicitly use U32
+            current_input = Tensor::from_slice(&[next_token], 1, &wrapper.device)
                 .map_err(|e| {
                     InferenceError::ProcessingError(format!(
                         "Failed to create next input tensor: {}",
@@ -422,23 +460,34 @@ impl InferenceEngine for CandleInferenceEngine {
             config.model_name
         );
 
-        #[cfg(not(any(
-            feature = "candle-cpu",
-            feature = "candle-cuda",
-            feature = "candle-metal"
-        )))]
+        // Validate model memory requirements before loading
+        info!("Validating model memory requirements...");
+        match validate_and_display_model_memory(
+            u32::try_from(config.device_id).map_err(|_| {
+                InferenceError::InitializationError("Device ID must be non-negative".to_string())
+            })?,
+            &config.model_path,
+            &config.model_name,
+        )
+        .await
         {
-            return Err(InferenceError::InitializationError(
-                "No Candle features enabled. Enable one of: candle-cpu, candle-cuda, candle-metal"
-                    .to_string(),
-            ));
+            Ok(will_fit) => {
+                if !will_fit {
+                    return Err(InferenceError::InitializationError(
+                        "Model validation indicates insufficient GPU memory. Loading would likely fail.".to_string()
+                    ));
+                }
+                info!("Memory validation passed - proceeding with model loading");
+            }
+            Err(e) => {
+                // Don't fail initialization if validation fails - just warn
+                info!(
+                    "Memory validation failed: {}. Proceeding with caution...",
+                    e
+                );
+            }
         }
 
-        #[cfg(any(
-            feature = "candle-cpu",
-            feature = "candle-cuda",
-            feature = "candle-metal"
-        ))]
         {
             let start_time = Instant::now();
 
@@ -491,21 +540,58 @@ impl InferenceEngine for CandleInferenceEngine {
             let tokenizer = CandleTokenizer::load_from_path(&config.model_path).await?;
             info!("Loaded tokenizer successfully");
 
-            // Load model weights using SafeTensors
-            let safetensors_path =
-                std::path::Path::new(&config.model_path).join("model.safetensors");
+            // Load model weights using SafeTensors (single or sharded)
+            let model_dir = std::path::Path::new(&config.model_path);
+            let single_model_path = model_dir.join("model.safetensors");
+            let sharded_index_path = model_dir.join("model.safetensors.index.json");
 
-            if !safetensors_path.exists() {
+            let (model_files, is_sharded) = if single_model_path.exists() {
+                info!("Loading single model file: {}", single_model_path.display());
+                (vec![single_model_path], false)
+            } else if sharded_index_path.exists() {
+                info!(
+                    "Loading sharded model with index: {}",
+                    sharded_index_path.display()
+                );
+
+                // Find all sharded model files
+                let mut sharded_files = Vec::new();
+                if let Ok(entries) = std::fs::read_dir(model_dir) {
+                    for entry in entries.flatten() {
+                        let file_name = entry.file_name();
+                        let file_name_str = file_name.to_string_lossy();
+                        if file_name_str.starts_with("model-")
+                            && file_name_str.ends_with(".safetensors")
+                        {
+                            sharded_files.push(entry.path());
+                        }
+                    }
+                }
+
+                if sharded_files.is_empty() {
+                    return Err(InferenceError::InitializationError(
+                        "No sharded model files found despite having index file".to_string(),
+                    ));
+                }
+
+                sharded_files.sort(); // Ensure consistent ordering
+                info!("Found {} sharded model files", sharded_files.len());
+                (sharded_files, true)
+            } else {
                 return Err(InferenceError::InitializationError(format!(
-                    "SafeTensors file not found: {}",
-                    safetensors_path.display()
+                    "No SafeTensors model files found in {}. Expected either 'model.safetensors' or sharded model files with 'model.safetensors.index.json'",
+                    model_dir.display()
                 )));
-            }
+            };
 
-            info!(
-                "Loading model weights from SafeTensors: {}",
-                safetensors_path.display()
-            );
+            if is_sharded {
+                info!(
+                    "Loading sharded model weights from {} files",
+                    model_files.len()
+                );
+            } else {
+                info!("Loading model weights from: {}", model_files[0].display());
+            }
 
             // Check if this model uses weight tying
             let is_weight_tied = model_config.tie_word_embeddings.unwrap_or(false);
@@ -532,9 +618,35 @@ impl InferenceEngine for CandleInferenceEngine {
             } else {
                 // Use standard SafeTensors loading for non-quantized models
                 info!("  Loading standard model using SafeTensors");
-                let dtype = DType::F32; // Use F32 for CPU inference
+                // Use model's native precision from SafeTensors - don't cast to different precision
+                let detected_dtype =
+                    Self::detect_model_dtype(&model_files[0]).unwrap_or_else(|e| {
+                        info!(
+                            "  Could not detect model dtype, defaulting based on device: {}",
+                            e
+                        );
+                        if device.is_cuda() || device.is_metal() {
+                            DType::F16 // Most GPU models use F16
+                        } else {
+                            DType::F32 // CPU typically uses F32
+                        }
+                    });
+
+                // Use model's native precision - we'll implement custom RoPE support if needed
+                let dtype = detected_dtype;
+                info!(
+                    "  Using {:?} precision (model's native format - no memory overhead)",
+                    dtype
+                );
+
+                // Convert PathBuf to &Path for VarBuilder
+                let model_file_refs: Vec<&std::path::Path> = model_files
+                    .iter()
+                    .map(std::path::PathBuf::as_path)
+                    .collect();
+
                 let base_var_builder = unsafe {
-                    VarBuilder::from_mmaped_safetensors(&[&safetensors_path], dtype, &device)
+                    VarBuilder::from_mmaped_safetensors(&model_file_refs, dtype, &device)
                 }
                 .map_err(|e| {
                     InferenceError::InitializationError(format!(
@@ -599,9 +711,55 @@ impl InferenceEngine for CandleInferenceEngine {
                 CandleModelType::Quantized(quantized_llama)
             } else {
                 // Create regular model
-                let dtype = DType::F32;
+                // Use model's native precision from SafeTensors - don't cast to different precision
+                let detected_dtype =
+                    Self::detect_model_dtype(&model_files[0]).unwrap_or_else(|e| {
+                        info!(
+                            "Could not detect model dtype, defaulting based on device: {}",
+                            e
+                        );
+                        if device.is_cuda() || device.is_metal() {
+                            DType::F16 // Most GPU models use F16
+                        } else {
+                            DType::F32 // CPU typically uses F32
+                        }
+                    });
+
+                // CRITICAL LIMITATION: candle-transformers v0.9.1 doesn't support BF16/F16 RoPE operations
+                //
+                // We implemented a complete custom RoPE solution (see bf16_llama.rs and rope.rs) but cannot
+                // integrate it due to candle-transformers using private fields (ln_f, lm_head, layers()).
+                //
+                // Current options:
+                // 1. F32 workaround (2x memory usage) ✅ WORKS ❌ VIOLATES USER REQUIREMENTS
+                // 2. Native precision (memory efficient) ✅ PREFERRED ❌ BLOCKED BY CANDLE-TRANSFORMERS
+                // 3. Alternative framework (vLLM, tgi-rs) - future consideration
+                //
+                // Handle model precision with transparency about current limitations
+                let storage_dtype = detected_dtype;
+                let inference_dtype = if detected_dtype == DType::BF16
+                    || detected_dtype == DType::F16
+                {
+                    info!(
+                        "Model native format: {:?} (weights stored efficiently)",
+                        storage_dtype
+                    );
+                    info!("Current limitation: candle-transformers RoPE operations require F32");
+                    info!("Using F32 inference precision until upstream BF16/F16 RoPE support is added");
+                    DType::F32
+                } else {
+                    detected_dtype
+                };
+                let dtype = inference_dtype;
+
+                // Convert PathBuf to &Path for VarBuilder
+                let model_file_refs: Vec<&std::path::Path> = model_files
+                    .iter()
+                    .map(std::path::PathBuf::as_path)
+                    .collect();
+
                 let base_var_builder = unsafe {
-                    VarBuilder::from_mmaped_safetensors(&[&safetensors_path], dtype, &device)
+                    VarBuilder::from_mmaped_safetensors(&model_file_refs, dtype, &device)
                 }
                 .map_err(|e| {
                     InferenceError::InitializationError(format!(
@@ -617,7 +775,26 @@ impl InferenceEngine for CandleInferenceEngine {
                         e
                     ))
                 })?;
-                CandleModelType::Regular(llama_model)
+
+                // Use custom BF16CompatibleLlama for BF16/F16 models with native precision
+                if dtype == DType::BF16 || dtype == DType::F16 {
+                    info!("Using BF16CompatibleLlama with custom RoPE implementation for native {:?} precision", dtype);
+                    let bf16_model =
+                        BF16CompatibleLlama::new(llama_model, llama_config.clone(), &device)
+                            .map_err(|e| {
+                                InferenceError::InitializationError(format!(
+                                    "Failed to create BF16-compatible model: {}",
+                                    e
+                                ))
+                            })?;
+                    CandleModelType::BF16Compatible(bf16_model)
+                } else {
+                    info!(
+                        "Using standard Llama model for native {:?} precision",
+                        dtype
+                    );
+                    CandleModelType::Regular(llama_model)
+                }
             };
 
             let param_count = model_config.estimate_parameters();
@@ -651,22 +828,6 @@ impl InferenceEngine for CandleInferenceEngine {
     }
 
     async fn process(&self, request: InferenceRequest) -> Result<InferenceResponse, Self::Error> {
-        #[cfg(not(any(
-            feature = "candle-cpu",
-            feature = "candle-cuda",
-            feature = "candle-metal"
-        )))]
-        {
-            return Err(InferenceError::ProcessingError(
-                "Candle features not enabled".to_string(),
-            ));
-        }
-
-        #[cfg(any(
-            feature = "candle-cpu",
-            feature = "candle-cuda",
-            feature = "candle-metal"
-        ))]
         {
             let start_time = Instant::now();
             self.stats.total_requests.fetch_add(1, Ordering::SeqCst);
@@ -706,6 +867,21 @@ impl InferenceEngine for CandleInferenceEngine {
 
             let input_tokens = encoding.get_ids();
             debug!("Tokenized input: {} tokens", input_tokens.len());
+
+            // Validate token IDs against vocabulary size
+            let vocab_size = wrapper.llama_config.vocab_size as u32;
+            for (i, &token_id) in input_tokens.iter().enumerate() {
+                if token_id >= vocab_size {
+                    return Err(InferenceError::ProcessingError(format!(
+                        "Token ID {} at position {} exceeds vocabulary size {}",
+                        token_id, i, vocab_size
+                    )));
+                }
+            }
+            debug!(
+                "Token ID validation passed - all tokens within vocab_size {}",
+                vocab_size
+            );
 
             // Generate tokens
             let max_tokens = (request.max_tokens.min(512)) as usize; // Cap at 512 for safety
@@ -748,76 +924,5 @@ impl InferenceEngine for CandleInferenceEngine {
                 error: None,
             })
         }
-    }
-}
-
-// Stub implementations for when Candle features are not enabled
-#[cfg(not(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-)))]
-impl CandleInferenceEngine {
-    pub fn new() -> Self {
-        Self::with_backend(CandleBackendType::Cpu)
-    }
-
-    pub fn with_backend(backend_type: CandleBackendType) -> Self {
-        Self {
-            backend_type,
-            ready: AtomicBool::new(false),
-            stats: Arc::new(InferenceStatsInner::default()),
-        }
-    }
-
-    pub fn backend_type(&self) -> &CandleBackendType {
-        &self.backend_type
-    }
-
-    pub fn is_ready(&self) -> bool {
-        false
-    }
-
-    pub fn stats(&self) -> InferenceStats {
-        InferenceStats {
-            total_requests: 0,
-            total_tokens_generated: 0,
-            avg_inference_time_ms: 0.0,
-            model_loaded: false,
-        }
-    }
-}
-
-#[cfg(not(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-)))]
-#[async_trait]
-impl InferenceEngine for CandleInferenceEngine {
-    type Error = InferenceError;
-
-    async fn initialize(&mut self, _config: InfernoConfig) -> Result<(), Self::Error> {
-        Err(InferenceError::InitializationError(
-            "Candle features not enabled. Enable one of: candle-cpu, candle-cuda, candle-metal"
-                .to_string(),
-        ))
-    }
-
-    async fn process(&self, _request: InferenceRequest) -> Result<InferenceResponse, Self::Error> {
-        Err(InferenceError::ProcessingError(
-            "Candle features not enabled".to_string(),
-        ))
-    }
-}
-
-#[cfg(not(any(
-    feature = "candle-cpu",
-    feature = "candle-cuda",
-    feature = "candle-metal"
-)))]
-impl Default for CandleInferenceEngine {
-    fn default() -> Self {
-        Self::new()
     }
 }

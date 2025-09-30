@@ -26,7 +26,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "candle-cuda")]
+
     async fn test_llama32_quantized_detection() {
         let model_path_str = get_llama32_model_path();
         // Skip test if model doesn't exist
@@ -114,7 +114,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "candle-cuda")]
+
     async fn test_llama32_quantized_cuda_full_pipeline() {
         let model_path_str = get_llama32_model_path();
         // Skip test if model doesn't exist
@@ -198,15 +198,15 @@ mod tests {
 
         println!("  Quantized inference successful!");
         println!("  Generated: '{}'", response.generated_text);
-        println!("📈 Tokens: {}", response.generated_tokens);
-        println!("⏱️ Time: {:.2}ms", response.inference_time_ms);
+        println!("Tokens: {}", response.generated_tokens);
+        println!("Time: {:.2}ms", response.inference_time_ms);
 
         // Quantized models should be faster and use less memory
         // TODO: Add assertions about performance characteristics
     }
 
     #[tokio::test]
-    #[cfg(feature = "candle-cuda")]
+
     async fn test_tinyllama_candle_cuda_full_pipeline() {
         let model_path_str = get_tinyllama_model_path();
         // Skip test if model doesn't exist
@@ -275,9 +275,9 @@ mod tests {
                 println!("  Inference successful!");
                 println!("  Request ID: {}", response.request_id);
                 println!("  Generated text: '{}'", response.generated_text);
-                println!("📈 Generated tokens: {}", response.generated_tokens);
-                println!("⏱️ Inference time: {:.2}ms", response.inference_time_ms);
-                println!("🏁 Is finished: {}", response.is_finished);
+                println!("Generated tokens: {}", response.generated_tokens);
+                println!("Inference time: {:.2}ms", response.inference_time_ms);
+                println!("Is finished: {}", response.is_finished);
 
                 // For TinyLlama, we might get EOS immediately, so let's just check that inference worked
                 println!("  Generated text: '{}'", response.generated_text);
@@ -306,7 +306,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[cfg(feature = "candle-cpu")]
+
     async fn test_tinyllama_candle_cpu_tokenization_only() {
         let model_path_str = get_tinyllama_model_path();
         // Skip test if model doesn't exist
@@ -392,18 +392,17 @@ mod tests {
         println!("  Testing basic engine creation");
 
         let default_engine = CandleInferenceEngine::new();
-        #[cfg(feature = "candle-cuda")]
+
         {
             assert_eq!(default_engine.backend_type(), &CandleBackendType::Cuda);
             println!("  Default engine created successfully (CUDA)");
         }
-        #[cfg(not(feature = "candle-cuda"))]
+
         {
             assert_eq!(default_engine.backend_type(), &CandleBackendType::Cpu);
             println!("  Default engine created successfully (CPU fallback)");
         }
 
-        #[cfg(feature = "candle-cuda")]
         {
             let cuda_engine = CandleInferenceEngine::with_backend(CandleBackendType::Cuda);
             assert_eq!(cuda_engine.backend_type(), &CandleBackendType::Cuda);
