@@ -1,16 +1,17 @@
 name: Benchmark Acceptance Test
 on:
   workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   bench-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust Stable
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
+        uses: dtolnay/rust-toolchain@stable
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
@@ -24,9 +25,3 @@ jobs:
           git checkout origin/main -- .prior_bench || echo "No .prior_bench folder found on main branch"
       - name: Run benchmarks and check for regressions
         run: ./benchmarking/check-performance.sh
-      - name: Upload benchmark artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmark-report
-          path: |
-            benchmark.json
