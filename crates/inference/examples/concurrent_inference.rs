@@ -81,10 +81,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Concurrent requests: {}", args.concurrent);
     println!();
 
-    print!("Initializing inference engine... ");
+    println!("🚀 COLD START ANALYSIS");
+    println!("======================");
+
+    print!("⏱️  [1/3] Initializing inference engine... ");
     std::io::Write::flush(&mut std::io::stdout()).unwrap();
 
-    // Track model loading time
+    // Track detailed cold start phases
+    let total_cold_start = Instant::now();
     let loading_start = Instant::now();
 
     // Select backend based on CLI flag and feature availability
@@ -101,14 +105,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    println!("Using {} backend", engine_type);
+    let backend_init_time = loading_start.elapsed();
+    println!("✅ Done ({:.3}s)", backend_init_time.as_secs_f64());
+
+    print!("⏱️  [2/3] Creating {} engine... ", engine_type);
+    std::io::Write::flush(&mut std::io::stdout()).unwrap();
+    let engine_create_start = Instant::now();
+
     let mut engine = create_engine(engine_type);
+    let engine_create_time = engine_create_start.elapsed();
+    println!("✅ Done ({:.3}s)", engine_create_time.as_secs_f64());
+
+    print!("⏱️  [3/3] Loading model and initializing GPU context... ");
+    std::io::Write::flush(&mut std::io::stdout()).unwrap();
+    let model_load_start = Instant::now();
 
     // Initialize the engine with the config
     engine.initialize(config).await?;
 
-    let loading_duration = loading_start.elapsed();
-    println!("Ready! (loaded in {:.1}s)", loading_duration.as_secs_f64());
+    let model_load_time = model_load_start.elapsed();
+    let total_cold_start_time = total_cold_start.elapsed();
+
+    println!("✅ Done ({:.3}s)", model_load_time.as_secs_f64());
+    println!();
+    println!("📊 COLD START BREAKDOWN:");
+    println!("   Backend initialization: {:.3}s", backend_init_time.as_secs_f64());
+    println!("   Engine creation:        {:.3}s", engine_create_time.as_secs_f64());
+    println!("   Model loading + GPU:    {:.3}s", model_load_time.as_secs_f64());
+    println!("   ═══════════════════════════════");
+    println!("   Total cold start:       {:.3}s", total_cold_start_time.as_secs_f64());
+    println!();
 
     // Create shared engine reference for concurrent access
     let engine = Arc::new(tokio::sync::Mutex::new(engine));
@@ -132,8 +158,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Done!\n");
                 println!("{}", response.generated_text);
 
-                // Show loading time separately
-                eprintln!("\nLoading: {:.1}s", loading_duration.as_secs_f64());
+                // Show cold start time separately
+                eprintln!("\nCold start: {:.1}s", total_cold_start_time.as_secs_f64());
 
                 // Show inference statistics
                 let inference_time_ms = total_inference_duration.as_millis() as f64;
@@ -147,12 +173,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     } else {
         // Concurrent requests case
+        println!("🏃 CONCURRENT INFERENCE ANALYSIS");
+        println!("=================================");
         println!(
-            "Running {} concurrent inference requests...",
+            "Spawning {} concurrent inference requests...",
             args.concurrent
         );
 
         let total_start = Instant::now();
+        let spawn_start = Instant::now();
         let mut join_set = JoinSet::new();
 
         // Spawn concurrent inference tasks
@@ -162,57 +191,81 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let verbose = args.verbose;
 
             join_set.spawn(async move {
-                let request_start = Instant::now();
+                let request_spawn_time = Instant::now();
+
+                // Track time waiting to acquire engine lock (concurrency overhead)
+                let lock_wait_start = Instant::now();
+                let engine_guard = engine_clone.lock().await;
+                let lock_wait_time = lock_wait_start.elapsed();
 
                 // Create inference request
                 let mut request = create_math_test_request();
                 request.prompt = prompt;
 
-                // Acquire engine lock and run inference
-                let engine_guard = engine_clone.lock().await;
+                // Track actual inference time (excluding lock wait)
+                let inference_start = Instant::now();
                 let result = engine_guard.process(request).await;
+                let inference_time = inference_start.elapsed();
+
                 drop(engine_guard); // Release lock immediately
 
-                let request_duration = request_start.elapsed();
+                let total_request_time = request_spawn_time.elapsed();
 
                 match result {
                     Ok(response) => {
+                        // Always show timing breakdown for concurrent requests
+                        println!(
+                            "✅ Request {:2}: total={:.3}s (wait={:.3}s, inference={:.3}s) tokens={}",
+                            request_id,
+                            total_request_time.as_secs_f64(),
+                            lock_wait_time.as_secs_f64(),
+                            inference_time.as_secs_f64(),
+                            response.generated_tokens
+                        );
+
                         if verbose {
-                            println!(
-                                "Request {}: completed in {:.3}s",
-                                request_id,
-                                request_duration.as_secs_f64()
-                            );
+                            println!("   └─ Response: {}", response.generated_text.chars().take(50).collect::<String>() + "...");
                         }
-                        Ok((request_id, request_duration, response))
+
+                        Ok((request_id, total_request_time, lock_wait_time, inference_time, response))
                     }
                     Err(e) => {
-                        eprintln!("Request {} failed: {}", request_id, e);
+                        println!("❌ Request {:2}: FAILED after {:.3}s - {}", request_id, total_request_time.as_secs_f64(), e);
                         Err(e)
                     }
                 }
             });
         }
 
-        // Collect results
+        let spawn_time = spawn_start.elapsed();
+        println!("📤 All requests spawned in {:.3}s", spawn_time.as_secs_f64());
+        println!();
+
+        // Collect results with detailed timing analysis
         let mut successful_requests = 0;
         let mut total_tokens = 0;
         let mut individual_durations = Vec::new();
+        let mut lock_wait_times = Vec::new();
+        let mut inference_times = Vec::new();
+        let mut first_request_time = None;
+        let mut last_request_time = None;
 
         while let Some(result) = join_set.join_next().await {
             match result {
-                Ok(Ok((request_id, duration, response))) => {
+                Ok(Ok((_request_id, total_time, wait_time, inference_time, response))) => {
                     successful_requests += 1;
                     total_tokens += response.generated_tokens;
-                    individual_durations.push(duration);
+                    individual_durations.push(total_time);
+                    lock_wait_times.push(wait_time);
+                    inference_times.push(inference_time);
 
-                    if args.verbose {
-                        println!(
-                            "✅ Request {}: {} tokens in {:.3}s",
-                            request_id,
-                            response.generated_tokens,
-                            duration.as_secs_f64()
-                        );
+                    // Track first and last completion times for throughput analysis
+                    let completion_time = total_start.elapsed();
+                    if first_request_time.is_none() || completion_time < first_request_time.unwrap() {
+                        first_request_time = Some(completion_time);
+                    }
+                    if last_request_time.is_none() || completion_time > last_request_time.unwrap() {
+                        last_request_time = Some(completion_time);
                     }
                 }
                 Ok(Err(_)) => {
@@ -226,47 +279,72 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let total_duration = total_start.elapsed();
 
-        // Print summary statistics
-        println!("\n🎉 Concurrent inference completed!");
-        println!("Total time: {:.3}s", total_duration.as_secs_f64());
-        println!(
-            "Successful requests: {}/{}",
-            successful_requests, args.concurrent
-        );
+        // Print comprehensive performance analysis
+        println!();
+        println!("📊 PERFORMANCE ANALYSIS");
+        println!("========================");
+
+        println!("🎯 Overall Results:");
+        println!("   Successful requests: {}/{}", successful_requests, args.concurrent);
+        println!("   Total execution time: {:.3}s", total_duration.as_secs_f64());
+        println!("   Total tokens generated: {}", total_tokens);
 
         if successful_requests > 0 {
-            println!("Total tokens generated: {}", total_tokens);
-
-            // Calculate statistics for individual request times
+            // Calculate detailed statistics
             individual_durations.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            lock_wait_times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            inference_times.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-            let mean_duration = individual_durations.iter().sum::<std::time::Duration>()
-                / individual_durations.len() as u32;
-            let median_duration = individual_durations[individual_durations.len() / 2];
-            let min_duration = individual_durations[0];
-            let max_duration = individual_durations[individual_durations.len() - 1];
+            let mean_total = individual_durations.iter().sum::<std::time::Duration>() / individual_durations.len() as u32;
+            let mean_wait = lock_wait_times.iter().sum::<std::time::Duration>() / lock_wait_times.len() as u32;
+            let mean_inference = inference_times.iter().sum::<std::time::Duration>() / inference_times.len() as u32;
 
-            println!("\nIndividual request statistics:");
-            println!("  Mean:   {:.3}s", mean_duration.as_secs_f64());
-            println!("  Median: {:.3}s", median_duration.as_secs_f64());
-            println!("  Min:    {:.3}s", min_duration.as_secs_f64());
-            println!("  Max:    {:.3}s", max_duration.as_secs_f64());
+            let median_total = individual_durations[individual_durations.len() / 2];
+            let median_wait = lock_wait_times[lock_wait_times.len() / 2];
+            let median_inference = inference_times[inference_times.len() / 2];
 
-            // Calculate throughput
-            let requests_per_second = successful_requests as f64 / total_duration.as_secs_f64();
-            let tokens_per_second = total_tokens as f64 / total_duration.as_secs_f64();
+            let first_completion = first_request_time.unwrap_or(total_duration);
+            let last_completion = last_request_time.unwrap_or(total_duration);
 
-            println!("\nThroughput:");
-            println!("  {:.2} requests/second", requests_per_second);
-            println!("  {:.2} tokens/second", tokens_per_second);
+            println!();
+            println!("⏱️  Timing Breakdown (where PGO optimization matters):");
+            println!("   ┌─ Total per request:");
+            println!("   │  Mean:   {:.3}s", mean_total.as_secs_f64());
+            println!("   │  Median: {:.3}s", median_total.as_secs_f64());
+            println!("   │  Range:  {:.3}s - {:.3}s", individual_durations[0].as_secs_f64(), individual_durations.last().unwrap().as_secs_f64());
+            println!("   │");
+            println!("   ├─ Lock wait time (concurrency overhead):");
+            println!("   │  Mean:   {:.3}s ({:.1}% of total)", mean_wait.as_secs_f64(), (mean_wait.as_secs_f64() / mean_total.as_secs_f64()) * 100.0);
+            println!("   │  Median: {:.3}s", median_wait.as_secs_f64());
+            println!("   │");
+            println!("   └─ Pure inference time (PGO optimizes this):");
+            println!("      Mean:   {:.3}s ({:.1}% of total)", mean_inference.as_secs_f64(), (mean_inference.as_secs_f64() / mean_total.as_secs_f64()) * 100.0);
+            println!("      Median: {:.3}s", median_inference.as_secs_f64());
 
-            // Show loading time separately
-            println!("\nTiming breakdown:");
-            println!("  Model loading: {:.3}s", loading_duration.as_secs_f64());
-            println!(
-                "  Concurrent inference: {:.3}s",
-                total_duration.as_secs_f64()
-            );
+            println!();
+            println!("🚀 Throughput Analysis:");
+            println!("   First request completed: {:.3}s", first_completion.as_secs_f64());
+            println!("   Last request completed:  {:.3}s", last_completion.as_secs_f64());
+            println!("   Average tokens/sec:      {:.1}", total_tokens as f64 / total_duration.as_secs_f64());
+            println!("   Requests/sec:            {:.1}", successful_requests as f64 / total_duration.as_secs_f64());
+
+            // Performance insights for PGO analysis
+            let inference_percentage = (mean_inference.as_secs_f64() / mean_total.as_secs_f64()) * 100.0;
+            let wait_percentage = (mean_wait.as_secs_f64() / mean_total.as_secs_f64()) * 100.0;
+
+            println!();
+            println!("💡 PGO Optimization Insights:");
+            if inference_percentage > 50.0 {
+                println!("   ✅ Good PGO target: {:.1}% of time spent in pure inference", inference_percentage);
+                println!("      PGO should show meaningful improvements here");
+            } else {
+                println!("   ⚠️  Limited PGO benefit: only {:.1}% of time in pure inference", inference_percentage);
+                println!("      Most time spent on concurrency overhead ({:.1}%) or I/O", wait_percentage);
+            }
+
+            let total_cpu_time = mean_inference.as_secs_f64() * successful_requests as f64;
+            println!("   📈 Total CPU inference time: {:.3}s (vs {:.3}s wall time)", total_cpu_time, total_duration.as_secs_f64());
+            println!("   📊 Parallelism efficiency: {:.1}% ({:.1}x speedup)", (total_cpu_time / total_duration.as_secs_f64()) * 100.0, total_cpu_time / total_duration.as_secs_f64());
         }
     }
 
