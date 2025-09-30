@@ -1,0 +1,99 @@
+name: Security Audit
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 2 * * *" # Run daily at 2 AM
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  current-audit:
+    name: Audit Current Dependencies
+    runs-on: ubuntu-latest
+    continue-on-error: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run cargo audit (current dependencies)
+        id: audit-current
+        run: |
+          echo "Running cargo audit on current dependencies..."
+          if cargo audit --deny warnings; then
+            echo "✅ No security vulnerabilities found in current dependencies"
+            echo "audit_passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Security vulnerabilities found in current dependencies"
+            echo "audit_passed=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+  updated-audit:
+    name: Audit With Updated Dependencies
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          key: "audit-updated"
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Update all dependencies
+        run: |
+          echo "Updating all dependencies to latest compatible versions..."
+          cargo update --verbose
+
+      - name: Run cargo audit (updated dependencies)
+        id: audit-updated
+        continue-on-error: true
+        run: |
+          echo "Running cargo audit on updated dependencies..."
+          if cargo audit --deny warnings; then
+            echo "✅ No security vulnerabilities found with updated dependencies"
+            echo "audit_passed=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Security vulnerabilities still present with updated dependencies"
+            echo "audit_passed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Show dependency changes
+        run: |
+          echo "Dependency changes after update:"
+          git diff Cargo.lock || echo "No Cargo.lock changes detected"
+
+      - name: Report audit results
+        run: |
+          if [ "${{ steps.audit-updated.outputs.audit_passed }}" = "true" ]; then
+            echo "🎉 Security issues resolved by updating dependencies!"
+            echo "Consider updating your dependencies to address security vulnerabilities."
+          else
+            echo "⚠️ Security vulnerabilities persist even after updating dependencies."
+            echo "Manual intervention may be required to address these issues."
+          fi
