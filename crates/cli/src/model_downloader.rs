@@ -117,19 +117,33 @@ async fn check_existing_model_files(
     }
 
     // Check for any .safetensors file (not just model.safetensors)
+    // This includes sharded files like model-00001-of-00003.safetensors
     let mut has_model_file = existing_files.iter().any(|f| f.contains(".safetensors"));
+    let mut is_sharded_model = false;
+
     if !has_model_file {
         if let Ok(entries) = tokio::fs::read_dir(&full_output_dir).await {
             let mut entries = entries;
             while let Ok(Some(entry)) = entries.next_entry().await {
                 if let Ok(file_name) = entry.file_name().into_string() {
                     if file_name.ends_with(".safetensors") {
+                        // Check if this is a sharded model file
+                        if file_name.starts_with("model-") && file_name.contains("-of-") {
+                            is_sharded_model = true;
+                        }
                         existing_files.push(file_name);
                         has_model_file = true;
-                        break;
                     }
                 }
             }
+        }
+    }
+
+    // If this is a sharded model, also check for the index file
+    if is_sharded_model {
+        let index_path = full_output_dir.join("model.safetensors.index.json");
+        if index_path.exists() {
+            existing_files.push("model.safetensors.index.json".to_string());
         }
     }
 
@@ -145,6 +159,13 @@ async fn check_existing_model_files(
 
     // Add missing tokenizer files to the missing list
     let mut missing_files = missing_essential_files;
+
+    // If this is a sharded model, remove model.safetensors from missing files
+    // (since it doesn't exist for sharded models)
+    if is_sharded_model {
+        missing_files.retain(|f| f != "model.safetensors");
+    }
+
     if !has_tokenizer {
         missing_files.push("vocab.json".to_string()); // Default tokenizer file to download
     }
@@ -867,13 +888,12 @@ pub(crate) async fn download_model_with_xet(
     println!("Discovering available files...");
 
     // Determine which files to download
-    let essential_files = if let Some(specific_files) = files_to_download {
+    let mut essential_files = if let Some(specific_files) = files_to_download {
         println!("Downloading only missing files: {:?}", specific_files);
         specific_files.clone()
     } else {
         println!("Downloading all essential files");
         vec![
-            "model.safetensors".to_string(), // Primary model weights (safetensors format only)
             "config.json".to_string(),       // Model configuration (architecture, dimensions, etc.)
             "tokenizer.json".to_string(),    // Tokenizer configuration (HuggingFace format)
             "vocab.json".to_string(),        // Vocabulary file (alternative tokenizer format)
@@ -881,6 +901,57 @@ pub(crate) async fn download_model_with_xet(
             "generation_config.json".to_string(), // Generation parameters (optional but recommended)
         ]
     };
+
+    // Try to download the model weights - first check if it's a sharded model
+    // by attempting to download model.safetensors.index.json
+    if files_to_download.is_none() {
+        println!("Checking for sharded model (model.safetensors.index.json)...");
+
+        // Try direct HTTP download for index file (hf_hub sometimes has issues with this file)
+        match download_file_direct_with_auth(model_id, "model.safetensors.index.json", output_dir, hf_token).await {
+            Ok(true) => {
+                println!("Found sharded model - reading index file");
+                let index_path = Path::new(output_dir).join("model.safetensors.index.json");
+
+                // Parse the index to get shard filenames
+                match tokio::fs::read_to_string(&index_path).await {
+                    Ok(index_content) => {
+                        match serde_json::from_str::<serde_json::Value>(&index_content) {
+                            Ok(index_json) => {
+                                if let Some(weight_map) = index_json.get("weight_map").and_then(|v| v.as_object()) {
+                                    // Collect unique shard filenames
+                                    let mut shard_files = std::collections::HashSet::new();
+                                    for shard_name in weight_map.values().filter_map(|v| v.as_str()) {
+                                        shard_files.insert(shard_name.to_string());
+                                    }
+
+                                    println!("Found {} shard files to download", shard_files.len());
+                                    // Add all shards to essential files (index already downloaded)
+                                    essential_files.extend(shard_files.into_iter());
+                                } else {
+                                    println!("Warning: Could not find weight_map in index file");
+                                    essential_files.push("model.safetensors".to_string());
+                                }
+                            }
+                            Err(e) => {
+                                println!("Warning: Failed to parse index JSON: {}", e);
+                                essential_files.push("model.safetensors".to_string());
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        println!("Warning: Failed to read index file: {}", e);
+                        essential_files.push("model.safetensors".to_string());
+                    }
+                }
+            }
+            Ok(false) | Err(_) => {
+                // No index file, try single model.safetensors file
+                println!("No sharded model index found, trying single model.safetensors file");
+                essential_files.push("model.safetensors".to_string());
+            }
+        }
+    }
 
     // Additional tokenizer files that some models might have
     let optional_tokenizer_files = vec![
@@ -1042,13 +1113,26 @@ pub(crate) async fn download_model_with_xet(
 
     // Ensure we have the essential model file (check both downloaded and existing files on disk)
     let model_file_exists = has_model_file || {
-        // Also check if model file exists on disk (for targeted downloads)
-        let model_path = Path::new(output_dir).join("model.safetensors");
-        model_path.exists()
+        // Check if model file exists on disk (for targeted downloads)
+        let single_model_path = Path::new(output_dir).join("model.safetensors");
+        if single_model_path.exists() {
+            true
+        } else if let Ok(entries) = std::fs::read_dir(output_dir) {
+            // Also check for sharded model files (e.g., model-00001-of-00003.safetensors)
+            entries.flatten().any(|entry| {
+                entry.file_name().to_str().map_or(false, |name| {
+                    name.starts_with("model-")
+                        && name.ends_with(".safetensors")
+                        && name.contains("-of-")
+                })
+            })
+        } else {
+            false
+        }
     };
 
     if !model_file_exists {
-        println!("Required model.safetensors file not found");
+        println!("No model weights found (neither model.safetensors nor sharded model files)");
         println!("Falling back to Git LFS...");
         return download_huggingface_model(model_id, output_dir, hf_token, false).await;
     }
