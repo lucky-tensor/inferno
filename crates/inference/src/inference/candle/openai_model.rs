@@ -41,7 +41,7 @@ impl Module for Conv1D {
 
         // Reshape back to [batch, seq, out_features]
         let out_features = self.weight.dim(1)?;
-        let mut out_shape = dims_x[..dims_x.len()-1].to_vec();
+        let mut out_shape = dims_x[..dims_x.len() - 1].to_vec();
         out_shape.push(out_features);
         let out = out.reshape(out_shape)?;
 
@@ -139,7 +139,12 @@ impl RotaryEmbedding {
         Ok(Self { sin, cos, dim })
     }
 
-    pub fn apply_rotary_emb(&self, q: &Tensor, k: &Tensor, seqlen_offset: usize) -> Result<(Tensor, Tensor)> {
+    pub fn apply_rotary_emb(
+        &self,
+        q: &Tensor,
+        k: &Tensor,
+        seqlen_offset: usize,
+    ) -> Result<(Tensor, Tensor)> {
         let (_b_sz, _n_head, seq_len, _n_embd) = q.dims4()?;
 
         let cos = self.cos.narrow(0, seqlen_offset, seq_len)?;
@@ -152,7 +157,7 @@ impl RotaryEmbedding {
     }
 
     fn rotate_half(x: &Tensor, cos: &Tensor, sin: &Tensor) -> Result<Tensor> {
-        let (_b, _h, seq_len, n_embd) = x.dims4()?;
+        let (_b, _h, _seq_len, n_embd) = x.dims4()?;
         let half = n_embd / 2;
 
         let x1 = x.narrow(3, 0, half)?;
@@ -171,8 +176,8 @@ impl RotaryEmbedding {
 /// Multi-Head Attention (GPT-2 style)
 #[derive(Debug)]
 pub struct Attention {
-    c_attn: Conv1D,  // Combined QKV projection
-    c_proj: Conv1D,  // Output projection
+    c_attn: Conv1D, // Combined QKV projection
+    c_proj: Conv1D, // Output projection
     num_heads: usize,
     num_kv_heads: usize,
     head_dim: usize,
@@ -206,7 +211,7 @@ impl Attention {
         &self,
         hidden_states: &Tensor,
         attention_mask: Option<&Tensor>,
-        seqlen_offset: usize,
+        _seqlen_offset: usize,
         kv_cache: &mut Option<(Tensor, Tensor)>,
     ) -> Result<Tensor> {
         let (b_sz, seq_len, hidden_size) = hidden_states.dims3()?;
@@ -219,13 +224,16 @@ impl Attention {
         let k = qkv.narrow(2, hidden_size, hidden_size)?;
         let v = qkv.narrow(2, 2 * hidden_size, hidden_size)?;
 
-        let q = q.reshape((b_sz, seq_len, self.num_heads, self.head_dim))?
+        let q = q
+            .reshape((b_sz, seq_len, self.num_heads, self.head_dim))?
             .transpose(1, 2)?
             .contiguous()?;
-        let k = k.reshape((b_sz, seq_len, self.num_kv_heads, self.head_dim))?
+        let k = k
+            .reshape((b_sz, seq_len, self.num_kv_heads, self.head_dim))?
             .transpose(1, 2)?
             .contiguous()?;
-        let v = v.reshape((b_sz, seq_len, self.num_kv_heads, self.head_dim))?
+        let v = v
+            .reshape((b_sz, seq_len, self.num_kv_heads, self.head_dim))?
             .transpose(1, 2)?
             .contiguous()?;
 
@@ -263,9 +271,11 @@ impl Attention {
         let v_cont = v.contiguous()?;
         let attn_output = attn_weights.matmul(&v_cont)?;
 
-        let attn_output = attn_output
-            .transpose(1, 2)?
-            .reshape((b_sz, seq_len, self.num_heads * self.head_dim))?;
+        let attn_output = attn_output.transpose(1, 2)?.reshape((
+            b_sz,
+            seq_len,
+            self.num_heads * self.head_dim,
+        ))?;
 
         self.c_proj.forward(&attn_output)
     }
@@ -276,7 +286,8 @@ impl Attention {
             Ok(x.clone())
         } else {
             let (b_sz, num_kv_heads, seq_len, head_dim) = x.dims4()?;
-            let expanded = x.unsqueeze(2)?
+            let expanded = x
+                .unsqueeze(2)?
                 .expand((b_sz, num_kv_heads, n_rep, seq_len, head_dim))?
                 .reshape((b_sz, num_kv_heads * n_rep, seq_len, head_dim))?;
             expanded.contiguous()
@@ -300,10 +311,7 @@ impl MLP {
         let c_fc = Conv1D::new(hidden_size, intermediate_size, vb.pp("c_fc"))?;
         let c_proj = Conv1D::new(intermediate_size, hidden_size, vb.pp("c_proj"))?;
 
-        Ok(Self {
-            c_fc,
-            c_proj,
-        })
+        Ok(Self { c_fc, c_proj })
     }
 
     pub fn forward(&self, hidden_states: &Tensor) -> Result<Tensor> {
@@ -332,11 +340,8 @@ impl TransformerBlock {
         // GPT-2 uses "ln_1" for pre-attention layer norm (LayerNorm with bias)
         let input_layernorm = layer_norm(cfg.hidden_size, cfg.rms_norm_eps, vb.pp("ln_1"))?;
         // GPT-2 uses "ln_2" for pre-MLP layer norm (LayerNorm with bias)
-        let post_attention_layernorm = layer_norm(
-            cfg.hidden_size,
-            cfg.rms_norm_eps,
-            vb.pp("ln_2"),
-        )?;
+        let post_attention_layernorm =
+            layer_norm(cfg.hidden_size, cfg.rms_norm_eps, vb.pp("ln_2"))?;
 
         Ok(Self {
             attention,
@@ -356,7 +361,9 @@ impl TransformerBlock {
         // Pre-norm architecture: normalize before sublayer
         let residual = hidden_states;
         let hidden_states = self.input_layernorm.forward(hidden_states)?;
-        let hidden_states = self.attention.forward(&hidden_states, attention_mask, seqlen_offset, kv_cache)?;
+        let hidden_states =
+            self.attention
+                .forward(&hidden_states, attention_mask, seqlen_offset, kv_cache)?;
         let hidden_states = (hidden_states + residual)?;
 
         let residual = &hidden_states;
@@ -370,7 +377,7 @@ impl TransformerBlock {
 #[derive(Debug)]
 pub struct OpenAIModel {
     embed_tokens: Embedding,
-    embed_positions: Embedding,  // GPT-2 positional embeddings
+    embed_positions: Embedding, // GPT-2 positional embeddings
     layers: Vec<TransformerBlock>,
     norm: LayerNorm,
     lm_head: Option<Conv1D>,
@@ -384,7 +391,8 @@ impl OpenAIModel {
         // GPT-2 uses "wte" for token embeddings
         let embed_tokens = embedding(cfg.vocab_size, cfg.hidden_size, vb.pp("wte"))?;
         // GPT-2 uses "wpe" for positional embeddings
-        let embed_positions = embedding(cfg.max_position_embeddings, cfg.hidden_size, vb.pp("wpe"))?;
+        let embed_positions =
+            embedding(cfg.max_position_embeddings, cfg.hidden_size, vb.pp("wpe"))?;
 
         // Get wte weights for potential weight tying with lm_head
         let wte_weight = vb.get((cfg.vocab_size, cfg.hidden_size), "wte.weight")?;
@@ -430,8 +438,7 @@ impl OpenAIModel {
         let position_ids: Vec<u32> = (seqlen_offset..seqlen_offset + seq_len)
             .map(|i| i as u32)
             .collect();
-        let position_ids_tensor = Tensor::new(&position_ids[..], &self.device)?
-            .unsqueeze(0)?;  // Add batch dimension
+        let position_ids_tensor = Tensor::new(&position_ids[..], &self.device)?.unsqueeze(0)?; // Add batch dimension
         let position_embeds = self.embed_positions.forward(&position_ids_tensor)?;
 
         // Combine token and position embeddings

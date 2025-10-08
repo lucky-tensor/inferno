@@ -13,7 +13,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Expand ~ if needed
-    let path = path.replace("~", &std::env::var("HOME").unwrap_or_else(|_| ".".to_string()));
+    let path = path.replace(
+        "~",
+        &std::env::var("HOME").unwrap_or_else(|_| ".".to_string()),
+    );
 
     println!("Inspecting: {}\n", path);
 

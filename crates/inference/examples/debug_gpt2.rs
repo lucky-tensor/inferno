@@ -1,7 +1,7 @@
 //! Debug GPT-2 inference step by step
 
 use candle_core::{Device, Tensor};
-use inferno_inference::inference::candle::{OpenAIEngine, tokenizer::Tokenizer};
+use inferno_inference::inference::candle::{tokenizer::Tokenizer, OpenAIEngine};
 
 fn main() -> anyhow::Result<()> {
     let model_path = std::env::var("HOME")? + "/.inferno/models/gpt2";
@@ -59,7 +59,9 @@ fn main() -> anyhow::Result<()> {
 
         // Find top 10 tokens
         let logits_vec = last_logits.to_vec1::<f32>()?;
-        let mut indexed: Vec<(usize, f32)> = logits_vec.iter().enumerate()
+        let mut indexed: Vec<(usize, f32)> = logits_vec
+            .iter()
+            .enumerate()
             .map(|(i, &v)| (i, v))
             .collect();
         indexed.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
@@ -67,8 +69,13 @@ fn main() -> anyhow::Result<()> {
         println!("  Top 10 predictions:");
         for (rank, &(token_id, score)) in indexed.iter().take(10).enumerate() {
             let decoded = tokenizer.decode(&[token_id as u32], false)?;
-            println!("    {}. [{}] score={:.2} -> \"{}\"",
-                rank + 1, token_id, score, decoded.replace("\n", "\\n"));
+            println!(
+                "    {}. [{}] score={:.2} -> \"{}\"",
+                rank + 1,
+                token_id,
+                score,
+                decoded.replace("\n", "\\n")
+            );
         }
 
         let next_token = indexed[0].0 as u32;

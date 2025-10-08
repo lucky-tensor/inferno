@@ -34,16 +34,39 @@ impl OpenAIEngine {
         let config_json: serde_json::Value = serde_json::from_str(&config_data)?;
 
         // Extract values with fallbacks
-        let vocab_size = config_json["vocab_size"].as_u64().ok_or_else(|| anyhow::anyhow!("Missing vocab_size"))? as usize;
-        let hidden_size = config_json["n_embd"].as_u64().or_else(|| config_json["hidden_size"].as_u64()).ok_or_else(|| anyhow::anyhow!("Missing hidden_size"))? as usize;
-        let num_hidden_layers = config_json["n_layer"].as_u64().or_else(|| config_json["num_hidden_layers"].as_u64()).ok_or_else(|| anyhow::anyhow!("Missing num_hidden_layers"))? as usize;
-        let num_attention_heads = config_json["n_head"].as_u64().or_else(|| config_json["num_attention_heads"].as_u64()).ok_or_else(|| anyhow::anyhow!("Missing num_attention_heads"))? as usize;
-        let max_position_embeddings = config_json["n_positions"].as_u64().or_else(|| config_json["n_ctx"].as_u64()).or_else(|| config_json["max_position_embeddings"].as_u64()).unwrap_or(1024) as usize;
+        let vocab_size = config_json["vocab_size"]
+            .as_u64()
+            .ok_or_else(|| anyhow::anyhow!("Missing vocab_size"))?
+            as usize;
+        let hidden_size = config_json["n_embd"]
+            .as_u64()
+            .or_else(|| config_json["hidden_size"].as_u64())
+            .ok_or_else(|| anyhow::anyhow!("Missing hidden_size"))?
+            as usize;
+        let num_hidden_layers = config_json["n_layer"]
+            .as_u64()
+            .or_else(|| config_json["num_hidden_layers"].as_u64())
+            .ok_or_else(|| anyhow::anyhow!("Missing num_hidden_layers"))?
+            as usize;
+        let num_attention_heads = config_json["n_head"]
+            .as_u64()
+            .or_else(|| config_json["num_attention_heads"].as_u64())
+            .ok_or_else(|| anyhow::anyhow!("Missing num_attention_heads"))?
+            as usize;
+        let max_position_embeddings = config_json["n_positions"]
+            .as_u64()
+            .or_else(|| config_json["n_ctx"].as_u64())
+            .or_else(|| config_json["max_position_embeddings"].as_u64())
+            .unwrap_or(1024) as usize;
         // GPT-2 standard: intermediate_size = 4 * hidden_size
-        let intermediate_size = config_json["n_inner"].as_u64()
+        let intermediate_size = config_json["n_inner"]
+            .as_u64()
             .or_else(|| config_json["intermediate_size"].as_u64())
             .unwrap_or((hidden_size * 4) as u64) as usize;
-        let layer_norm_eps = config_json["layer_norm_epsilon"].as_f64().or_else(|| config_json["rms_norm_eps"].as_f64()).unwrap_or(1e-5);
+        let layer_norm_eps = config_json["layer_norm_epsilon"]
+            .as_f64()
+            .or_else(|| config_json["rms_norm_eps"].as_f64())
+            .unwrap_or(1e-5);
         let rope_theta = config_json["rope_theta"].as_f64().unwrap_or(10000.0) as f32;
 
         let config = OpenAIConfig {
@@ -56,7 +79,7 @@ impl OpenAIEngine {
             max_position_embeddings,
             rms_norm_eps: layer_norm_eps,
             rope_theta,
-            use_bias: true,  // GPT-2 uses bias in all layers
+            use_bias: true, // GPT-2 uses bias in all layers
         };
 
         // Load tokenizer
@@ -124,13 +147,14 @@ impl OpenAIEngine {
         temperature: f32,
     ) -> anyhow::Result<String> {
         // Tokenize prompt
-        let encoding = self.tokenizer.encode(prompt, true)
+        let encoding = self
+            .tokenizer
+            .encode(prompt, true)
             .map_err(|e| anyhow::anyhow!("Tokenization failed: {}", e))?;
         let input_tokens = encoding.get_ids();
 
         // Convert to tensor on GPU
-        let input_tensor = Tensor::new(input_tokens, &self.device)?
-            .unsqueeze(0)?;
+        let input_tensor = Tensor::new(input_tokens, &self.device)?.unsqueeze(0)?;
 
         let mut generated_tokens = Vec::new();
         let mut current_input = input_tensor;
@@ -138,7 +162,9 @@ impl OpenAIEngine {
 
         for i in 0..max_tokens {
             // Forward pass on GPU
-            let logits = self.model.forward(&current_input, seqlen_offset, &mut self.kv_caches)?;
+            let logits = self
+                .model
+                .forward(&current_input, seqlen_offset, &mut self.kv_caches)?;
 
             // Get last token logits [batch, seq, vocab] -> [vocab]
             let last_idx = logits.dim(1)? - 1;
@@ -159,8 +185,7 @@ impl OpenAIEngine {
             }
 
             // Prepare next input for next iteration
-            current_input = Tensor::new(&[next_token], &self.device)?
-                .unsqueeze(0)?;
+            current_input = Tensor::new(&[next_token], &self.device)?.unsqueeze(0)?;
 
             // Update offset: first iteration processes full prompt, then +1 per token
             if i == 0 {
@@ -171,7 +196,9 @@ impl OpenAIEngine {
         }
 
         // Decode generated tokens
-        let output = self.tokenizer.decode(&generated_tokens, true)
+        let output = self
+            .tokenizer
+            .decode(&generated_tokens, true)
             .map_err(|e| anyhow::anyhow!("Decoding failed: {}", e))?;
 
         Ok(output)

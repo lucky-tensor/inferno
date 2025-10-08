@@ -265,9 +265,9 @@ impl CandleInferenceEngine {
                     // OpenAI models use their own KV cache format
                     // Calculate sequence offset based on input tokens + generated tokens
                     let seqlen_offset = if i == 0 {
-                        0  // First iteration processes the entire prompt
+                        0 // First iteration processes the entire prompt
                     } else {
-                        input_tokens.len() + i - 1  // Subsequent iterations add one token at a time
+                        input_tokens.len() + i - 1 // Subsequent iterations add one token at a time
                     };
 
                     openai_model
@@ -392,7 +392,10 @@ impl CandleInferenceEngine {
                 };
 
                 let probs_vec = probs_1d.to_vec1::<f32>().map_err(|e| {
-                    InferenceError::ProcessingError(format!("Failed to extract probabilities: {}", e))
+                    InferenceError::ProcessingError(format!(
+                        "Failed to extract probabilities: {}",
+                        e
+                    ))
                 })?;
 
                 let sum: f32 = probs_vec.iter().sum();
@@ -691,31 +694,60 @@ impl InferenceEngine for CandleInferenceEngine {
 
                 // Load config with GPT-2 field names
                 let config_path = std::path::Path::new(&config.model_path).join("config.json");
-                let config_data = tokio::fs::read_to_string(&config_path).await
-                    .map_err(|e| InferenceError::InitializationError(format!("Failed to read config.json: {}", e)))?;
-                let config_json: serde_json::Value = serde_json::from_str(&config_data)
-                    .map_err(|e| InferenceError::InitializationError(format!("Failed to parse config.json: {}", e)))?;
+                let config_data = tokio::fs::read_to_string(&config_path).await.map_err(|e| {
+                    InferenceError::InitializationError(format!(
+                        "Failed to read config.json: {}",
+                        e
+                    ))
+                })?;
+                let config_json: serde_json::Value =
+                    serde_json::from_str(&config_data).map_err(|e| {
+                        InferenceError::InitializationError(format!(
+                            "Failed to parse config.json: {}",
+                            e
+                        ))
+                    })?;
 
                 // Extract values with GPT-2 field names
-                let vocab_size = config_json["vocab_size"].as_u64()
-                    .ok_or_else(|| InferenceError::InitializationError("Missing vocab_size".to_string()))? as usize;
-                let hidden_size = config_json["n_embd"].as_u64()
+                let vocab_size = config_json["vocab_size"].as_u64().ok_or_else(|| {
+                    InferenceError::InitializationError("Missing vocab_size".to_string())
+                })? as usize;
+                let hidden_size = config_json["n_embd"]
+                    .as_u64()
                     .or_else(|| config_json["hidden_size"].as_u64())
-                    .ok_or_else(|| InferenceError::InitializationError("Missing hidden_size/n_embd".to_string()))? as usize;
-                let num_hidden_layers = config_json["n_layer"].as_u64()
+                    .ok_or_else(|| {
+                        InferenceError::InitializationError(
+                            "Missing hidden_size/n_embd".to_string(),
+                        )
+                    })? as usize;
+                let num_hidden_layers = config_json["n_layer"]
+                    .as_u64()
                     .or_else(|| config_json["num_hidden_layers"].as_u64())
-                    .ok_or_else(|| InferenceError::InitializationError("Missing num_hidden_layers/n_layer".to_string()))? as usize;
-                let num_attention_heads = config_json["n_head"].as_u64()
+                    .ok_or_else(|| {
+                        InferenceError::InitializationError(
+                            "Missing num_hidden_layers/n_layer".to_string(),
+                        )
+                    })? as usize;
+                let num_attention_heads = config_json["n_head"]
+                    .as_u64()
                     .or_else(|| config_json["num_attention_heads"].as_u64())
-                    .ok_or_else(|| InferenceError::InitializationError("Missing num_attention_heads/n_head".to_string()))? as usize;
-                let max_position_embeddings = config_json["n_positions"].as_u64()
+                    .ok_or_else(|| {
+                        InferenceError::InitializationError(
+                            "Missing num_attention_heads/n_head".to_string(),
+                        )
+                    })? as usize;
+                let max_position_embeddings = config_json["n_positions"]
+                    .as_u64()
                     .or_else(|| config_json["n_ctx"].as_u64())
                     .or_else(|| config_json["max_position_embeddings"].as_u64())
                     .unwrap_or(1024) as usize;
-                let intermediate_size = config_json["n_inner"].as_u64()
+                let intermediate_size = config_json["n_inner"]
+                    .as_u64()
                     .or_else(|| config_json["intermediate_size"].as_u64())
-                    .unwrap_or((hidden_size * 4) as u64) as usize;
-                let layer_norm_eps = config_json["layer_norm_epsilon"].as_f64()
+                    .unwrap_or((hidden_size * 4) as u64)
+                    as usize;
+                let layer_norm_eps = config_json["layer_norm_epsilon"]
+                    .as_f64()
                     .or_else(|| config_json["rms_norm_eps"].as_f64())
                     .unwrap_or(1e-5);
                 let rope_theta = config_json["rope_theta"].as_f64().unwrap_or(10000.0) as f32;
@@ -745,12 +777,13 @@ impl InferenceEngine for CandleInferenceEngine {
                     use_bias: false,
                 };
 
-                let openai_model = OpenAIModel::new(&openai_config, base_var_builder).map_err(|e| {
-                    InferenceError::InitializationError(format!(
-                        "Failed to create OpenAI model: {}",
-                        e
-                    ))
-                })?;
+                let openai_model =
+                    OpenAIModel::new(&openai_config, base_var_builder).map_err(|e| {
+                        InferenceError::InitializationError(format!(
+                            "Failed to create OpenAI model: {}",
+                            e
+                        ))
+                    })?;
                 CandleModelType::OpenAI(openai_model)
             } else {
                 // Create regular Llama model

@@ -7,7 +7,7 @@ fn main() -> anyhow::Result<()> {
     let mut engine = OpenAIEngine::load_from_safetensors(&model_path, device)?;
 
     let prompt = "The meaning of life is";
-    
+
     for i in 1..=3 {
         println!("\n=== Generation {} ===", i);
         let output = engine.generate(prompt, 50, 0.7)?;
