@@ -1,6 +1,6 @@
-//! OpenAI model inference engine with CUDA GPU support
+//! `OpenAI` model inference engine with CUDA GPU support
 //!
-//! Simplified engine focused on GPU-only inference for OpenAI OSS models
+//! Simplified engine focused on GPU-only inference for `OpenAI` OSS models
 
 use super::openai_model::{OpenAIConfig, OpenAIModel};
 use candle_core::{DType, Device, Tensor};
@@ -9,7 +9,7 @@ use serde_json;
 use std::path::Path;
 use tokenizers::Tokenizer;
 
-/// OpenAI inference engine with GPU support
+/// `OpenAI` inference engine with GPU support
 pub struct OpenAIEngine {
     model: OpenAIModel,
     tokenizer: Tokenizer,
@@ -20,6 +20,7 @@ pub struct OpenAIEngine {
 
 impl OpenAIEngine {
     /// Load model from safetensors files on GPU
+    #[allow(clippy::cast_possible_truncation)] // Model config values are always reasonable sizes
     pub fn load_from_safetensors<P: AsRef<Path>>(
         model_path: P,
         device: Device,
@@ -180,7 +181,7 @@ impl OpenAIEngine {
             generated_tokens.push(next_token);
 
             // Check for EOS
-            if self.is_eos_token(next_token) {
+            if Self::is_eos_token(next_token) {
                 break;
             }
 
@@ -204,6 +205,7 @@ impl OpenAIEngine {
         Ok(output)
     }
 
+    #[allow(clippy::cast_possible_truncation)] // Token IDs fit in u32
     fn sample_greedy(logits: &Tensor) -> anyhow::Result<u32> {
         let logits_vec = logits.to_vec1::<f32>()?;
         let max_idx = logits_vec
@@ -215,8 +217,9 @@ impl OpenAIEngine {
         Ok(max_idx as u32)
     }
 
+    #[allow(clippy::cast_possible_truncation)] // Token IDs fit in u32
     fn sample_with_temperature(logits: &Tensor, temperature: f32) -> anyhow::Result<u32> {
-        let logits = (logits / temperature as f64)?;
+        let logits = (logits / f64::from(temperature))?;
         let probs = candle_nn::ops::softmax_last_dim(&logits)?;
         let probs_vec = probs.to_vec1::<f32>()?;
 
@@ -235,7 +238,7 @@ impl OpenAIEngine {
         Ok((probs_vec.len() - 1) as u32)
     }
 
-    fn is_eos_token(&self, token: u32) -> bool {
+    fn is_eos_token(token: u32) -> bool {
         // Common EOS tokens
         token == 2 || token == 50256 // </s> or <|endoftext|>
     }
@@ -245,6 +248,7 @@ impl OpenAIEngine {
         self.kv_caches = vec![None; self.config.num_hidden_layers];
     }
 
+    /// Get reference to the device this engine is using
     pub fn device(&self) -> &Device {
         &self.device
     }

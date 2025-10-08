@@ -1,14 +1,14 @@
-//! OpenAI GPT model implementation for Candle
+//! `OpenAI` GPT model implementation for Candle
 //!
 //! Based on learnings from mistral.rs, implements transformer architecture
-//! for OpenAI's OSS models with CUDA GPU support.
+//! for `OpenAI`'s OSS models with CUDA GPU support.
 
 use candle_core::{DType, Device, Result, Tensor};
 use candle_nn::{embedding, layer_norm, Embedding, LayerNorm, Module, VarBuilder};
 use serde::Deserialize;
 
-/// Conv1D layer (GPT-2 style) - weights are transposed compared to standard Linear
-/// GPT-2 stores weights as [in_features, out_features] while Candle Linear expects [out_features, in_features]
+/// `Conv1D` layer (GPT-2 style) - weights are transposed compared to standard Linear
+/// GPT-2 stores weights as [`in_features`, `out_features`] while Candle Linear expects [`out_features`, `in_features`]
 #[derive(Debug)]
 pub struct Conv1D {
     weight: Tensor,
@@ -16,6 +16,7 @@ pub struct Conv1D {
 }
 
 impl Conv1D {
+    /// Create a new `Conv1D` layer
     pub fn new(in_features: usize, out_features: usize, vb: VarBuilder<'_>) -> Result<Self> {
         // GPT-2 weights are stored as [in_features, out_features]
         // We keep them as-is since we'll transpose during forward
@@ -52,26 +53,36 @@ impl Module for Conv1D {
     }
 }
 
-/// OpenAI model configuration
+/// `OpenAI` model configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct OpenAIConfig {
+    /// Size of the vocabulary
     pub vocab_size: usize,
+    /// Hidden dimension size
     #[serde(alias = "n_embd")]
     pub hidden_size: usize,
+    /// Feed-forward intermediate dimension size
     #[serde(alias = "n_inner", default = "default_intermediate_size")]
     pub intermediate_size: usize,
+    /// Number of transformer layers
     #[serde(alias = "n_layer")]
     pub num_hidden_layers: usize,
+    /// Number of attention heads
     #[serde(alias = "n_head")]
     pub num_attention_heads: usize,
+    /// Number of key-value heads for grouped query attention
     #[serde(alias = "n_head_kv")]
-    pub num_key_value_heads: Option<usize>, // For GQA
+    pub num_key_value_heads: Option<usize>,
+    /// Maximum sequence length
     #[serde(alias = "n_positions")]
     pub max_position_embeddings: usize,
+    /// Layer normalization epsilon
     #[serde(alias = "layer_norm_epsilon", default = "default_rms_norm_eps")]
     pub rms_norm_eps: f64,
+    /// `RoPE` theta parameter
     #[serde(default = "default_rope_theta")]
     pub rope_theta: f32,
+    /// Whether to use bias in linear layers
     #[serde(default = "default_use_bias")]
     pub use_bias: bool,
 }
@@ -93,14 +104,17 @@ fn default_use_bias() -> bool {
 }
 
 impl OpenAIConfig {
+    /// Get number of key-value heads
     pub fn num_key_value_heads(&self) -> usize {
         self.num_key_value_heads.unwrap_or(self.num_attention_heads)
     }
 
+    /// Get attention head dimension
     pub fn head_dim(&self) -> usize {
         self.hidden_size / self.num_attention_heads
     }
 
+    /// Get MLP intermediate size
     pub fn intermediate_size(&self) -> usize {
         if self.intermediate_size == 0 {
             // GPT-2 default: 4x hidden_size
@@ -111,7 +125,7 @@ impl OpenAIConfig {
     }
 }
 
-/// Rotary Positional Embeddings (RoPE)
+/// Rotary Positional Embeddings (`RoPE`)
 #[derive(Debug, Clone)]
 pub struct RotaryEmbedding {
     sin: Tensor,
@@ -120,6 +134,9 @@ pub struct RotaryEmbedding {
 }
 
 impl RotaryEmbedding {
+    /// Create new rotary position embeddings
+    #[allow(clippy::cast_precision_loss)] // dim is small, precision loss acceptable
+    #[allow(clippy::cast_possible_truncation)] // max_seq_len fits in u32
     pub fn new(dim: usize, max_seq_len: usize, theta: f32, device: &Device) -> Result<Self> {
         let inv_freq: Vec<_> = (0..dim)
             .step_by(2)
@@ -139,6 +156,7 @@ impl RotaryEmbedding {
         Ok(Self { sin, cos, dim })
     }
 
+    /// Apply rotary position embeddings to query and key tensors
     pub fn apply_rotary_emb(
         &self,
         q: &Tensor,
@@ -184,6 +202,7 @@ pub struct Attention {
 }
 
 impl Attention {
+    /// Create new attention layer
     pub fn new(cfg: &OpenAIConfig, vb: VarBuilder<'_>) -> Result<Self> {
         let hidden_size = cfg.hidden_size;
         let num_heads = cfg.num_attention_heads;
@@ -207,6 +226,8 @@ impl Attention {
         })
     }
 
+    /// Forward pass for multi-head attention
+    #[allow(clippy::cast_precision_loss)] // head_dim is small, precision loss acceptable
     pub fn forward(
         &self,
         hidden_states: &Tensor,
@@ -240,17 +261,14 @@ impl Attention {
         // GPT-2 does NOT apply RoPE - positional information comes from learned embeddings
 
         // Update KV cache
-        let (k, v) = match kv_cache {
-            Some((prev_k, prev_v)) => {
-                let k = Tensor::cat(&[&*prev_k, &k], 2)?.contiguous()?;
-                let v = Tensor::cat(&[&*prev_v, &v], 2)?.contiguous()?;
-                *kv_cache = Some((k.clone(), v.clone()));
-                (k, v)
-            }
-            None => {
-                *kv_cache = Some((k.clone(), v.clone()));
-                (k, v)
-            }
+        let (k, v) = if let Some((prev_k, prev_v)) = kv_cache {
+            let k = Tensor::cat(&[&*prev_k, &k], 2)?.contiguous()?;
+            let v = Tensor::cat(&[&*prev_v, &v], 2)?.contiguous()?;
+            *kv_cache = Some((k.clone(), v.clone()));
+            (k, v)
+        } else {
+            *kv_cache = Some((k.clone(), v.clone()));
+            (k, v)
         };
 
         // Repeat KV heads for GQA
@@ -303,6 +321,7 @@ pub struct MLP {
 }
 
 impl MLP {
+    /// Create new MLP layer
     pub fn new(cfg: &OpenAIConfig, vb: VarBuilder<'_>) -> Result<Self> {
         let hidden_size = cfg.hidden_size;
         let intermediate_size = cfg.intermediate_size();
@@ -314,6 +333,7 @@ impl MLP {
         Ok(Self { c_fc, c_proj })
     }
 
+    /// Forward pass for MLP
     pub fn forward(&self, hidden_states: &Tensor) -> Result<Tensor> {
         let hidden_states = self.c_fc.forward(hidden_states)?;
         // GPT-2 uses GELU activation
@@ -332,6 +352,7 @@ pub struct TransformerBlock {
 }
 
 impl TransformerBlock {
+    /// Create new transformer block
     pub fn new(cfg: &OpenAIConfig, vb: VarBuilder<'_>) -> Result<Self> {
         // GPT-2 uses "attn" for attention layer
         let attention = Attention::new(cfg, vb.pp("attn"))?;
@@ -351,6 +372,7 @@ impl TransformerBlock {
         })
     }
 
+    /// Forward pass for transformer block
     pub fn forward(
         &self,
         hidden_states: &Tensor,
@@ -373,7 +395,7 @@ impl TransformerBlock {
     }
 }
 
-/// Complete OpenAI transformer model
+/// Complete `OpenAI` transformer model
 #[derive(Debug)]
 pub struct OpenAIModel {
     embed_tokens: Embedding,
@@ -387,6 +409,7 @@ pub struct OpenAIModel {
 }
 
 impl OpenAIModel {
+    /// Create new `OpenAI` model
     pub fn new(cfg: &OpenAIConfig, vb: VarBuilder<'_>) -> Result<Self> {
         // GPT-2 uses "wte" for token embeddings
         let embed_tokens = embedding(cfg.vocab_size, cfg.hidden_size, vb.pp("wte"))?;
@@ -423,11 +446,13 @@ impl OpenAIModel {
         })
     }
 
+    /// Forward pass for the complete model
+    #[allow(clippy::cast_possible_truncation)] // Position indices fit in u32
     pub fn forward(
         &self,
         input_ids: &Tensor,
         seqlen_offset: usize,
-        kv_caches: &mut Vec<Option<(Tensor, Tensor)>>,
+        kv_caches: &mut [Option<(Tensor, Tensor)>],
     ) -> Result<Tensor> {
         let (_b_sz, seq_len) = input_ids.dims2()?;
 
@@ -463,19 +488,16 @@ impl OpenAIModel {
         let hidden_states = self.norm.forward(&hidden_states)?;
 
         // Use lm_head if available, otherwise use tied weights from wte
-        let logits = match &self.lm_head {
-            Some(lm_head) => lm_head.forward(&hidden_states)?,
-            None => {
-                // Weight tying: use wte weights [vocab_size, hidden_size]
-                // hidden_states: [batch, seq, hidden_size]
-                // Need: [batch, seq, hidden_size] @ [hidden_size, vocab_size] = [batch, seq, vocab_size]
-                let dims = hidden_states.dims();
-                let batch_seq = dims[0] * dims[1];
-                let hidden_size = dims[2];
-                let hidden_2d = hidden_states.reshape((batch_seq, hidden_size))?;
-                let logits_2d = hidden_2d.matmul(&self.wte_weight.t()?)?;
-                logits_2d.reshape((dims[0], dims[1], self.config.vocab_size))?
-            }
+        let logits = if let Some(lm_head) = &self.lm_head { lm_head.forward(&hidden_states)? } else {
+            // Weight tying: use wte weights [vocab_size, hidden_size]
+            // hidden_states: [batch, seq, hidden_size]
+            // Need: [batch, seq, hidden_size] @ [hidden_size, vocab_size] = [batch, seq, vocab_size]
+            let dims = hidden_states.dims();
+            let batch_seq = dims[0] * dims[1];
+            let hidden_size = dims[2];
+            let hidden_2d = hidden_states.reshape((batch_seq, hidden_size))?;
+            let logits_2d = hidden_2d.matmul(&self.wte_weight.t()?)?;
+            logits_2d.reshape((dims[0], dims[1], self.config.vocab_size))?
         };
 
         Ok(logits)
@@ -498,10 +520,12 @@ impl OpenAIModel {
             .unsqueeze(0)
     }
 
+    /// Get reference to the device
     pub fn device(&self) -> &Device {
         &self.device
     }
 
+    /// Get reference to the model config
     pub fn config(&self) -> &OpenAIConfig {
         &self.config
     }

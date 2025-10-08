@@ -225,6 +225,8 @@ impl CandleInferenceEngine {
         temperature: f64,
         _top_p: f64,
     ) -> Result<(Vec<u32>, Option<f64>), InferenceError> {
+        use rand::Rng;
+
         let start_time = Instant::now();
 
         // Convert input tokens to tensor
@@ -371,7 +373,9 @@ impl CandleInferenceEngine {
             };
 
             // Apply repetition penalty to reduce repetitive outputs
-            let logits = if !generated_tokens.is_empty() {
+            let logits = if generated_tokens.is_empty() {
+                logits
+            } else {
                 // Squeeze to 1D if needed
                 let logits_1d = if logits.rank() > 1 {
                     logits.squeeze(0).map_err(|e| {
@@ -411,8 +415,6 @@ impl CandleInferenceEngine {
                 } else {
                     penalized
                 }
-            } else {
-                logits
             };
 
             // Sample next token based on temperature
@@ -445,7 +447,6 @@ impl CandleInferenceEngine {
 
                 let sum: f32 = probs_vec.iter().sum();
                 let mut rng = rand::thread_rng();
-                use rand::Rng;
                 let mut random = rng.gen::<f32>() * sum;
 
                 let mut sampled_token = 0u32;
