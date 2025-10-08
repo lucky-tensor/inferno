@@ -46,6 +46,8 @@ hf-hub = { workspace = true, optional = true }
 safetensors = { workspace = true, optional = true }
 bytemuck = { version = "1.0", optional = true }
 half = { version = "2.3", optional = true }
+rand = { version = "0.8", optional = true }
+anyhow = { version = "1.0", optional = true }
 
 
 [dev-dependencies]
@@ -80,7 +82,9 @@ candle-cpu = [
     "hf-hub/tokio",
     "dep:safetensors",
     "dep:bytemuck",
-    "dep:half"
+    "dep:half",
+    "dep:rand",
+    "dep:anyhow"
 ]  # HuggingFace-compatible inference with Candle framework
 
 candle-cuda = [
@@ -92,6 +96,8 @@ candle-cuda = [
     "dep:safetensors",
     "dep:bytemuck",
     "dep:half",
+    "dep:rand",
+    "dep:anyhow",
     "candle-core/cuda",
     "candle-nn/cuda",
     "candle-transformers/cuda"

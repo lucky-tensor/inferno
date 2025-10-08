@@ -15,6 +15,7 @@ use crate::inference::{
 use super::{
     backend::CandleBackendType,
     model_config::CandleModelConfig,
+    openai_model::OpenAIModel,
     quantized_model::{CompressedTensorsLoader, QuantizedModelConfig},
     simple_quantized_llama::HybridQuantizedLlama,
     tokenizer::CandleTokenizer,
@@ -61,6 +62,7 @@ use tokenizers::Tokenizer;
 enum CandleModelType {
     Regular(Llama),
     Quantized(HybridQuantizedLlama),
+    OpenAI(OpenAIModel),
 }
 
 /// Model wrapper containing the loaded model and related components
@@ -176,6 +178,32 @@ impl CandleInferenceEngine {
         feature = "candle-cuda",
         feature = "candle-metal"
     ))]
+    async fn detect_model_type(model_path: &str) -> Result<String, InferenceError> {
+        let config_path = std::path::Path::new(model_path).join("config.json");
+        let config_data = tokio::fs::read_to_string(&config_path).await.map_err(|e| {
+            InferenceError::InitializationError(format!("Failed to read config.json: {}", e))
+        })?;
+
+        let config_json: serde_json::Value = serde_json::from_str(&config_data).map_err(|e| {
+            InferenceError::InitializationError(format!("Failed to parse config.json: {}", e))
+        })?;
+
+        // Check model_type field
+        if let Some(model_type) = config_json.get("model_type").and_then(|v| v.as_str()) {
+            return Ok(model_type.to_string());
+        }
+
+        // Fallback: check architectures array
+        if let Some(architectures) = config_json.get("architectures").and_then(|v| v.as_array()) {
+            if let Some(first_arch) = architectures.first().and_then(|v| v.as_str()) {
+                return Ok(first_arch.to_string());
+            }
+        }
+
+        // Default to llama if we can't detect
+        Ok("llama".to_string())
+    }
+
     fn create_remapping_var_builder(base_builder: VarBuilder<'_>) -> VarBuilder<'_> {
         // For Llama 3.2 models with weight tying, we need to handle the case where
         // lm_head.weight should be the same as model.embed_tokens.weight
@@ -219,6 +247,9 @@ impl CandleInferenceEngine {
         let mut current_input = input_tensor;
         let mut time_to_first_token_ms = None;
 
+        // Initialize OpenAI model KV caches (persistent across tokens)
+        let mut openai_kv_caches = vec![None; wrapper.config.num_hidden_layers];
+
         for i in 0..max_tokens {
             // Run forward pass - TRUE quantized vs regular
             let logits = match &wrapper.model {
@@ -230,6 +261,24 @@ impl CandleInferenceEngine {
                             e
                         ))
                     })?,
+                CandleModelType::OpenAI(openai_model) => {
+                    // OpenAI models use their own KV cache format
+                    // Calculate sequence offset based on input tokens + generated tokens
+                    let seqlen_offset = if i == 0 {
+                        0  // First iteration processes the entire prompt
+                    } else {
+                        input_tokens.len() + i - 1  // Subsequent iterations add one token at a time
+                    };
+
+                    openai_model
+                        .forward(&current_input, seqlen_offset, &mut openai_kv_caches)
+                        .map_err(|e| {
+                            InferenceError::ProcessingError(format!(
+                                "OpenAI model forward pass failed: {}",
+                                e
+                            ))
+                        })?
+                }
                 CandleModelType::Quantized(quantized_llama) => {
                     debug!("  Running TRUE quantized inference with INT8 weights!");
 
@@ -451,6 +500,10 @@ impl InferenceEngine for CandleInferenceEngine {
                 QuantizedModelConfig::load_and_detect_quantization(&config.model_path).await?;
             let model_config = quantized_config.base_config.clone();
 
+            // Detect model architecture type
+            let model_type_str = Self::detect_model_type(&config.model_path).await?;
+            info!("Detected model architecture: {}", model_type_str);
+
             if quantized_config.is_quantized {
                 info!("✨ Detected quantized model!");
                 info!(
@@ -597,8 +650,75 @@ impl InferenceEngine for CandleInferenceEngine {
                     &llama_config,
                 )?;
                 CandleModelType::Quantized(quantized_llama)
+            } else if model_type_str == "gpt2" || model_type_str == "GPT2LMHeadModel" {
+                // Create OpenAI/GPT-2 model
+                info!("  Loading GPT-2 model");
+
+                // Load config with GPT-2 field names
+                let config_path = std::path::Path::new(&config.model_path).join("config.json");
+                let config_data = tokio::fs::read_to_string(&config_path).await
+                    .map_err(|e| InferenceError::InitializationError(format!("Failed to read config.json: {}", e)))?;
+                let config_json: serde_json::Value = serde_json::from_str(&config_data)
+                    .map_err(|e| InferenceError::InitializationError(format!("Failed to parse config.json: {}", e)))?;
+
+                // Extract values with GPT-2 field names
+                let vocab_size = config_json["vocab_size"].as_u64()
+                    .ok_or_else(|| InferenceError::InitializationError("Missing vocab_size".to_string()))? as usize;
+                let hidden_size = config_json["n_embd"].as_u64()
+                    .or_else(|| config_json["hidden_size"].as_u64())
+                    .ok_or_else(|| InferenceError::InitializationError("Missing hidden_size/n_embd".to_string()))? as usize;
+                let num_hidden_layers = config_json["n_layer"].as_u64()
+                    .or_else(|| config_json["num_hidden_layers"].as_u64())
+                    .ok_or_else(|| InferenceError::InitializationError("Missing num_hidden_layers/n_layer".to_string()))? as usize;
+                let num_attention_heads = config_json["n_head"].as_u64()
+                    .or_else(|| config_json["num_attention_heads"].as_u64())
+                    .ok_or_else(|| InferenceError::InitializationError("Missing num_attention_heads/n_head".to_string()))? as usize;
+                let max_position_embeddings = config_json["n_positions"].as_u64()
+                    .or_else(|| config_json["n_ctx"].as_u64())
+                    .or_else(|| config_json["max_position_embeddings"].as_u64())
+                    .unwrap_or(1024) as usize;
+                let intermediate_size = config_json["n_inner"].as_u64()
+                    .or_else(|| config_json["intermediate_size"].as_u64())
+                    .unwrap_or((hidden_size * 4) as u64) as usize;
+                let layer_norm_eps = config_json["layer_norm_epsilon"].as_f64()
+                    .or_else(|| config_json["rms_norm_eps"].as_f64())
+                    .unwrap_or(1e-5);
+                let rope_theta = config_json["rope_theta"].as_f64().unwrap_or(10000.0) as f32;
+
+                let dtype = DType::F32;
+                let base_var_builder = unsafe {
+                    VarBuilder::from_mmaped_safetensors(&[&safetensors_path], dtype, &device)
+                }
+                .map_err(|e| {
+                    InferenceError::InitializationError(format!(
+                        "Failed to load SafeTensors weights: {}",
+                        e
+                    ))
+                })?;
+
+                // Create OpenAI config
+                let openai_config = super::openai_model::OpenAIConfig {
+                    vocab_size,
+                    hidden_size,
+                    intermediate_size,
+                    num_hidden_layers,
+                    num_attention_heads,
+                    num_key_value_heads: None,
+                    max_position_embeddings,
+                    rms_norm_eps: layer_norm_eps,
+                    rope_theta,
+                    use_bias: false,
+                };
+
+                let openai_model = OpenAIModel::new(&openai_config, base_var_builder).map_err(|e| {
+                    InferenceError::InitializationError(format!(
+                        "Failed to create OpenAI model: {}",
+                        e
+                    ))
+                })?;
+                CandleModelType::OpenAI(openai_model)
             } else {
-                // Create regular model
+                // Create regular Llama model
                 let dtype = DType::F32;
                 let base_var_builder = unsafe {
                     VarBuilder::from_mmaped_safetensors(&[&safetensors_path], dtype, &device)
