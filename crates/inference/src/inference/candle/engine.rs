@@ -251,6 +251,7 @@ impl CandleInferenceEngine {
 
         // Initialize OpenAI model KV caches (persistent across tokens)
         let mut openai_kv_caches = vec![None; wrapper.config.num_hidden_layers];
+        let mut openai_seqlen_offset = 0;
 
         for i in 0..max_tokens {
             // Run forward pass - TRUE quantized vs regular
@@ -265,15 +266,8 @@ impl CandleInferenceEngine {
                     })?,
                 CandleModelType::OpenAI(openai_model) => {
                     // OpenAI models use their own KV cache format
-                    // Calculate sequence offset based on input tokens + generated tokens
-                    let seqlen_offset = if i == 0 {
-                        0 // First iteration processes the entire prompt
-                    } else {
-                        input_tokens.len() + i - 1 // Subsequent iterations add one token at a time
-                    };
-
                     openai_model
-                        .forward(&current_input, seqlen_offset, &mut openai_kv_caches)
+                        .forward(&current_input, openai_seqlen_offset, &mut openai_kv_caches)
                         .map_err(|e| {
                             InferenceError::ProcessingError(format!(
                                 "OpenAI model forward pass failed: {}",
@@ -372,50 +366,7 @@ impl CandleInferenceEngine {
                 )));
             };
 
-            // Apply repetition penalty to reduce repetitive outputs
-            let logits = if generated_tokens.is_empty() {
-                logits
-            } else {
-                // Squeeze to 1D if needed
-                let logits_1d = if logits.rank() > 1 {
-                    logits.squeeze(0).map_err(|e| {
-                        InferenceError::ProcessingError(format!("Failed to squeeze logits: {}", e))
-                    })?
-                } else {
-                    logits.clone()
-                };
-
-                let mut logits_vec = logits_1d.to_vec1::<f32>().map_err(|e| {
-                    InferenceError::ProcessingError(format!("Failed to get logits vec: {}", e))
-                })?;
-
-                // Apply repetition penalty (standard implementation)
-                // If logit > 0: divide by penalty, else: multiply by penalty
-                let penalty = 1.2;
-                for &token in &generated_tokens {
-                    let idx = token as usize;
-                    if idx < logits_vec.len() {
-                        if logits_vec[idx] > 0.0 {
-                            logits_vec[idx] /= penalty;
-                        } else {
-                            logits_vec[idx] *= penalty;
-                        }
-                    }
-                }
-
-                let penalized = Tensor::from_vec(logits_vec, logits_1d.shape(), &wrapper.device).map_err(|e| {
-                    InferenceError::ProcessingError(format!("Failed to create penalized logits: {}", e))
-                })?;
-
-                // Unsqueeze back if original was 2D
-                if logits.rank() > 1 {
-                    penalized.unsqueeze(0).map_err(|e| {
-                        InferenceError::ProcessingError(format!("Failed to unsqueeze logits: {}", e))
-                    })?
-                } else {
-                    penalized
-                }
-            };
+            // Note: Repetition penalty disabled for now - was causing context loss
 
             // Sample next token based on temperature
             let next_token_tensor = if temperature > 0.0 && temperature != 1.0 {
@@ -527,6 +478,13 @@ impl CandleInferenceEngine {
                 .map_err(|e| {
                     InferenceError::ProcessingError(format!("Failed to add batch dimension: {}", e))
                 })?;
+
+            // Update OpenAI sequence offset
+            if i == 0 {
+                openai_seqlen_offset = input_tokens.len();
+            } else {
+                openai_seqlen_offset += 1;
+            }
 
             debug!("Generated token {} at step {}", next_token, i + 1);
         }
