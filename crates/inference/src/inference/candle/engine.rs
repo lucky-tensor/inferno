@@ -370,19 +370,54 @@ impl CandleInferenceEngine {
                 )));
             };
 
-            // Apply temperature scaling if specified
-            let logits = if temperature > 0.0 && temperature != 1.0 {
-                (logits / temperature).map_err(|e| {
+            // Sample next token based on temperature
+            let next_token_tensor = if temperature > 0.0 && temperature != 1.0 {
+                // Apply temperature and sample from distribution
+                let logits_scaled = (logits / temperature).map_err(|e| {
                     InferenceError::ProcessingError(format!("Temperature scaling failed: {}", e))
+                })?;
+
+                let probs = candle_nn::ops::softmax_last_dim(&logits_scaled).map_err(|e| {
+                    InferenceError::ProcessingError(format!("Softmax failed: {}", e))
+                })?;
+
+                // Sample from multinomial distribution
+                // Squeeze to 1D if needed
+                let probs_1d = if probs.rank() > 1 {
+                    probs.squeeze(0).map_err(|e| {
+                        InferenceError::ProcessingError(format!("Failed to squeeze probs: {}", e))
+                    })?
+                } else {
+                    probs
+                };
+
+                let probs_vec = probs_1d.to_vec1::<f32>().map_err(|e| {
+                    InferenceError::ProcessingError(format!("Failed to extract probabilities: {}", e))
+                })?;
+
+                let sum: f32 = probs_vec.iter().sum();
+                let mut rng = rand::thread_rng();
+                use rand::Rng;
+                let mut random = rng.gen::<f32>() * sum;
+
+                let mut sampled_token = 0u32;
+                for (idx, &prob) in probs_vec.iter().enumerate() {
+                    random -= prob;
+                    if random <= 0.0 {
+                        sampled_token = idx as u32;
+                        break;
+                    }
+                }
+
+                Tensor::new(&[sampled_token], &wrapper.device).map_err(|e| {
+                    InferenceError::ProcessingError(format!("Failed to create token tensor: {}", e))
                 })?
             } else {
-                logits
+                // Greedy sampling (argmax)
+                logits.argmax(candle_core::D::Minus1).map_err(|e| {
+                    InferenceError::ProcessingError(format!("Token sampling failed: {}", e))
+                })?
             };
-
-            // Simple argmax sampling for speed
-            let next_token_tensor = logits.argmax(candle_core::D::Minus1).map_err(|e| {
-                InferenceError::ProcessingError(format!("Token sampling failed: {}", e))
-            })?;
 
             let next_token = if next_token_tensor.rank() == 0 {
                 // Scalar tensor
