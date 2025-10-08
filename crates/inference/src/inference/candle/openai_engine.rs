@@ -136,7 +136,7 @@ impl OpenAIEngine {
         let mut current_input = input_tensor;
         let mut seqlen_offset = 0;
 
-        for _ in 0..max_tokens {
+        for i in 0..max_tokens {
             // Forward pass on GPU
             let logits = self.model.forward(&current_input, seqlen_offset, &mut self.kv_caches)?;
 
@@ -158,10 +158,16 @@ impl OpenAIEngine {
                 break;
             }
 
-            // Prepare next input
+            // Prepare next input for next iteration
             current_input = Tensor::new(&[next_token], &self.device)?
                 .unsqueeze(0)?;
-            seqlen_offset += 1;
+
+            // Update offset: first iteration processes full prompt, then +1 per token
+            if i == 0 {
+                seqlen_offset = input_tokens.len();
+            } else {
+                seqlen_offset += 1;
+            }
         }
 
         // Decode generated tokens
