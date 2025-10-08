@@ -370,6 +370,51 @@ impl CandleInferenceEngine {
                 )));
             };
 
+            // Apply repetition penalty to reduce repetitive outputs
+            let logits = if !generated_tokens.is_empty() {
+                // Squeeze to 1D if needed
+                let logits_1d = if logits.rank() > 1 {
+                    logits.squeeze(0).map_err(|e| {
+                        InferenceError::ProcessingError(format!("Failed to squeeze logits: {}", e))
+                    })?
+                } else {
+                    logits.clone()
+                };
+
+                let mut logits_vec = logits_1d.to_vec1::<f32>().map_err(|e| {
+                    InferenceError::ProcessingError(format!("Failed to get logits vec: {}", e))
+                })?;
+
+                // Apply repetition penalty (standard implementation)
+                // If logit > 0: divide by penalty, else: multiply by penalty
+                let penalty = 1.2;
+                for &token in &generated_tokens {
+                    let idx = token as usize;
+                    if idx < logits_vec.len() {
+                        if logits_vec[idx] > 0.0 {
+                            logits_vec[idx] /= penalty;
+                        } else {
+                            logits_vec[idx] *= penalty;
+                        }
+                    }
+                }
+
+                let penalized = Tensor::from_vec(logits_vec, logits_1d.shape(), &wrapper.device).map_err(|e| {
+                    InferenceError::ProcessingError(format!("Failed to create penalized logits: {}", e))
+                })?;
+
+                // Unsqueeze back if original was 2D
+                if logits.rank() > 1 {
+                    penalized.unsqueeze(0).map_err(|e| {
+                        InferenceError::ProcessingError(format!("Failed to unsqueeze logits: {}", e))
+                    })?
+                } else {
+                    penalized
+                }
+            } else {
+                logits
+            };
+
             // Sample next token based on temperature
             let next_token_tensor = if temperature > 0.0 && temperature != 1.0 {
                 // Apply temperature and sample from distribution
